@@ -16,9 +16,9 @@ __all__ = ['Explainer']
 
 
 def decimal_range(start: float, stop: float, step: float):
-    """Like the ``range`` function but works with decimal values.
+    """Like the `range` function but works for decimal values.
 
-    This is more accurate than using ``np.arange`` because it doesn't introduce
+    This is more accurate than using `np.arange` because it doesn't introduce
     any round-off errors.
 
     """
@@ -39,44 +39,89 @@ def random_id(size=20, chars=string.ascii_uppercase + string.digits):
     return 'i' + ''.join(random.choice(chars) for _ in range(size))
 
 
-class Explainer():
+def as_list(x):
+    """Converts as a list."""
+    if isinstance(x, (list, tuple, np.ndarray)):
+        return list(x)
+    return [x]
 
-    def __init__(self, alpha=0.05, tau_precision=0.05, max_iterations=5):
+
+class Explainer():
+    """
+
+    Parameters:
+        alpha (float)
+        tau_precision (float)
+        max_iterations (int)
+
+    """
+
+    def __init__(self, alpha=0.05, n_taus=20, max_iterations=5):
         self.alpha = alpha
         self.tau_precision = tau_precision
         self.max_iterations = max_iterations
 
-    def make_epsilons(self, mean, q_min, q_max, taus):
-        return [tau * ((mean - q_min) if tau < 0 else (q_max - mean)) for tau in taus]
+    def make_epsilons(self, X, taus):
+        """Returns a DataFrame containing espilons for each (column, tau) pair.
+
+        Attributes:
+            X (pandas.DataFrame)
+            taus (list of floats)
+
+        Returns:
+            pandas.DataFrame
+
+        """
+
+        q_mins = X.quantile(q=self.alpha).to_dict()
+        q_maxs = X.quantile(q=1 - self.alpha).to_dict()
+        means = X.mean().to_dict()
+
+        return pd.DataFrame({
+            col: dict(zip(
+                self.taus,
+                [tau * ((means[col] - q_mins[col]) if tau < 0 else (q_maxs[col] - means[col])) for tau in taus]
+            ))
+            for col in X.columns
+        })
 
     def fit(self, X):
+        """
+
+        Parameters:
+            X (pandas.DataFrame or numpy.ndarray)
+
+        """
 
         # TODO: make sure X is a pandas DataFrame
 
-        taus = list(decimal_range(-1, 1, self.tau_precision))
+        # Make the taus
+        self.taus = list(decimal_range(-1, 1, self.tau_precision))
 
-        # Determine the epsilons for each variable
+        # Make the epsilons
         X_num = X.select_dtypes(exclude=['object', 'category'])
-        q_mins = X_num.quantile(q=self.alpha)
-        q_maxs = X_num.quantile(q=1 - self.alpha)
-        means = X_num.mean()
-        self.epsilons = pd.DataFrame({
-            col: dict(zip(taus, self.make_epsilons(means[col], q_mins[col], q_maxs[col], taus)))
-            for col in X_num.columns
-        })
-        self.lambdas = pd.DataFrame(index=taus, columns=X_num.columns)
+        self.epsilons = self.make_epsilons(X_num, self.taus)
 
         # Find a lambda for each (column, quantile) pair
-        for col, tau in itertools.product(self.lambdas.columns, taus):
-            new_mean = means[col] + self.epsilons.loc[tau, col]
-            λ = self.compute_lambda(x=X[col], new_mean=new_mean)
+        self.lambdas = pd.DataFrame(index=self.taus, columns=X_num.columns)
+
+        for col, tau in itertools.product(self.lambdas.columns, self.taus):
+            λ = self.compute_lambda(x=X[col], eps=self.epsilons.loc[tau, col])
             self.lambdas.loc[tau, col] = λ
 
         return self
 
-    def compute_lambda(self, x, new_mean):
+    def compute_lambda(self, x, eps):
+        """Finds a good lambda for a variable and a given epsilon value.
+
+        Parameters:
+            x (array-like)
+            eps (float)
+
+        """
 
         λ = 0
+        new_mean = x.mean() + eps
 
         for _ in range(self.max_iterations):
 
@@ -85,7 +130,8 @@ class Explainer():
             sample_weights = sample_weights / sum(sample_weights)
             mean = np.average(x, weights=sample_weights)
 
-            # Do a Newton step using the difference between the mean and the target mean
+            # Do a Newton step using the difference between the mean and the
+            # target mean
             grad = mean - new_mean
             hess = np.average((x - mean) ** 2, weights=sample_weights)
             step = grad / hess
@@ -93,27 +139,126 @@ class Explainer():
 
         return λ
 
-    def plot_metric(self, X, y, y_pred, metric, column=None, ax=None):
+    def explain_predictions(self, X, y_pred, columns):
+        """Returns a DataFrame with predicted means for each (column, tau) pair.
 
-        x = X[column]
+        """
+        predictions = pd.DataFrame(
+            data={
+                col: [
+                    np.average(y_pred, weights=np.exp(λ * X[col]))
+                    for tau, λ in self.lambdas[col].items()
+                ]
+                for col in as_list(columns)
+            },
+            index=self.taus
+        )[columns]
 
-        # Evaluate the metric for each lambda
-        lambdas = self.lambdas[column]
-        scores = [
-            metric(y, y_pred, sample_weight=np.exp(λ * x))
-            for tau, λ in lambdas.items()
-        ]
+        # If there a single column we can index with epsilons instead of taus
+        if isinstance(predictions, pd.Series):
+            mean = X[predictions.name].mean()
+            predictions.index = [mean + eps for eps in self.epsilons[predictions.name]]
 
-        mean = x.mean()
-        values = [mean + eps for eps in self.epsilons[column]]
+        return predictions
 
-        # Plot the scores against the mean values
+    def plot_predictions(self, X, y_pred, columns, ax=None):
+        """Plots predicted means against variables values.
+
+        If a single column is provided then the x-axis is made of the nominal
+        values from that column. However if a list of columns is passed then
+        the x-axis contains the tau values. This method makes use of the
+        `explain_predictions` method.
+
+        """
+
+        predictions = self.explain_predictions(X=X, y_pred=y_pred, columns=columns)
+
+        # Create a plot if none is provided
         ax = plt.axes() if ax is None else ax
-        ax.grid(True)
-        ax.plot(values, scores)
+
+        if isinstance(predictions, pd.Series):
+
+            # If a single column is provided then we can plot prediction means
+            # against values
+            ax.plot(predictions)
+            ax.set_xlabel(predictions.name)
+
+        else:
+
+            # If more than column is provided then we can plot scores against values
+            # for each column OR plot scores against taus on one single axis
+            for col in predictions.columns:
+                ax.plot(predictions[col], label=col)
+            ax.legend()
+            ax.set_xlabel(r'$\tau$')
 
         # Prettify the plot
-        ax.set_xlabel(column)
+        ax.grid(True)
+        ax.set_ylabel('Target mean')
+
+        return ax
+
+    def explain_metric(self, X, y, y_pred, metric, columns):
+        """Returns a DataFrame with metric values for each (column, tau) pair.
+
+        """
+        metrics = pd.DataFrame(
+            data={
+                col: [
+                    metric(y, y_pred, sample_weight=np.exp(λ * X[col]))
+                    for tau, λ in self.lambdas[col].items()
+                ]
+                for col in as_list(columns)
+            },
+            index=self.taus
+        )[columns]
+
+        # If there a single column we can index with epsilons instead of taus
+        if isinstance(metrics, pd.Series):
+            mean = X[metrics.name].mean()
+            metrics.index = [mean + eps for eps in self.epsilons[metrics.name]]
+
+        return metrics
+
+    def plot_metric(self, X, y, y_pred, metric, columns, ax=None):
+        """Plots metric values against variable values.
+
+        If a single column is provided then the x-axis is made of the nominal
+        values from that column. However if a list of columns is passed then
+        the x-axis contains the tau values. This method makes use of the
+        `explain_metric` method.
+
+        """
+
+        metrics = self.explain_metric(
+            X=X,
+            y=y,
+            y_pred=y_pred,
+            metric=metric,
+            columns=columns
+        )
+
+        # Create a plot if none is provided
+        ax = plt.axes() if ax is None else ax
+
+        if isinstance(metrics, pd.Series):
+
+            # If a single column is provided then we can plot scores against
+            # values
+            ax.plot(metrics)
+            ax.set_xlabel(metrics.name)
+
+        else:
+
+            # If more than column is provided then we can plot scores against values
+            # for each column OR plot scores against taus on one single axis
+            for col in metrics.columns:
+                ax.plot(metrics[col], label=col)
+            ax.legend()
+            ax.set_xlabel(r'$\tau$')
+
+        # Prettify the plot
+        ax.grid(True)
         ax.set_ylabel(metric.__name__)
 
         return ax
@@ -146,6 +291,10 @@ class Explainer():
         data = [10, 60, 40, 5, 30, 10]
         width = 500
         height = 200
+
+        here = os.path.dirname(__file__)
+        display.display(display.HTML(os.path.join(here, 'resources', 'circles.css.html')))
+
         return display.display(display.Javascript("""
             (function(element){
                 require(['circles'], function(circles) {
