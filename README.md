@@ -40,6 +40,15 @@ model = lgb.LGBMClassifier(random_state=42).fit(X_train, y_train)
 y_pred = model.predict_proba(X_test)[:, 1]
 ```
 
+We can now fit an `Explainer` using the features from the test set. This will analyze the distribution of each feature and build a set of `lambda` coefficients which can be used to explain model predictions.
+
+```python
+from ethik import Explainer
+
+explainer = Explainer()
+explainer = explainer.fit(X_test)
+```
+
 ### Measuring model bias
 
 `ethik` can be used to understand how model predictions vary as a function of one or more features. For example we may want to know how the predictions vary with respect to the `age` feature.
