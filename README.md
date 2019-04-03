@@ -6,7 +6,7 @@ Ethik is a [fair learning](https://www.microsoft.com/en-us/research/blog/machine
 
 ## Installation
 
-:warning: Python 3.6 or above is required.
+:warning: Python 3.6 or above is required :snake:
 
 **Via [PyPI](https://pypi.org/project/ethik/)**
 
