@@ -1,7 +1,6 @@
 import base64
 import decimal
 import itertools
-import json
 import os
 import random
 import string
@@ -56,10 +55,22 @@ class Explainer():
 
     """
 
-    def __init__(self, alpha=0.05, n_taus=20, max_iterations=5):
+    def __init__(self, alpha=0.05, n_taus=41, max_iterations=5):
         self.alpha = alpha
-        self.tau_precision = tau_precision
+        self.n_taus = n_taus
         self.max_iterations = max_iterations
+
+    def check_parameters(self):
+        """Raises a `ValueError` if any parameter is invalid."""
+        if not 0 < self.alpha < 0.5:
+            raise ValueError(f'alpha must be between 0 and 0.5, got {self.alpha}')
+
+        if not self.n_taus > 0:
+            raise ValueError(f'n_taus must be a strictly positive integer, got {self.n_taus}')
+
+        if not self.max_iterations > 0:
+            raise ValueError('max_iterations must be a strictly positive integer, ' +
+                             f'got {self.max_iterations}')
 
     def make_epsilons(self, X, taus):
         """Returns a DataFrame containing espilons for each (column, tau) pair.
@@ -80,7 +91,14 @@ class Explainer():
         return pd.DataFrame({
             col: dict(zip(
                 self.taus,
-                [tau * ((means[col] - q_mins[col]) if tau < 0 else (q_maxs[col] - means[col])) for tau in taus]
+                [
+                    tau * (
+                        (means[col] - q_mins[col])
+                        if tau < 0 else
+                        (q_maxs[col] - means[col])
+                    )
+                    for tau in taus
+                ]
             ))
             for col in X.columns
         })
@@ -93,10 +111,12 @@ class Explainer():
 
         """
 
-        # TODO: make sure X is a pandas DataFrame
+        # Check the parameters are correct
+        self.check_parameters()
 
         # Make the taus
-        self.taus = list(decimal_range(-1, 1, self.tau_precision))
+        tau_precision = 2 / (self.n_taus - 1)
+        self.taus = list(decimal_range(-1, 1, tau_precision))
 
         # Make the epsilons
         X_num = X.select_dtypes(exclude=['object', 'category'])
@@ -266,39 +286,22 @@ class Explainer():
     def initjs(self):
 
         # Load JavaScript dependencies
-        display.display(display.Javascript("""
+        display.display(display.Javascript('''
             require.config({
                 paths: {
-                    d3: 'https://d3js.org/d3.v5.min'
+                    d3: "https://d3js.org/d3.v5.min"
                 }
             });
-        """))
+        '''))
 
         # Load the JavaScript logo
         here = os.path.dirname(__file__)
         logo_path = os.path.join(here, 'resources', 'js_logo.png')
         with open(logo_path, 'rb') as f:
             logo_data = f.read()
-        logo_data = base64.b64encode(logo_data).decode('utf-8')
 
-        return display.HTML(string.Template("""
+        display.display(display.HTML(string.Template('''
             <div align="center">
                 <img src="data:image/png;base64,$logo_data" />
             </div>
-        """).substitute(logo_data=logo_data))
-
-    def plot_fuzz(self):
-        data = [10, 60, 40, 5, 30, 10]
-        width = 500
-        height = 200
-
-        here = os.path.dirname(__file__)
-        display.display(display.HTML(os.path.join(here, 'resources', 'circles.css.html')))
-
-        return display.display(display.Javascript("""
-            (function(element){
-                require(['circles'], function(circles) {
-                    circles(element.get(0), %s, %d, %d);
-                });
-            })(element);
-        """ % (json.dumps(data), width, height)))
+        ''').substitute(logo_data=base64.b64encode(logo_data).decode('utf-8'))))
