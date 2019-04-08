@@ -213,7 +213,7 @@ class Explainer():
             ax.set_xlabel(r'$\tau$')
 
         # Prettify the plot
-        ax.grid(which='major', axis='y')
+        ax.grid(True)
         ax.set_ylabel('Target mean')
         for side in ['top', 'right']:
             ax.spines[side].set_visible(False)
@@ -280,7 +280,7 @@ class Explainer():
             ax.set_xlabel(r'$\tau$')
 
         # Prettify the plot
-        ax.grid(which='major', axis='y')
+        ax.grid(True)
         ax.set_ylabel(metric.__name__)
         for side in ['top', 'right']:
             ax.spines[side].set_visible(False)
