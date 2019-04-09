@@ -50,7 +50,7 @@ model = lgb.LGBMClassifier(random_state=42).fit(X_train, y_train)
 y_pred = model.predict_proba(X_test)[:, 1]
 ```
 
-We can now fit an `Explainer` using the features from the test set. This will analyze the distribution of each feature and build a set of `lambda` coefficients which can be used to explain model predictions.
+We can now fit an `Explainer` **using the features from the test set**. This will analyze the distribution of each feature and build a set of `lambda` coefficients which can be used to explain model predictions.
 
 ```python
 import ethik
@@ -75,9 +75,9 @@ explainer.plot_predictions(
     <img src="figures/age_predictions.svg" alt="Age predictions" />
 </div>
 
-Recall that the target indicates if a person's salary is above $50k. **We can see that the model predicts higher probabilities for older people**. This isn't a surprising result, and could have just as well been observed during exploratory data analysis. However, we can see that the predictions plateau at around 50 years old. Indeed, although salary is correlated with age, some people may retired early or get laid off from their job. Furthermore we can see that the model understands the fact that salaries shrink once people get in age of retiring. This up-and-down relationship is in nature non-linear, and isn't picked up by summary statistics such as correlation coefficients, [odds ratios](https://www.wikiwand.com/en/Odds_ratio), and feature importances in general. Although the observations we made are quite obvious and rather intuitive, it's always good to confirm what the model is thinking. The point is that the curves produced by `plot_predictions` represent the relationship between a variable and a target according to the model.
+Recall that the target indicates if a person's salary is above $50k. **We can see that the model predicts higher probabilities for older people**. This isn't a surprising result, and could have just as well been observed during exploratory data analysis. However, we can see that the predictions plateau at around 50 years old. Indeed, although salary is correlated with age, some people may retire early or lose their job. Furthermore we can see that the model understands the fact that salaries shrink once people get in age of retiring. This up-and-down relationship is in nature non-linear, and isn't picked up by summary statistics such as correlation coefficients, [odds ratios](https://www.wikiwand.com/en/Odds_ratio), and feature importances in general. Although the observations we made are quite obvious and rather intuitive, it's always good to confirm what the model is thinking. The point is that the curves produced by `plot_predictions` represent the relationship between a variable and the target according to the model, rather than the data.
 
-We can also plot the distribution of predictions for more than one variable. However, because different variables have different scales we have to use a common measure to align them together. For this purpose we plot the τ ("tau") values. This values are contained between -1 and 1 and simply reflect by how much the variable is shifted from it's mean. In the following figure a tau value of -1 corresponds to just under 20 years old whereas a tau value of 1 refers to being slightly over 60 years old.
+We can also plot the distribution of predictions for more than one variable. However, because different variables have different scales we have to use a common measure to display them together. For this purpose we plot the τ ("tau") values. These values are contained between -1 and 1 and simply reflect by how much the variable is shifted from it's mean towards it's lower and upper quantiles. In the following figure a tau value of -1 corresponds to just under 20 years old whereas a tau value of 1 refers to being slightly over 60 years old.
 
 ```python
 explainer.plot_predictions(
