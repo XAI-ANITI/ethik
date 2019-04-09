@@ -63,14 +63,16 @@ class Explainer():
     def check_parameters(self):
         """Raises a `ValueError` if any parameter is invalid."""
         if not 0 < self.alpha < 0.5:
-            raise ValueError(f'alpha must be between 0 and 0.5, got {self.alpha}')
+            raise ValueError('alpha must be between 0 and 0.5, got '
+                             f'{self.alpha}')
 
         if not self.n_taus > 0:
-            raise ValueError(f'n_taus must be a strictly positive integer, got {self.n_taus}')
+            raise ValueError('n_taus must be a strictly positive integer, got '
+                             f'{self.n_taus}')
 
         if not self.max_iterations > 0:
-            raise ValueError('max_iterations must be a strictly positive integer, ' +
-                             f'got {self.max_iterations}')
+            raise ValueError('max_iterations must be a strictly positive '
+                             f'integer, got {self.max_iterations}')
 
     def make_epsilons(self, X, taus):
         """Returns a DataFrame containing espilons for each (column, tau) pair.
@@ -163,7 +165,7 @@ class Explainer():
         """Returns a DataFrame with predicted means for each (column, tau) pair.
 
         """
-        predictions = pd.DataFrame(
+        preds = pd.DataFrame(
             data={
                 col: [
                     np.average(y_pred, weights=np.exp(λ * X[col]))
@@ -175,11 +177,11 @@ class Explainer():
         )[columns]
 
         # If there a single column we can index with epsilons instead of taus
-        if isinstance(predictions, pd.Series):
-            mean = X[predictions.name].mean()
-            predictions.index = [mean + eps for eps in self.epsilons[predictions.name]]
+        if isinstance(preds, pd.Series):
+            mean = X[preds.name].mean()
+            preds.index = [mean + eps for eps in self.epsilons[preds.name]]
 
-        return predictions
+        return preds
 
     def plot_predictions(self, X, y_pred, columns, ax=None):
         """Plots predicted means against variables values.
@@ -191,7 +193,8 @@ class Explainer():
 
         """
 
-        predictions = self.explain_predictions(X=X, y_pred=y_pred, columns=columns)
+        predictions = self.explain_predictions(X=X, y_pred=y_pred,
+                                               columns=columns)
 
         # Create a plot if none is provided
         ax = plt.axes() if ax is None else ax
@@ -205,8 +208,9 @@ class Explainer():
 
         else:
 
-            # If more than column is provided then we can plot scores against values
-            # for each column OR plot scores against taus on one single axis
+            # If more than column is provided then we can plot scores against
+            # values for each column OR plot scores against taus on one single
+            # axis
             for col in predictions.columns:
                 ax.plot(predictions[col], label=col)
             ax.legend()
@@ -272,8 +276,9 @@ class Explainer():
 
         else:
 
-            # If more than column is provided then we can plot scores against values
-            # for each column OR plot scores against taus on one single axis
+            # If more than column is provided then we can plot scores against
+            # values for each column OR plot scores against taus on one single
+            # axis
             for col in metrics.columns:
                 ax.plot(metrics[col], label=col)
             ax.legend()
@@ -306,6 +311,6 @@ class Explainer():
 
         display.display(display.HTML(string.Template('''
             <div align="center">
-                <img src="data:image/png;base64,$logo_data" />
+                <img src="data:image/png;base64,$logo" />
             </div>
-        ''').substitute(logo_data=base64.b64encode(logo_data).decode('utf-8'))))
+        ''').substitute(logo=base64.b64encode(logo_data).decode('utf-8'))))
