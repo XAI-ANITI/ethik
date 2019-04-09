@@ -50,7 +50,7 @@ model = lgb.LGBMClassifier(random_state=42).fit(X_train, y_train)
 y_pred = model.predict_proba(X_test)[:, 1]
 ```
 
-We can now fit an `Explainer` **using the features from the test set**. This will analyze the distribution of each feature and build a set of `lambda` coefficients which can be used to explain model predictions.
+We can now fit an `Explainer` using the features from the test set. This will analyze the distribution of each feature and build a set of `lambda` coefficients which can be used to explain model predictions.
 
 ```python
 import ethik
