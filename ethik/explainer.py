@@ -6,6 +6,7 @@ import random
 import string
 
 from IPython import display
+import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -45,20 +46,107 @@ def as_list(x):
     return [x]
 
 
+def to_pandas(x):
+    """Converts an array-like to a Series or a DataFrame depending on the dimensionality."""
+
+    if isinstance(x, (pd.Series, pd.DataFrame)):
+        return x
+
+    if isinstance(x, np.ndarray):
+        if x.ndim > 2:
+            raise ValueError('x must have 1 or 2 dimensions')
+        if x.ndim == 2:
+            return pd.DataFrame(x)
+        return pd.Series(x)
+
+    return to_pandas(np.asarray(x))
+
+
+def compute_lambdas(x, epsilons, max_iterations=5):
+    """Finds a good lambda for a variable and a given epsilon value.
+
+    Parameters:
+        x (array-like)
+        eps (float)
+
+    """
+
+    # from scipy import optimize
+
+    # new_mean = x.mean() + eps
+
+    # res = optimize.minimize(
+    #     fun=lambda λ: np.log(np.mean(np.exp(λ * x))) - λ * new_mean,
+    #     options={'maxiter': 10},
+    #     x0=0.,
+    #     method='Nelder-Mead'
+    # )
+
+    # return res.x[0]
+
+    mean = x.mean()
+    lambdas = np.empty(len(epsilons))
+
+    for i, eps in enumerate(epsilons):
+
+        λ = 0
+        current_mean = mean
+        target_mean = mean + eps
+
+        for _ in range(max_iterations):
+
+            # Update the sample weights and see where the mean is
+            sample_weights = np.exp(λ * x)
+            sample_weights = sample_weights / sum(sample_weights)
+            current_mean = np.average(x, weights=sample_weights)
+
+            # Do a Newton step using the difference between the mean and the
+            # target mean
+            grad = current_mean - target_mean
+            hess = np.average((x - current_mean) ** 2, weights=sample_weights)
+            step = grad / hess
+            λ -= step
+
+        lambdas[i] = λ
+
+    return lambdas
+
+
+def compute_pred_means(X, lambdas, y_pred):
+    return pd.DataFrame(
+        data={
+            col: [
+                np.average(y_pred, weights=np.exp(λ * X[col]))
+                for tau, λ in lambdas[col].items()
+            ]
+            for col in X.columns
+        }
+    )
+
+
 class Explainer():
     """
 
     Parameters:
-        alpha (float)
-        tau_precision (float)
-        max_iterations (int)
+        alpha (float): A `float` between `0` and `0.5` which indicates by how close the `Explainer`
+            should look at extreme values of a distribution. The closer to zero, the more so
+            extreme values will be accounted for. The default is `0.05` which means that all values
+            beyond the 5th and 95th quantiles are ignored.
+        n_taus (int): The number of τ values to consider. The results will be more fine-grained the
+            higher this value is. However the computation time increases linearly with `n_taus`.
+            The default is `41` and corresponds to each τ being separated by it's neighbors by
+            `0.05`.
+        max_iterations (int): The maximum number of iterations used when applying the Newton step
+            of the optimization procedure.
 
     """
 
-    def __init__(self, alpha=0.05, n_taus=41, max_iterations=5):
+    def __init__(self, alpha=0.05, n_taus=41, max_iterations=5, n_jobs=-1, verbose=False):
         self.alpha = alpha
         self.n_taus = n_taus
         self.max_iterations = max_iterations
+        self.n_jobs = n_jobs
+        self.verbose = verbose
 
     def check_parameters(self):
         """Raises a `ValueError` if any parameter is invalid."""
@@ -113,6 +201,9 @@ class Explainer():
 
         """
 
+        if isinstance(X, np.ndarray):
+            X = pd.DataFrame(X)
+
         # Check the parameters are correct
         self.check_parameters()
 
@@ -125,65 +216,70 @@ class Explainer():
         self.epsilons = self.make_epsilons(X_num, self.taus)
 
         # Find a lambda for each (column, quantile) pair
-        self.lambdas = pd.DataFrame(index=self.taus, columns=X_num.columns)
-
-        for col, tau in itertools.product(self.lambdas.columns, self.taus):
-            λ = self.compute_lambda(x=X[col], eps=self.epsilons.loc[tau, col])
-            self.lambdas.loc[tau, col] = λ
+        lambdas = joblib.Parallel(
+            n_jobs=self.n_jobs,
+            verbose=self.verbose,
+        )(
+            joblib.delayed(compute_lambdas)(
+                x=X[col],
+                epsilons=self.epsilons[col].to_numpy(),
+                max_iterations=self.max_iterations
+            )
+            for col in X_num.columns
+        )
+        self.lambdas = pd.DataFrame(data=dict(zip(X_num.columns, lambdas)), index=self.taus)
 
         return self
 
-    def compute_lambda(self, x, eps):
-        """Finds a good lambda for a variable and a given epsilon value.
-
-        Parameters:
-            x (array-like)
-            eps (float)
+    def explain_predictions(self, X, y_pred, features=None):
+        """Returns a DataFrame containing average predictions for each (column, tau) pair.
 
         """
 
-        λ = 0
-        new_mean = x.mean() + eps
+        # Coerce X and y_pred to DataFrames
+        X = pd.DataFrame(to_pandas(X))
+        y_pred = pd.DataFrame(to_pandas(y_pred))
 
-        for _ in range(self.max_iterations):
+        # Determine the list of features
+        if features is None:
+            features = self.lambdas.columns.tolist()
+        features = as_list(features)
 
-            # Update the sample weights and see where the mean is
-            sample_weights = np.exp(λ * x)
-            sample_weights = sample_weights / sum(sample_weights)
-            mean = np.average(x, weights=sample_weights)
+        # Compute the average predictions for each (column, tau) pair per label
+        preds = joblib.Parallel(
+            n_jobs=self.n_jobs,
+            verbose=self.verbose,
+        )(
+            joblib.delayed(compute_pred_means)(
+                X=X[features],
+                lambdas=self.lambdas,
+                y_pred=y_pred[label]
+            )
+            for label in y_pred.columns
+        )
+        preds = pd.concat(preds, axis='columns', ignore_index=True)
+        preds.columns = pd.MultiIndex.from_tuples(
+            tuples=itertools.product(y_pred.columns, features),
+            names=['labels', 'features']
+        )
 
-            # Do a Newton step using the difference between the mean and the
-            # target mean
-            grad = mean - new_mean
-            hess = np.average((x - mean) ** 2, weights=sample_weights)
-            step = grad / hess
-            λ -= step
+        # If there is single feature we can index with epsilons instead of taus
+        if len(features) == 1:
+            feature = features[0]
+            mean = X[feature].mean()
+            preds.index = [mean + eps for eps in self.epsilons[feature]]
+        else:
+            preds.index = self.taus
 
-        return λ
-
-    def explain_predictions(self, X, y_pred, columns):
-        """Returns a DataFrame with predicted means for each (column, tau) pair.
-
-        """
-        preds = pd.DataFrame(
-            data={
-                col: [
-                    np.average(y_pred, weights=np.exp(λ * X[col]))
-                    for tau, λ in self.lambdas[col].items()
-                ]
-                for col in as_list(columns)
-            },
-            index=self.taus
-        )[columns]
-
-        # If there a single column we can index with epsilons instead of taus
-        if isinstance(preds, pd.Series):
-            mean = X[preds.name].mean()
-            preds.index = [mean + eps for eps in self.epsilons[preds.name]]
+        # Remove unnecessary column levels
+        if len(preds.columns.unique('labels')) == 1:
+            preds.columns = preds.columns.droplevel('labels')
+        if isinstance(preds.columns, pd.MultiIndex) and len(preds.columns.unique('features')) == 1:
+            preds.columns = preds.columns.droplevel('features')
 
         return preds
 
-    def plot_predictions(self, X, y_pred, columns, ax=None):
+    def plot_predictions(self, X, y_pred, features, ax=None):
         """Plots predicted means against variables values.
 
         If a single column is provided then the x-axis is made of the nominal
@@ -193,27 +289,27 @@ class Explainer():
 
         """
 
-        predictions = self.explain_predictions(X=X, y_pred=y_pred,
-                                               columns=columns)
+        features = as_list(features)
+        means = self.explain_predictions(X=X, y_pred=y_pred, features=features)
 
-        # Create a plot if none is provided
+        # Create a plot if none has been provided
         ax = plt.axes() if ax is None else ax
 
-        if isinstance(predictions, pd.Series):
+        def to_label(col):
+            if isinstance(col, tuple):
+                return f'{col[0]} - {col[1]}'
 
-            # If a single column is provided then we can plot prediction means
-            # against values
-            ax.plot(predictions)
-            ax.set_xlabel(predictions.name)
+        for col in means.columns:
+            ax.plot(means[col], label=to_label(col))
 
-        else:
-
-            # If more than column is provided then we can plot scores against
-            # values for each column OR plot scores against taus on one single
-            # axis
-            for col in predictions.columns:
-                ax.plot(predictions[col], label=col)
+        # Add the legend if necessary
+        if len(means.columns) > 1:
             ax.legend()
+
+        # Set the x-axis label appropriately
+        if len(features) == 1:
+            ax.set_xlabel(features[0])
+        else:
             ax.set_xlabel(r'$\tau$')
 
         # Prettify the plot
@@ -224,20 +320,32 @@ class Explainer():
 
         return ax
 
-    def explain_metric(self, X, y, y_pred, metric, columns):
+    def explain_metric(self, X, y, y_pred, metric, features=None):
         """Returns a DataFrame with metric values for each (column, tau) pair.
 
+        Parameters:
+            metric (callable): A function that evaluates the quality of a set of predictions. Must
+                have the following signature: `metric(y_true, y_pred, sample_weights)`. Most
+                metrics from scikit-learn will work.
+
         """
+
+        if isinstance(X, np.ndarray):
+            X = pd.DataFrame(X)
+
+        if features is None:
+            features = self.lambdas.columns.tolist()
+
         metrics = pd.DataFrame(
             data={
                 col: [
                     metric(y, y_pred, sample_weight=np.exp(λ * X[col]))
                     for tau, λ in self.lambdas[col].items()
                 ]
-                for col in as_list(columns)
+                for col in as_list(features)
             },
             index=self.taus
-        )[columns]
+        )[features]
 
         # If there a single column we can index with epsilons instead of taus
         if isinstance(metrics, pd.Series):
@@ -246,7 +354,7 @@ class Explainer():
 
         return metrics
 
-    def plot_metric(self, X, y, y_pred, metric, columns, ax=None):
+    def plot_metric(self, X, y, y_pred, metric, features, ax=None):
         """Plots metric values against variable values.
 
         If a single column is provided then the x-axis is made of the nominal
@@ -261,7 +369,7 @@ class Explainer():
             y=y,
             y_pred=y_pred,
             metric=metric,
-            columns=columns
+            features=features
         )
 
         # Create a plot if none is provided

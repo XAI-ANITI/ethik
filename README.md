@@ -5,8 +5,8 @@
 * [User guide](#user-guide)
     * [Measuring model bias](#measuring-model-bias)
     * [Evaluating model reliability](#evaluating-model-reliability)
+    * [Handling images](#handling-images)
 * [API](#api)
-    * [ethik.Explainer](#ethik-explainer)
 * [Authors](#authors)
 * [License](#license)
 
@@ -32,7 +32,9 @@ Ethik is a Python package for performing [fair](https://www.microsoft.com/en-us/
 
 ## User guide
 
-In the following set of example we'll be using from the ["Adult" dataset](https://archive.ics.uci.edu/ml/datasets/adult). The dataset contains a binary label indicating if a person's annual income is larger than $50k per year. `ethik` analyzes a model based on the predictions it makes on a test set. Consequently you first have to split your dataset in two.
+:point-up: For more detailed code please see [this notebook](notebooks/Adult.ipynb)
+
+In the following example we'll be using the ["Adult" dataset](https://archive.ics.uci.edu/ml/datasets/adult). This dataset contains a binary label indicating if a person's annual income is larger than $50k per year. `ethik` analyzes a model based on the predictions it makes on a test set. Consequently you first have to split your dataset in two.
 
 ```python
 from sklearn import model_selection
@@ -129,73 +131,30 @@ explainer.plot_metric(
     <img src="figures/age_education_accuracy.svg" alt="Age and education accuracy" />
 </div>
 
-## API
+### Handling images
 
-### `ethik.Explainer`
+A special class named `ImageExplainer` can be used to analyze image classification models. It has the same API as `Explainer` but expects to be provided with an array of images. For example we can analyze a CNN run on the MNIST dataset [from the Keras documendation](https://keras.io/examples/mnist_cnn/). The model achieves an accuracy of around 99% on the test set.
 
-**Usage**
+We'll first produce predictions for the test set. `x_test` is expected to be an array of shape (`n_images`, `width`, `height`, `n_channels`). Because we are using the MNIST dataset, `x_test` is an array of shape `(10000, 28, 28, 1)`.
+
+```python
+y_pred = model.predict_proba(x_test)
+```
+
+We will now fit an `ImageExplainer` to analyze the images in parallel using `n_jobs=-1`.
 
 ```python
 import ethik
 
-explainer = ethik.Explainer(
-    alpha=0.05,
-    n_taus=41,
-    max_iterations=5
-)
+explainer = ethik.ImageExplainer(n_jobs=-1)
+explainer = explainer.fit(x_test)
 ```
 
-**Parameters**
 
-- `alpha`: A `float` between `0` and `0.5` which indicates by how close the `Explainer` should look at extreme values of a distribution. The closer to zero, the more so extreme values will be accounted for. The default is `0.05` which means that all values beyond the 5th and 95th quantiles are ignored.
-- `n_taus`: A positive `int` indicating the number of τ values to consider. The results will be more fine-grained the higher this value is. However the computation time increases linearly with `n_taus`. The default is `41` and corresponds to each τ being separated by it's neighbors by `0.05`.
-- `max_iterations`: A positive `int` which corresponds to the maximum number of iterations used when applying the Newton step of our optimization algorithm. The default value is `5` and is sufficient.
 
-**Methods**
+## API
 
-**`fit`**
 
-- `X`: A `pandas.DataFrame`.
-
-This will analyze the input dataset in order to understand it's distribution. The computation time scales linearly with the number of variables and the `n_taus` parameter.
-
-**`explain_predictions`**
-
-- `X`: A `pandas.DataFrame`.
-- `y_pred`: A `pandas.Series`, but any array-like object will work too.
-- `columns`: A column name, or a list of column names.
-
-This returns a `pandas.DataFrame` containing average predictions with respect to the distribution of the `columns`. If a single column name is provided then this returns a `pandas.Series`.
-
-**`plot_predictions`**
-
-- `X`: A `pandas.DataFrame`.
-- `y_pred`: A `pandas.Series` containing predictions, but any array-like object will work too.
-- `columns`: A column name, or a list of column names.
-- `ax`: An optional `matplotlib.AxesSubplot` instance.
-
-This plots the results from the `explain_predictions` method.
-
-**`explain_metric`**
-
-- `X`: A `pandas.DataFrame`.
-- `y`: A `pandas.Series` containing true target values, but any array-like object will work too.
-- `y_pred`: A `pandas.Series` containing true target values, but any array-like object will work too.
-- `metric`: A function that evaluates the quality of a set of predictions. Must have the following signature: `metric(y_true, y_pred, sample_weights)`. Most metrics from scikit-learn will work.
-- `columns`: A column name, or a list of column names.
-
-This returns a `pandas.DataFrame` containing metric values with respect to the distribution of the `columns`. If a single column name is provided then this returns a `pandas.Series`.
-
-**`plot_metric`**
-
-- `X`: A `pandas.DataFrame`.
-- `y`: A `pandas.Series` containing true target values, but any array-like object will work too.
-- `y_pred`: A `pandas.Series` containing true target values, but any array-like object will work too.
-- `metric`: A function that evaluates the quality of a set of predictions. Must have the following signature: `metric(y_true, y_pred, sample_weights)`. Most metrics from scikit-learn will work.
-- `columns`: A column name, or a list of column names.
-- `ax`: An optional `matplotlib.AxesSubplot` instance.
-
-This plots the results from the `explain_metric` method.
 
 ## Authors
 
