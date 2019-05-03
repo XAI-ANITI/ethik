@@ -39,13 +39,6 @@ def random_id(size=20, chars=string.ascii_uppercase + string.digits):
     return 'i' + ''.join(random.choice(chars) for _ in range(size))
 
 
-def as_list(x):
-    """Converts as a list."""
-    if isinstance(x, (list, tuple, np.ndarray)):
-        return list(x)
-    return [x]
-
-
 def to_pandas(x):
     """Converts an array-like to a Series or a DataFrame depending on the dimensionality."""
 
@@ -231,7 +224,7 @@ class Explainer():
 
         return self
 
-    def explain_predictions(self, X, y_pred, features=None):
+    def explain_predictions(self, X, y_pred):
         """Returns a DataFrame containing average predictions for each (column, tau) pair.
 
         """
@@ -240,18 +233,13 @@ class Explainer():
         X = pd.DataFrame(to_pandas(X))
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
-        # Determine the list of features
-        if features is None:
-            features = self.lambdas.columns.tolist()
-        features = as_list(features)
-
         # Compute the average predictions for each (column, tau) pair per label
         preds = joblib.Parallel(
             n_jobs=self.n_jobs,
             verbose=self.verbose,
         )(
             joblib.delayed(compute_pred_means)(
-                X=X[features],
+                X=X,
                 lambdas=self.lambdas,
                 y_pred=y_pred[label]
             )
@@ -259,17 +247,19 @@ class Explainer():
         )
         preds = pd.concat(preds, axis='columns', ignore_index=True)
         preds.columns = pd.MultiIndex.from_tuples(
-            tuples=itertools.product(y_pred.columns, features),
+            tuples=itertools.product(y_pred.columns, X.columns),
             names=['labels', 'features']
         )
 
         # If there is single feature we can index with epsilons instead of taus
-        if len(features) == 1:
-            feature = features[0]
+        if len(X.columns) == 1:
+            feature = X.columns[0]
             mean = X[feature].mean()
             preds.index = [mean + eps for eps in self.epsilons[feature]]
+            preds.index.name = feature
         else:
             preds.index = self.taus
+            preds.index.name = r'$\tau$'
 
         # Remove unnecessary column levels
         if len(preds.columns.unique('labels')) == 1:
@@ -277,9 +267,11 @@ class Explainer():
         if isinstance(preds.columns, pd.MultiIndex) and len(preds.columns.unique('features')) == 1:
             preds.columns = preds.columns.droplevel('features')
 
+        if len(preds.columns) == 1:
+            return preds[preds.columns[0]]
         return preds
 
-    def plot_predictions(self, X, y_pred, features, ax=None):
+    def plot_predictions(self, X, y_pred, ax=None):
         """Plots predicted means against variables values.
 
         If a single column is provided then the x-axis is made of the nominal
@@ -288,9 +280,9 @@ class Explainer():
         `explain_predictions` method.
 
         """
-
-        features = as_list(features)
-        means = self.explain_predictions(X=X, y_pred=y_pred, features=features)
+        means = self.explain_predictions(X=X, y_pred=y_pred)
+        if isinstance(means, pd.Series):
+            means = means.to_frame()
 
         # Create a plot if none has been provided
         ax = plt.axes() if ax is None else ax
@@ -307,8 +299,8 @@ class Explainer():
             ax.legend()
 
         # Set the x-axis label appropriately
-        if len(features) == 1:
-            ax.set_xlabel(features[0])
+        if len(means.columns) == 1:
+            ax.set_xlabel(means.columns[0])
         else:
             ax.set_xlabel(r'$\tau$')
 
@@ -320,7 +312,7 @@ class Explainer():
 
         return ax
 
-    def explain_metric(self, X, y, y_pred, metric, features=None):
+    def explain_metric(self, X, y, y_pred, metric):
         """Returns a DataFrame with metric values for each (column, tau) pair.
 
         Parameters:
@@ -330,11 +322,7 @@ class Explainer():
 
         """
 
-        if isinstance(X, np.ndarray):
-            X = pd.DataFrame(X)
-
-        if features is None:
-            features = self.lambdas.columns.tolist()
+        X = pd.DataFrame(to_pandas(X))
 
         metrics = pd.DataFrame(
             data={
@@ -342,19 +330,21 @@ class Explainer():
                     metric(y, y_pred, sample_weight=np.exp(λ * X[col]))
                     for tau, λ in self.lambdas[col].items()
                 ]
-                for col in as_list(features)
+                for col in X.columns
             },
             index=self.taus
-        )[features]
+        )
 
         # If there a single column we can index with epsilons instead of taus
         if isinstance(metrics, pd.Series):
             mean = X[metrics.name].mean()
             metrics.index = [mean + eps for eps in self.epsilons[metrics.name]]
 
+        if len(metrics.columns) == 1:
+            return metrics[metrics.columns[0]]
         return metrics
 
-    def plot_metric(self, X, y, y_pred, metric, features, ax=None):
+    def plot_metric(self, X, y, y_pred, metric, ax=None):
         """Plots metric values against variable values.
 
         If a single column is provided then the x-axis is made of the nominal
@@ -364,13 +354,7 @@ class Explainer():
 
         """
 
-        metrics = self.explain_metric(
-            X=X,
-            y=y,
-            y_pred=y_pred,
-            metric=metric,
-            features=features
-        )
+        metrics = self.explain_metric(X=X, y=y, y_pred=y_pred, metric=metric)
 
         # Create a plot if none is provided
         ax = plt.axes() if ax is None else ax

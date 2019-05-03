@@ -33,12 +33,8 @@ class ImageExplainer(explainer.Explainer):
             self.img_shape = self.img_shape[:-1]
         return super().fit(X=images_to_dataframe(images))
 
-    def explain_predictions(self, images, y_pred, pixels=None):
-        return super().explain_predictions(
-            X=images_to_dataframe(images),
-            y_pred=y_pred,
-            features=pixels
-        )
+    def explain_predictions(self, images, y_pred):
+        return super().explain_predictions(X=images_to_dataframe(images), y_pred=y_pred)
 
     def plot_predictions(self, images, y_pred, n_cols=3, width=4):
 
