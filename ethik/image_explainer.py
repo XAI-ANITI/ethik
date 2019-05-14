@@ -17,11 +17,17 @@ def images_to_dataframe(images):
 
 
 class ImageExplainer(explainer.Explainer):
+    """An explainer specially suited for image classification.
+
+    This has exactly the same API as `Explainer`, but expects to be provided with an array of
+    images instead of a tabular dataset.
+
+    """
 
     def __init__(self, alpha=0.05, max_iterations=5, n_jobs=-1, verbose=False):
         super().__init__(
             alpha=alpha,
-            n_taus=3,
+            n_taus=2,
             max_iterations=max_iterations,
             n_jobs=n_jobs,
             verbose=verbose
@@ -42,23 +48,26 @@ class ImageExplainer(explainer.Explainer):
 
         if isinstance(means.columns, pd.MultiIndex):
 
+            # Determine the number of rows from the number of columns and the number of labels
             labels = means.columns.unique('labels')
             n_rows = math.ceil(len(labels) / n_cols)
 
+            # Make one plot per label
             fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * width, n_rows * width))
+            for ax in axes.ravel()[len(labels):]:
+                fig.delaxes(ax)
 
-            for label, ax in zip(labels, axes.ravel()):
+            for label, ax in zip(labels, axes.flat):
                 label_means = means[label]
                 diffs = (label_means.iloc[-1] - label_means.iloc[0]).fillna(0.)
 
-                ax.imshow(diffs.to_numpy().reshape(self.img_shape), interpolation='none')
+                img = ax.imshow(diffs.to_numpy().reshape(self.img_shape), interpolation='none')
                 ax.get_xaxis().set_visible(False)
                 ax.get_yaxis().set_visible(False)
                 ax.set_title(label)
 
-            # Remove unused axes
-            for ax in axes.ravel()[len(labels):]:
-                fig.delaxes(ax)
+            cbar = fig.colorbar(img, ax=axes.flat)
+            cbar.ax.tick_params(labelsize=16)
 
             return fig, axes
 
@@ -67,6 +76,9 @@ class ImageExplainer(explainer.Explainer):
         ax.imshow(diffs.to_numpy().reshape(self.img_shape))
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
+
+        plt.colormap()
+
         return ax
 
     def plot_metric(self, images, y, y_pred, metric, ax=None):

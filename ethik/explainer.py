@@ -118,7 +118,7 @@ def compute_pred_means(X, lambdas, y_pred):
 
 
 class Explainer():
-    """
+    """Explains the bias and reliability of model predictions.
 
     Parameters:
         alpha (float): A `float` between `0` and `0.5` which indicates by how close the `Explainer`
@@ -187,10 +187,16 @@ class Explainer():
         })
 
     def fit(self, X):
-        """
+        """Fits the explainer to a tabular dataset.
+
+        During a `fit` call, the following steps are taken:
+
+        1. A list of $\tau$ values is generated using `n_taus`. The $\tau$ values range from -1 to 1.
+        2. A grid of $\eps$ values is generated for each $\tau$ and for each variable. Each $\eps$ represents a shift from a variable's mean towards a particular quantile.
+        3. A grid of $\lambda$ values is generated for each $\eps$. Each $\lambda$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\eps$ shift.
 
         Parameters:
-            X (pandas.DataFrame or numpy.ndarray)
+            X (`pandas.DataFrame` or `numpy.ndarray`)
 
         """
 
