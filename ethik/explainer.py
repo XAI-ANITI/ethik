@@ -134,6 +134,12 @@ class Explainer():
 
     """
 
+    @staticmethod
+    def col_to_label(col):
+        if isinstance(col, tuple):
+            return f'{col[0]} - {col[1]}'
+        return col
+
     def __init__(self, alpha=0.05, n_taus=41, max_iterations=5, n_jobs=-1, verbose=False):
         self.alpha = alpha
         self.n_taus = n_taus
@@ -284,18 +290,13 @@ class Explainer():
         # Create a plot if none has been provided
         ax = plt.axes() if ax is None else ax
 
-        def to_label(col):
-            if isinstance(col, tuple):
-                return f'{col[0]} - {col[1]}'
-            return col
-
         if len(means.columns) == 1:
             col = means.columns[0]
             x = self.nominal_values(X)[col]
-            ax.plot(x, means[col].values, label=to_label(col))
+            ax.plot(x, means[col].values, label=self.col_to_label(col))
         else:
             for col in means.columns:
-                ax.plot(means[col], label=to_label(col))
+                ax.plot(means[col], label=self.col_to_label(col))
 
         # Add the legend if necessary
         if len(means.columns) > 1:
@@ -338,13 +339,6 @@ class Explainer():
             index=self.taus
         )
 
-        # If there a single column we can index with epsilons instead of taus
-        if isinstance(metrics, pd.Series):
-            mean = X[metrics.name].mean()
-            metrics.index = [mean + eps for eps in self.epsilons[metrics.name]]
-
-        if len(metrics.columns) == 1:
-            return metrics[metrics.columns[0]]
         return metrics
 
     def plot_metric(self, X, y, y_pred, metric, ax=None):
@@ -362,20 +356,14 @@ class Explainer():
         # Create a plot if none is provided
         ax = plt.axes() if ax is None else ax
 
-        if isinstance(metrics, pd.Series):
-
-            # If a single column is provided then we can plot scores against
-            # values
-            ax.plot(metrics)
-            ax.set_xlabel(metrics.name)
-
+        if len(metrics.columns) == 1:
+            col = metrics.columns[0]
+            x = self.nominal_values(X)[col]
+            ax.plot(x, metrics[col].values, label=self.col_to_label(col))
+            ax.set_xlabel(self.col_to_label(col))
         else:
-
-            # If more than column is provided then we can plot scores against
-            # values for each column OR plot scores against taus on one single
-            # axis
             for col in metrics.columns:
-                ax.plot(metrics[col], label=col)
+                ax.plot(metrics[col], label=self.col_to_label(col))
             ax.legend()
             ax.set_xlabel(r'$\tau$')
 
