@@ -81,8 +81,12 @@ def compute_lambdas(x, target_means, max_iterations=5):
     return lambdas
 
 
-def compute_pred_means(x, lambdas, y_pred):
-    return np.array([np.average(y_pred, weights=np.exp(λ * x)) for tau, λ in lambdas.items()])
+def compute_pred_means(y_pred, x, lambdas):
+    return np.array([np.average(y_pred, weights=np.exp(λ * x)) for λ in lambdas])
+
+
+def compute_metric(y_true, y_pred, metric, x, lambdas):
+    return np.array([metric(y_true, y_pred, sample_weight=np.exp(λ * x)) for λ in lambdas])
 
 
 class Explainer():
@@ -203,8 +207,6 @@ class Explainer():
         """Returns a DataFrame containing average predictions for each (column, tau) pair.
 
         """
-
-        # Check the model is fitted
         if not self.is_fitted:
             raise RuntimeError('The fit method has to be called first')
 
@@ -221,16 +223,16 @@ class Explainer():
             verbose=self.verbose,
         )(
             joblib.delayed(compute_pred_means)(
+                y_pred=y_pred[label],
                 x=X[col],
-                lambdas=part['lambda'],
-                y_pred=y_pred[label]
+                lambdas=part['lambda']
             )
             for label in y_pred.columns
             for col, part in relevant.groupby('feature')
         )
 
         # Add the label names
-        relevant = pd.concat((relevant.assign(label=col) for col in y_pred.columns))
+        relevant = pd.concat((relevant.assign(label=c) for c in y_pred.columns), ignore_index=True)
 
         return relevant.assign(proportion=np.concatenate(preds))
 
@@ -284,24 +286,30 @@ class Explainer():
                 metrics from scikit-learn will work.
 
         """
-
         if not self.is_fitted:
             raise RuntimeError('The fit method has to be called first')
 
         X = pd.DataFrame(to_pandas(X))
 
-        metrics = pd.DataFrame(
-            data={
-                col: [
-                    metric(y, y_pred, sample_weight=np.exp(λ * X[col]))
-                    for tau, λ in self.lambdas[col].items()
-                ]
-                for col in X.columns
-            },
-            index=self.taus
+        # Discard the features that are not relevant
+        relevant = self.info.query(f'feature in {X.columns.tolist()}')
+
+        # Compute the metric for each (feature, lambda) pair
+        metrics = joblib.Parallel(
+            n_jobs=self.n_jobs,
+            verbose=self.verbose,
+        )(
+            joblib.delayed(compute_metric)(
+                y_true=y,
+                y_pred=y_pred,
+                metric=metric,
+                x=X[col],
+                lambdas=part['lambda']
+            )
+            for col, part in relevant.groupby('feature')
         )
 
-        return metrics
+        return relevant.assign(score=np.concatenate(metrics))
 
     def plot_metric(self, X, y, y_pred, metric, ax=None):
         """Plots metric values against variable values.
