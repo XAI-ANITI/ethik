@@ -1,11 +1,7 @@
-import base64
 import decimal
-import itertools
-import os
 import random
 import string
 
-from IPython import display
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -55,36 +51,16 @@ def to_pandas(x):
     return to_pandas(np.asarray(x))
 
 
-def compute_lambdas(x, epsilons, max_iterations=5):
-    """Finds a good lambda for a variable and a given epsilon value.
-
-    Parameters:
-        x (array-like)
-        eps (float)
-
-    """
-
-    # from scipy import optimize
-
-    # new_mean = x.mean() + eps
-
-    # res = optimize.minimize(
-    #     fun=lambda λ: np.log(np.mean(np.exp(λ * x))) - λ * new_mean,
-    #     options={'maxiter': 10},
-    #     x0=0.,
-    #     method='Nelder-Mead'
-    # )
-
-    # return res.x[0]
+def compute_lambdas(x, target_means, max_iterations=5):
+    """Finds a good lambda for a variable and a given epsilon value."""
 
     mean = x.mean()
-    lambdas = np.empty(len(epsilons))
+    lambdas = np.empty(len(target_means))
 
-    for i, eps in enumerate(epsilons):
+    for i, target_mean in enumerate(target_means):
 
         λ = 0
         current_mean = mean
-        target_mean = mean + eps
 
         for _ in range(max_iterations):
 
@@ -105,16 +81,8 @@ def compute_lambdas(x, epsilons, max_iterations=5):
     return lambdas
 
 
-def compute_pred_means(X, lambdas, y_pred):
-    return pd.DataFrame(
-        data={
-            col: [
-                np.average(y_pred, weights=np.exp(λ * X[col]))
-                for tau, λ in lambdas[col].items()
-            ]
-            for col in X.columns
-        }
-    )
+def compute_pred_means(x, lambdas, y_pred):
+    return np.array([np.average(y_pred, weights=np.exp(λ * x)) for tau, λ in lambdas.items()])
 
 
 class Explainer():
@@ -161,33 +129,6 @@ class Explainer():
             raise ValueError('max_iterations must be a strictly positive '
                              f'integer, got {self.max_iterations}')
 
-    def make_epsilons(self, X, taus):
-        """Returns a DataFrame containing espilons for each (column, tau) pair.
-
-        Attributes:
-            X (pandas.DataFrame)
-            taus (list of floats)
-
-        Returns:
-            pandas.DataFrame
-
-        """
-
-        q_mins = X.quantile(q=self.alpha).to_dict()
-        q_maxs = X.quantile(q=1 - self.alpha).to_dict()
-        means = X.mean().to_dict()
-
-        return pd.DataFrame({
-            col: {
-                tau: tau * (
-                    (means[col] - q_mins[col]) if tau < 0
-                    else (q_maxs[col] - means[col])
-                )
-                for tau in taus
-            }
-            for col in X.columns
-        })
-
     def fit(self, X):
         """Fits the explainer to a tabular dataset.
 
@@ -213,24 +154,44 @@ class Explainer():
         self.taus = list(decimal_range(-1, 1, tau_precision))
 
         # Make the epsilons
+        q_mins = X.quantile(q=self.alpha).to_dict()
+        q_maxs = X.quantile(q=1 - self.alpha).to_dict()
+        means = X.mean().to_dict()
         X_num = X.select_dtypes(exclude=['object', 'category'])
-        self.epsilons = self.make_epsilons(X_num, self.taus)
+        self.info = pd.concat([
+            pd.DataFrame({
+                'tau': self.taus,
+                'value': [
+                    means[col] + tau * (
+                        (means[col] - q_mins[col])
+                        if tau < 0 else
+                        (q_maxs[col] - means[col])
+                    )
+                    for tau in self.taus
+                ],
+                'feature': col
+            })
+            for col in X_num.columns
+        ])
 
-        # Find a lambda for each (column, quantile) pair
+        # Find a lambda for each (column, espilon) pair
         lambdas = joblib.Parallel(
             n_jobs=self.n_jobs,
             verbose=self.verbose,
         )(
             joblib.delayed(compute_lambdas)(
                 x=X[col],
-                epsilons=self.epsilons[col].to_numpy(),
+                target_means=part['value'].to_numpy(),
                 max_iterations=self.max_iterations
             )
-            for col in X_num.columns
+            for col, part in self.info.groupby('feature')
         )
-        self.lambdas = pd.DataFrame(data=dict(zip(X_num.columns, lambdas)), index=self.taus)
+        self.info['lambda'] = np.concatenate(lambdas)
 
         return self
+
+    def is_fitted(self):
+        return hasattr(self, 'info')
 
     def nominal_values(self, X):
         return pd.DataFrame({
@@ -243,9 +204,16 @@ class Explainer():
 
         """
 
+        # Check the model is fitted
+        if not self.is_fitted:
+            raise RuntimeError('The fit method has to be called first')
+
         # Coerce X and y_pred to DataFrames
         X = pd.DataFrame(to_pandas(X))
         y_pred = pd.DataFrame(to_pandas(y_pred))
+
+        # Discard the features that are not relevant
+        relevant = self.info.query(f'feature in {X.columns.tolist()}')
 
         # Compute the average predictions for each (column, tau) pair per label
         preds = joblib.Parallel(
@@ -253,28 +221,18 @@ class Explainer():
             verbose=self.verbose,
         )(
             joblib.delayed(compute_pred_means)(
-                X=X,
-                lambdas=self.lambdas,
+                x=X[col],
+                lambdas=part['lambda'],
                 y_pred=y_pred[label]
             )
             for label in y_pred.columns
-        )
-        preds = pd.concat(preds, axis='columns', ignore_index=True)
-        preds.columns = pd.MultiIndex.from_tuples(
-            tuples=itertools.product(y_pred.columns, X.columns),
-            names=['labels', 'features']
+            for col, part in relevant.groupby('feature')
         )
 
-        preds.index = self.taus
-        preds.index.name = r'$\tau$'
+        # Add the label names
+        relevant = pd.concat((relevant.assign(label=col) for col in y_pred.columns))
 
-        # Remove unnecessary column levels
-        if len(preds.columns.unique('labels')) == 1:
-            preds.columns = preds.columns.droplevel('labels')
-        if isinstance(preds.columns, pd.MultiIndex) and len(preds.columns.unique('features')) == 1:
-            preds.columns = preds.columns.droplevel('features')
-
-        return preds
+        return relevant.assign(proportion=np.concatenate(preds))
 
     def plot_predictions(self, X, y_pred, ax=None):
         """Plots predicted means against variables values.
@@ -285,6 +243,7 @@ class Explainer():
         `explain_predictions` method.
 
         """
+
         means = self.explain_predictions(X=X, y_pred=y_pred)
 
         # Create a plot if none has been provided
@@ -325,6 +284,9 @@ class Explainer():
                 metrics from scikit-learn will work.
 
         """
+
+        if not self.is_fitted:
+            raise RuntimeError('The fit method has to be called first')
 
         X = pd.DataFrame(to_pandas(X))
 
@@ -374,26 +336,3 @@ class Explainer():
             ax.spines[side].set_visible(False)
 
         return ax
-
-    def initjs(self):
-
-        # Load JavaScript dependencies
-        display.display(display.Javascript('''
-            require.config({
-                paths: {
-                    d3: "https://d3js.org/d3.v5.min"
-                }
-            });
-        '''))
-
-        # Load the JavaScript logo
-        here = os.path.dirname(__file__)
-        logo_path = os.path.join(here, 'resources', 'js_logo.png')
-        with open(logo_path, 'rb') as f:
-            logo_data = f.read()
-
-        display.display(display.HTML(string.Template('''
-            <div align="center">
-                <img src="data:image/png;base64,$logo" />
-            </div>
-        ''').substitute(logo=base64.b64encode(logo_data).decode('utf-8'))))

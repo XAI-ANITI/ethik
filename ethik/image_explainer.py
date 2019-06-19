@@ -12,7 +12,7 @@ def images_to_dataframe(images):
     img_shape = images[0].shape
     return pd.DataFrame(
         data=images.reshape(len(images), -1),
-        columns=map(str, itertools.product(*[np.arange(n) for n in img_shape]))
+        columns=itertools.product(*[np.arange(n) for n in img_shape])
     )
 
 
@@ -57,31 +57,40 @@ class ImageExplainer(explainer.Explainer):
             for ax in axes.ravel()[len(labels):]:
                 fig.delaxes(ax)
 
+            v_min = math.inf
+            v_max = -math.inf
+
             for label, ax in zip(labels, axes.flat):
                 label_means = means[label]
                 diffs = (label_means.iloc[-1] - label_means.iloc[0]).fillna(0.)
 
-                img = ax.imshow(diffs.to_numpy().reshape(self.img_shape), interpolation='none')
+                v_min = min(v_min, diffs.min())
+                v_max = max(v_max, diffs.max())
+
+                ax.imshow(diffs.to_numpy().reshape(self.img_shape), interpolation='none')
                 ax.get_xaxis().set_visible(False)
                 ax.get_yaxis().set_visible(False)
-                ax.set_title(label)
+                ax.set_title(label, fontsize=20)
+
+            for img in plt.gca().get_images():
+                img.set_clim(v_min, v_max)
 
             cbar = fig.colorbar(img, ax=axes.flat)
-            cbar.ax.tick_params(labelsize=16)
+            cbar.ax.tick_params(labelsize=20)
 
             return fig, axes
 
-        ax = plt.axes()
+        fig, ax = plt.subplots()
         diffs = (means.iloc[-1] - means.iloc[0]).fillna(0.)
-        ax.imshow(diffs.to_numpy().reshape(self.img_shape))
+        img = ax.imshow(diffs.to_numpy().reshape(self.img_shape))
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
 
-        plt.colormap()
+        fig.colorbar(img, ax=ax)
 
         return ax
 
-    def plot_metric(self, images, y, y_pred, metric, ax=None):
+    def plot_metric(self, images, y, y_pred, metric):
 
         metrics = self.explain_metric(
             X=images_to_dataframe(images),
@@ -91,9 +100,11 @@ class ImageExplainer(explainer.Explainer):
         )
 
         # Create a plot if none is provided
-        ax = plt.axes() if ax is None else ax
+        fig, ax = plt.subplots()
 
-        diffs = (metrics.loc[-1] - metrics.loc[0]).fillna(0.)
-        ax.imshow(diffs.to_numpy().reshape(self.img_shape))
+        diffs = (metrics.iloc[-1] - metrics.iloc[0]).fillna(0.)
+        img = ax.imshow(diffs.to_numpy().reshape(self.img_shape))
+
+        fig.colorbar(img, ax=ax)
 
         return ax
