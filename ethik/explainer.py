@@ -230,7 +230,8 @@ class Explainer():
 
         return relevant.assign(proportion=np.concatenate(preds))
 
-    def make_predictions_fig(self, explanation):
+    @classmethod
+    def make_predictions_fig(cls, explanation):
         """Plots predicted means against variables values.
 
         If a single column is provided then the x-axis is made of the nominal
@@ -351,7 +352,8 @@ class Explainer():
 
         return relevant.assign(score=np.concatenate(metrics))
 
-    def make_metric_fig(self, explanation, y_label='Score'):
+    @classmethod
+    def make_metric_fig(cls, explanation, y_label='Score'):
         """Plots metric values against variable values.
 
         If a single column is provided then the x-axis is made of the nominal
