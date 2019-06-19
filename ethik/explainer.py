@@ -3,9 +3,9 @@ import random
 import string
 
 import joblib
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import plotly.graph_objs as go
 
 
 __all__ = ['Explainer']
@@ -106,12 +106,6 @@ class Explainer():
 
     """
 
-    @staticmethod
-    def col_to_label(col):
-        if isinstance(col, tuple):
-            return f'{col[0]} - {col[1]}'
-        return col
-
     def __init__(self, alpha=0.05, n_taus=41, max_iterations=5, n_jobs=-1, verbose=False):
         self.alpha = alpha
         self.n_taus = n_taus
@@ -197,12 +191,6 @@ class Explainer():
     def is_fitted(self):
         return hasattr(self, 'info')
 
-    def nominal_values(self, X):
-        return pd.DataFrame({
-            col: X[col].mean() + self.epsilons[col]
-            for col in X.columns
-        }, index=pd.Index(self.taus, name=r'$\tau$'))
-
     def explain_predictions(self, X, y_pred):
         """Returns a DataFrame containing average predictions for each (column, tau) pair.
 
@@ -236,7 +224,7 @@ class Explainer():
 
         return relevant.assign(proportion=np.concatenate(preds))
 
-    def plot_predictions(self, X, y_pred, ax=None):
+    def make_predictions_fig(self, X, y_pred):
         """Plots predicted means against variables values.
 
         If a single column is provided then the x-axis is made of the nominal
@@ -246,36 +234,80 @@ class Explainer():
 
         """
 
-        means = self.explain_predictions(X=X, y_pred=y_pred)
+        X = pd.DataFrame(to_pandas(X))
+        y_pred = pd.DataFrame(to_pandas(y_pred))
+        y_label = f'Proportion of {y_pred.columns[0]}'
 
-        # Create a plot if none has been provided
-        ax = plt.axes() if ax is None else ax
+        explanation = self.explain_predictions(X=X, y_pred=y_pred)
 
-        if len(means.columns) == 1:
-            col = means.columns[0]
-            x = self.nominal_values(X)[col]
-            ax.plot(x, means[col].values, label=self.col_to_label(col))
-        else:
-            for col in means.columns:
-                ax.plot(means[col], label=self.col_to_label(col))
+        if len(X.columns) == 1:
+            feat = X.columns[0]
+            x = explanation.query(f'feature == "{feat}"')['value']
+            y = explanation.query(f'feature == "{feat}"')['proportion']
+            return go.Figure(
+                data=[
+                    go.Scatter(
+                        x=x,
+                        y=y,
+                        mode='lines+markers',
+                        hoverinfo='x+y',
+                        showlegend=False,
+                    ),
+                    go.Scatter(
+                        x=[x.mean()],
+                        y=explanation.query(f'feature == "{feat}" and tau == 0')['proportion'],
+                        mode='markers',
+                        name='Original mean',
+                        hoverinfo='skip',
+                        marker=dict(
+                            symbol='x',
+                            size=9,
+                        ),
+                    ),
+                ],
+                layout=go.Layout(
+                    margin=dict(t=50, r=50),
+                    xaxis=dict(
+                        title=f'Mean {feat}',
+                        zeroline=False,
+                    ),
+                    yaxis=dict(
+                        title=y_label,
+                        range=[0, 1],
+                        showline=True,
+                        tickformat='%',
+                    ),
+                ),
+            )
 
-        # Add the legend if necessary
-        if len(means.columns) > 1:
-            ax.legend()
-
-        # Set the x-axis label appropriately
-        if len(means.columns) == 1:
-            ax.set_xlabel(means.columns[0])
-        else:
-            ax.set_xlabel(r'$\tau$')
-
-        # Prettify the plot
-        ax.grid(True)
-        ax.set_ylabel('Target mean')
-        for side in ['top', 'right']:
-            ax.spines[side].set_visible(False)
-
-        return ax
+        traces = []
+        for feat in X.columns:
+            x = explanation.query(f'feature == "{feat}"')['tau']
+            y = explanation.query(f'feature == "{feat}"')['proportion']
+            traces.append(go.Scatter(
+                x=x,
+                y=y,
+                mode='lines+markers',
+                hoverinfo='x+y',
+                name=feat,
+            ))
+        
+        return go.Figure(
+            data=traces,
+            layout=go.Layout(
+                margin=dict(t=50, r=50),
+                xaxis=dict(
+                    title='tau',
+                    zeroline=False,
+                ),
+                yaxis=dict(
+                    title=y_label,
+                    range=[0, 1],
+                    showline=True,
+                    tickformat='%',
+                ),
+            ),
+        )
 
     def explain_metric(self, X, y, y_pred, metric):
         """Returns a DataFrame with metric values for each (column, tau) pair.
@@ -311,7 +343,7 @@ class Explainer():
 
         return relevant.assign(score=np.concatenate(metrics))
 
-    def plot_metric(self, X, y, y_pred, metric, ax=None):
+    def make_metric_fig(self, X, y, y_pred, metric):
         """Plots metric values against variable values.
 
         If a single column is provided then the x-axis is made of the nominal
@@ -321,26 +353,76 @@ class Explainer():
 
         """
 
-        metrics = self.explain_metric(X=X, y=y, y_pred=y_pred, metric=metric)
+        X = pd.DataFrame(to_pandas(X))
+        y_pred = pd.DataFrame(to_pandas(y_pred))
+        y_label = metric.__name__
+        explanation = self.explain_metric(X=X, y=y, y_pred=y_pred, metric=metric)
 
-        # Create a plot if none is provided
-        ax = plt.axes() if ax is None else ax
+        if len(X.columns) == 1:
+            feat = X.columns[0]
+            x = explanation.query(f'feature == "{feat}"')['value']
+            y = explanation.query(f'feature == "{feat}"')['score']
+            return go.Figure(
+                data=[
+                    go.Scatter(
+                        x=x,
+                        y=y,
+                        mode='lines+markers',
+                        hoverinfo='x+y',
+                        showlegend=False,
+                    ),
+                    go.Scatter(
+                        x=[x.mean()],
+                        y=explanation.query(f'feature == "{feat}" and tau == 0')['score'],
+                        mode='markers',
+                        name='Original mean',
+                        hoverinfo='skip',
+                        marker=dict(
+                            symbol='x',
+                            size=9,
+                        ),
+                    ),
+                ],
+                layout=go.Layout(
+                    margin=dict(t=50, r=50),
+                    xaxis=dict(
+                        title=f'Mean {feat}',
+                        zeroline=False,
+                    ),
+                    yaxis=dict(
+                        title=y_label,
+                        range=[0, 1],
+                        showline=True,
+                        tickformat='%',
+                    ),
+                ),
+            )
 
-        if len(metrics.columns) == 1:
-            col = metrics.columns[0]
-            x = self.nominal_values(X)[col]
-            ax.plot(x, metrics[col].values, label=self.col_to_label(col))
-            ax.set_xlabel(self.col_to_label(col))
-        else:
-            for col in metrics.columns:
-                ax.plot(metrics[col], label=self.col_to_label(col))
-            ax.legend()
-            ax.set_xlabel(r'$\tau$')
-
-        # Prettify the plot
-        ax.grid(True)
-        ax.set_ylabel(metric.__name__)
-        for side in ['top', 'right']:
-            ax.spines[side].set_visible(False)
-
-        return ax
+        traces = []
+        for feat in X.columns:
+            x = explanation.query(f'feature == "{feat}"')['tau']
+            y = explanation.query(f'feature == "{feat}"')['score']
+            traces.append(go.Scatter(
+                x=x,
+                y=y,
+                mode='lines+markers',
+                hoverinfo='x+y',
+                name=feat,
+            ))
+        
+        return go.Figure(
+            data=traces,
+            layout=go.Layout(
+                margin=dict(t=50, r=50),
+                xaxis=dict(
+                    title='tau',
+                    zeroline=False,
+                ),
+                yaxis=dict(
+                    title=y_label,
+                    range=[0, 1],
+                    showline=True,
+                    tickformat='%',
+                ),
+            ),
+        )
