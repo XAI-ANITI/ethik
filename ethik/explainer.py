@@ -5,10 +5,18 @@ import string
 import joblib
 import numpy as np
 import pandas as pd
+import plotly
 import plotly.graph_objs as go
 
 
 __all__ = ['Explainer']
+
+
+def plot(fig, inline=False):
+    if inline:
+        plotly.offline.init_notebook_mode(connected=True)
+        return plotly.offline.iplot(fig)
+    return plotly.offline.plot(fig, auto_open=True)
 
 
 def decimal_range(start: float, stop: float, step: float):
@@ -24,15 +32,6 @@ def decimal_range(start: float, stop: float, step: float):
     while start <= stop:
         yield float(start)
         start += step
-
-
-def random_id(size=20, chars=string.ascii_uppercase + string.digits):
-    """Returns a random identifier.
-
-    This is simply used for identifying a <div> when rendering HTML.
-
-    """
-    return 'i' + ''.join(random.choice(chars) for _ in range(size))
 
 
 def to_pandas(x):
@@ -188,9 +187,16 @@ class Explainer():
 
         return self
 
+    @property
     def is_fitted(self):
         return hasattr(self, 'info')
 
+    @property
+    def features(self):
+        if not self.is_fitted:
+            raise RuntimeError('The fit method has to be called first')
+        return self.info['feature'].unique().tolist()
+    
     def explain_predictions(self, X, y_pred):
         """Returns a DataFrame containing average predictions for each (column, tau) pair.
 
@@ -224,7 +230,7 @@ class Explainer():
 
         return relevant.assign(proportion=np.concatenate(preds))
 
-    def make_predictions_fig(self, X, y_pred):
+    def make_predictions_fig(self, explanation):
         """Plots predicted means against variables values.
 
         If a single column is provided then the x-axis is made of the nominal
@@ -234,14 +240,12 @@ class Explainer():
 
         """
 
-        X = pd.DataFrame(to_pandas(X))
-        y_pred = pd.DataFrame(to_pandas(y_pred))
-        y_label = f'Proportion of {y_pred.columns[0]}'
+        features = explanation['feature'].unique()
+        labels = explanation['label'].unique()
+        y_label = f'Proportion of {labels[0]}' # Single class
 
-        explanation = self.explain_predictions(X=X, y_pred=y_pred)
-
-        if len(X.columns) == 1:
-            feat = X.columns[0]
+        if len(features) == 1:
+            feat = features[0]
             x = explanation.query(f'feature == "{feat}"')['value']
             y = explanation.query(f'feature == "{feat}"')['proportion']
             return go.Figure(
@@ -281,7 +285,7 @@ class Explainer():
             )
 
         traces = []
-        for feat in X.columns:
+        for feat in features:
             x = explanation.query(f'feature == "{feat}"')['tau']
             y = explanation.query(f'feature == "{feat}"')['proportion']
             traces.append(go.Scatter(
@@ -308,6 +312,10 @@ class Explainer():
                 ),
             ),
         )
+
+    def plot_predictions(self, X, y_pred, **plot_kwargs):
+        explanation = self.explain_predictions(X=X, y_pred=y_pred)
+        return plot(self.make_predictions_fig(explanation), **plot_kwargs)
 
     def explain_metric(self, X, y, y_pred, metric):
         """Returns a DataFrame with metric values for each (column, tau) pair.
@@ -343,7 +351,7 @@ class Explainer():
 
         return relevant.assign(score=np.concatenate(metrics))
 
-    def make_metric_fig(self, X, y, y_pred, metric):
+    def make_metric_fig(self, explanation, y_label='Score'):
         """Plots metric values against variable values.
 
         If a single column is provided then the x-axis is made of the nominal
@@ -353,13 +361,10 @@ class Explainer():
 
         """
 
-        X = pd.DataFrame(to_pandas(X))
-        y_pred = pd.DataFrame(to_pandas(y_pred))
-        y_label = metric.__name__
-        explanation = self.explain_metric(X=X, y=y, y_pred=y_pred, metric=metric)
+        features = explanation['feature'].unique()
 
-        if len(X.columns) == 1:
-            feat = X.columns[0]
+        if len(features) == 1:
+            feat = features[0]
             x = explanation.query(f'feature == "{feat}"')['value']
             y = explanation.query(f'feature == "{feat}"')['score']
             return go.Figure(
@@ -399,7 +404,7 @@ class Explainer():
             )
 
         traces = []
-        for feat in X.columns:
+        for feat in features:
             x = explanation.query(f'feature == "{feat}"')['tau']
             y = explanation.query(f'feature == "{feat}"')['score']
             traces.append(go.Scatter(
@@ -426,3 +431,7 @@ class Explainer():
                 ),
             ),
         )
+
+    def plot_metric(self, X, y, y_pred, metric, **plot_kwargs):
+        explanation = self.explain_metric(X=X, y=y, y_pred=y_pred, metric=metric)
+        return plot(self.make_metric_fig(explanation), **plot_kwargs)
