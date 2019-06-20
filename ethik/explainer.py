@@ -231,7 +231,7 @@ class Explainer():
         return relevant.assign(proportion=np.concatenate(preds))
 
     @classmethod
-    def make_predictions_fig(cls, explanation):
+    def make_predictions_fig(cls, explanation, with_taus=False):
         """Plots predicted means against variables values.
 
         If a single column is provided then the x-axis is made of the nominal
@@ -245,11 +245,41 @@ class Explainer():
         labels = explanation['label'].unique()
         y_label = f'Proportion of {labels[0]}' # Single class
 
-        if len(features) == 1:
-            feat = features[0]
+        if with_taus:
+            traces = []
+            for feat in features:
+                x = explanation.query(f'feature == "{feat}"')['tau']
+                y = explanation.query(f'feature == "{feat}"')['proportion']
+                traces.append(go.Scatter(
+                    x=x,
+                    y=y,
+                    mode='lines+markers',
+                    hoverinfo='x+y',
+                    name=feat,
+                ))
+            
+            return go.Figure(
+                data=traces,
+                layout=go.Layout(
+                    margin=dict(t=50, r=50),
+                    xaxis=dict(
+                        title='tau',
+                        zeroline=False,
+                    ),
+                    yaxis=dict(
+                        title=y_label,
+                        range=[0, 1],
+                        showline=True,
+                        tickformat='%',
+                    ),
+                ),
+            )
+        
+        figures = {}
+        for feat in features:
             x = explanation.query(f'feature == "{feat}"')['value']
             y = explanation.query(f'feature == "{feat}"')['proportion']
-            return go.Figure(
+            figures[feat] = go.Figure(
                 data=[
                     go.Scatter(
                         x=x,
@@ -284,39 +314,7 @@ class Explainer():
                     ),
                 ),
             )
-
-        traces = []
-        for feat in features:
-            x = explanation.query(f'feature == "{feat}"')['tau']
-            y = explanation.query(f'feature == "{feat}"')['proportion']
-            traces.append(go.Scatter(
-                x=x,
-                y=y,
-                mode='lines+markers',
-                hoverinfo='x+y',
-                name=feat,
-            ))
-        
-        return go.Figure(
-            data=traces,
-            layout=go.Layout(
-                margin=dict(t=50, r=50),
-                xaxis=dict(
-                    title='tau',
-                    zeroline=False,
-                ),
-                yaxis=dict(
-                    title=y_label,
-                    range=[0, 1],
-                    showline=True,
-                    tickformat='%',
-                ),
-            ),
-        )
-
-    def plot_predictions(self, X, y_pred, **plot_kwargs):
-        explanation = self.explain_predictions(X=X, y_pred=y_pred)
-        return plot(self.make_predictions_fig(explanation), **plot_kwargs)
+        return figures
 
     def explain_metric(self, X, y, y_pred, metric):
         """Returns a DataFrame with metric values for each (column, tau) pair.
@@ -353,7 +351,7 @@ class Explainer():
         return relevant.assign(score=np.concatenate(metrics))
 
     @classmethod
-    def make_metric_fig(cls, explanation, y_label='Score'):
+    def make_metric_fig(cls, explanation, y_label='Score', with_taus=False):
         """Plots metric values against variable values.
 
         If a single column is provided then the x-axis is made of the nominal
@@ -365,11 +363,42 @@ class Explainer():
 
         features = explanation['feature'].unique()
 
-        if len(features) == 1:
+        if with_taus:
+            traces = []
+            for feat in features:
+                x = explanation.query(f'feature == "{feat}"')['tau']
+                y = explanation.query(f'feature == "{feat}"')['score']
+                traces.append(go.Scatter(
+                    x=x,
+                    y=y,
+                    mode='lines+markers',
+                    hoverinfo='x+y',
+                    name=feat,
+                ))
+            
+            return go.Figure(
+                data=traces,
+                layout=go.Layout(
+                    margin=dict(t=50, r=50),
+                    xaxis=dict(
+                        title='tau',
+                        zeroline=False,
+                    ),
+                    yaxis=dict(
+                        title=y_label,
+                        range=[0, 1],
+                        showline=True,
+                        tickformat='%',
+                    ),
+                ),
+            )
+        
+        figures = {}
+        for feat in features:
             feat = features[0]
             x = explanation.query(f'feature == "{feat}"')['value']
             y = explanation.query(f'feature == "{feat}"')['score']
-            return go.Figure(
+            figures[feat] = go.Figure(
                 data=[
                     go.Scatter(
                         x=x,
@@ -404,36 +433,24 @@ class Explainer():
                     ),
                 ),
             )
+        return figures
 
-        traces = []
-        for feat in features:
-            x = explanation.query(f'feature == "{feat}"')['tau']
-            y = explanation.query(f'feature == "{feat}"')['score']
-            traces.append(go.Scatter(
-                x=x,
-                y=y,
-                mode='lines+markers',
-                hoverinfo='x+y',
-                name=feat,
-            ))
-        
-        return go.Figure(
-            data=traces,
-            layout=go.Layout(
-                margin=dict(t=50, r=50),
-                xaxis=dict(
-                    title='tau',
-                    zeroline=False,
-                ),
-                yaxis=dict(
-                    title=y_label,
-                    range=[0, 1],
-                    showline=True,
-                    tickformat='%',
-                ),
-            ),
+    def _plot(self, explanation, make_fig, **plot_kwargs):
+        features = explanation['feature'].unique()
+        if len(features) > 1:
+            return plot(
+                make_fig(explanation, with_taus=True),
+                **plot_kwargs
+            )
+        return plot(
+            make_fig(explanation, with_taus=False)[features[0]],
+            **plot_kwargs
         )
+
+    def plot_predictions(self, X, y_pred, **plot_kwargs):
+        explanation = self.explain_predictions(X=X, y_pred=y_pred)
+        return self._plot(explanation, self.make_predictions_fig, **plot_kwargs)
 
     def plot_metric(self, X, y, y_pred, metric, **plot_kwargs):
         explanation = self.explain_metric(X=X, y=y, y_pred=y_pred, metric=metric)
-        return plot(self.make_metric_fig(explanation), **plot_kwargs)
+        return self._plot(explanation, self.make_metric_fig, **plot_kwargs)
