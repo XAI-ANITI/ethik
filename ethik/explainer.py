@@ -162,21 +162,24 @@ class Explainer():
         q_maxs = X.quantile(q=1 - self.alpha).to_dict()
         means = X.mean().to_dict()
         X_num = X.select_dtypes(exclude=['object', 'category'])
-        self.info = pd.concat([
-            pd.DataFrame({
-                'tau': self.taus,
-                'value': [
-                    means[col] + tau * (
-                        (means[col] - q_mins[col])
-                        if tau < 0 else
-                        (q_maxs[col] - means[col])
-                    )
-                    for tau in self.taus
-                ],
-                'feature': col
-            })
-            for col in X_num.columns
-        ])
+        self.info = pd.concat(
+            [
+                pd.DataFrame({
+                    'tau': self.taus,
+                    'value': [
+                        means[col] + tau * (
+                            (means[col] - q_mins[col])
+                            if tau < 0 else
+                            (q_maxs[col] - means[col])
+                        )
+                        for tau in self.taus
+                    ],
+                    'feature': col
+                })
+                for col in X_num.columns
+            ],
+            ignore_index=True
+        )
 
         # Find a lambda for each (column, espilon) pair
         lambdas = joblib.Parallel(
