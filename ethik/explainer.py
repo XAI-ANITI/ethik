@@ -1,6 +1,4 @@
 import decimal
-import random
-import string
 
 import joblib
 import numpy as np
@@ -199,7 +197,7 @@ class Explainer():
         if not self.is_fitted:
             raise RuntimeError('The fit method has to be called first')
         return self.info['feature'].unique().tolist()
-    
+
     def explain_predictions(self, X, y_pred):
         """Returns a DataFrame containing average predictions for each (column, tau) pair.
 
@@ -233,6 +231,19 @@ class Explainer():
 
         return relevant.assign(proportion=np.concatenate(preds))
 
+    def explain_importances(self, X, y_pred):
+        """Returns a DataFrame containing the importance of each feature.
+
+        """
+
+        def get_importance(group):
+            """Computes the average absolute difference in proportion changes per tau increase."""
+            baseline = group.query('tau == 0').iloc[0]['proportion']
+            return (group['proportion'] - baseline).abs().mean()
+
+        return self.explain_predictions(X=X, y_pred=y_pred)\
+                   .groupby(['label', 'feature']).apply(get_importance)
+
     @classmethod
     def make_predictions_fig(cls, explanation, with_taus=False):
         """Plots predicted means against variables values.
@@ -260,7 +271,7 @@ class Explainer():
                     hoverinfo='x+y',
                     name=feat,
                 ))
-            
+
             return go.Figure(
                 data=traces,
                 layout=go.Layout(
@@ -277,7 +288,7 @@ class Explainer():
                     ),
                 ),
             )
-        
+
         figures = {}
         for feat in features:
             x = explanation.query(f'feature == "{feat}"')['value']
@@ -379,7 +390,7 @@ class Explainer():
                     hoverinfo='x+y',
                     name=feat,
                 ))
-            
+
             return go.Figure(
                 data=traces,
                 layout=go.Layout(
@@ -396,7 +407,7 @@ class Explainer():
                     ),
                 ),
             )
-        
+
         figures = {}
         for feat in features:
             feat = features[0]
