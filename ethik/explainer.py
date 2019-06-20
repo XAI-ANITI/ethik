@@ -279,6 +279,7 @@ class Explainer():
         for feat in features:
             x = explanation.query(f'feature == "{feat}"')['value']
             y = explanation.query(f'feature == "{feat}"')['proportion']
+            mean_row = explanation.query(f'feature == "{feat}" and tau == 0').iloc[0]
             figures[feat] = go.Figure(
                 data=[
                     go.Scatter(
@@ -289,8 +290,8 @@ class Explainer():
                         showlegend=False,
                     ),
                     go.Scatter(
-                        x=[x.mean()],
-                        y=explanation.query(f'feature == "{feat}" and tau == 0')['proportion'],
+                        x=[mean_row['value']],
+                        y=[mean_row['proportion']],
                         mode='markers',
                         name='Original mean',
                         hoverinfo='skip',
