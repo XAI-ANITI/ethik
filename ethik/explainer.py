@@ -242,7 +242,10 @@ class Explainer():
             return (group['proportion'] - baseline).abs().mean()
 
         return self.explain_predictions(X=X, y_pred=y_pred)\
-                   .groupby(['label', 'feature']).apply(get_importance)
+                   .groupby(['label', 'feature'])\
+                   .apply(get_importance)\
+                   .to_frame('importance')\
+                   .reset_index()
 
     @classmethod
     def make_predictions_fig(cls, explanation, with_taus=False):
