@@ -1,5 +1,4 @@
-ipython>=6.4.0
 joblib>=0.13.2
-matplotlib>=3.0.2
 numpy>=1.16.1
 pandas>=0.24.0
+plotly>=3.10.0
