@@ -247,6 +247,40 @@ class Explainer():
                    .to_frame('importance')\
                    .reset_index()
 
+    def explain_metric(self, X, y, y_pred, metric):
+        """Returns a DataFrame with metric values for each (column, tau) pair.
+
+        Parameters:
+            metric (callable): A function that evaluates the quality of a set of predictions. Must
+                have the following signature: `metric(y_true, y_pred, sample_weights)`. Most
+                metrics from scikit-learn will work.
+
+        """
+        if not self.is_fitted:
+            raise RuntimeError('The fit method has to be called first')
+
+        X = pd.DataFrame(to_pandas(X))
+
+        # Discard the features that are not relevant
+        relevant = self.info.query(f'feature in {X.columns.tolist()}')
+
+        # Compute the metric for each (feature, lambda) pair
+        metrics = joblib.Parallel(
+            n_jobs=self.n_jobs,
+            verbose=self.verbose,
+        )(
+            joblib.delayed(compute_metric)(
+                y_true=y,
+                y_pred=y_pred,
+                metric=metric,
+                x=X[col],
+                lambdas=part['lambda']
+            )
+            for col, part in relevant.groupby('feature')
+        )
+
+        return relevant.assign(score=np.concatenate(metrics))
+
     @classmethod
     def make_predictions_fig(cls, explanation, with_taus=False):
         """Plots predicted means against variables values.
@@ -334,39 +368,35 @@ class Explainer():
             )
         return figures
 
-    def explain_metric(self, X, y, y_pred, metric):
-        """Returns a DataFrame with metric values for each (column, tau) pair.
+    @classmethod
+    def make_importances_fig(cls, explanation, colors=None):
+        # TODO: handle multiple labels
+        # https://plot.ly/python/axes/#subcategory-axes
+        explanation = explanation.sort_values(by=["importance"])
 
-        Parameters:
-            metric (callable): A function that evaluates the quality of a set of predictions. Must
-                have the following signature: `metric(y_true, y_pred, sample_weights)`. Most
-                metrics from scikit-learn will work.
-
-        """
-        if not self.is_fitted:
-            raise RuntimeError('The fit method has to be called first')
-
-        X = pd.DataFrame(to_pandas(X))
-
-        # Discard the features that are not relevant
-        relevant = self.info.query(f'feature in {X.columns.tolist()}')
-
-        # Compute the metric for each (feature, lambda) pair
-        metrics = joblib.Parallel(
-            n_jobs=self.n_jobs,
-            verbose=self.verbose,
-        )(
-            joblib.delayed(compute_metric)(
-                y_true=y,
-                y_pred=y_pred,
-                metric=metric,
-                x=X[col],
-                lambdas=part['lambda']
+        return go.Figure(
+            data=[go.Bar(
+                x=explanation["importance"],
+                y=explanation["feature"],
+                orientation="h",
+                marker=dict(
+                    color=colors,
+                ),
+            )],
+            layout=go.Layout(
+                xaxis=dict(
+                    title="Importance",
+                    range=[0, 1],
+                    showline=True,
+                    zeroline=False,
+                    side="top",
+                ),
+                yaxis=dict(
+                    showline=True,
+                    zeroline=False,
+                ),
             )
-            for col, part in relevant.groupby('feature')
         )
-
-        return relevant.assign(score=np.concatenate(metrics))
 
     @classmethod
     def make_metric_fig(cls, explanation, y_label='Score', with_taus=False):
@@ -453,22 +483,26 @@ class Explainer():
             )
         return figures
 
-    def _plot(self, explanation, make_fig, **plot_kwargs):
+    def _plot(self, explanation, make_fig, inline, **fig_kwargs):
         features = explanation['feature'].unique()
         if len(features) > 1:
             return plot(
-                make_fig(explanation, with_taus=True),
-                **plot_kwargs
+                make_fig(explanation, with_taus=True, **fig_kwargs),
+                inline=inline,
             )
         return plot(
-            make_fig(explanation, with_taus=False)[features[0]],
-            **plot_kwargs
+            make_fig(explanation, with_taus=False, **fig_kwargs)[features[0]],
+            inline=inline,
         )
 
-    def plot_predictions(self, X, y_pred, **plot_kwargs):
+    def plot_predictions(self, X, y_pred, inline=False, **fig_kwargs):
         explanation = self.explain_predictions(X=X, y_pred=y_pred)
-        return self._plot(explanation, self.make_predictions_fig, **plot_kwargs)
+        return self._plot(explanation, self.make_predictions_fig, inline=inline, **fig_kwargs)
 
-    def plot_metric(self, X, y, y_pred, metric, **plot_kwargs):
+    def plot_importances(self, X, y_pred, inline=False, **fig_kwargs):
+        explanation = self.explain_importances(X=X, y_pred=y_pred)
+        return plot(self.make_importances_fig(explanation, **fig_kwargs), inline=inline)
+
+    def plot_metric(self, X, y, y_pred, metric, inline=False, **fig_kwargs):
         explanation = self.explain_metric(X=X, y=y, y_pred=y_pred, metric=metric)
-        return self._plot(explanation, self.make_metric_fig, **plot_kwargs)
+        return self._plot(explanation, self.make_metric_fig, inline=inline, **fig_kwargs)
