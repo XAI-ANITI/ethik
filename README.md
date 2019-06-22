@@ -14,6 +14,10 @@
 
 Ethik is a Python package for performing [fair](https://www.microsoft.com/en-us/research/blog/machine-learning-for-fair-decisions/) and [explainable](https://www.wikiwand.com/en/Explainable_artificial_intelligence) machine learning.
 
+<div align="center">
+  <img src="figures/overview.svg" alt="overview"/>
+</div>
+
 ## Installation
 
 :warning: Python 3.6 or above is required :snake:
