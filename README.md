@@ -152,11 +152,12 @@ explainer = explainer.fit(x_test)
 
 ## Authors
 
-This work is led by researchers from the [Toulouse Institute of Mathematics](https://www.math.univ-toulouse.fr/?lang=en), namely:
+This work is led by members of the [Toulouse Institute of Mathematics](https://www.math.univ-toulouse.fr/?lang=en), namely:
 
 - [François Bachoc](https://www.math.univ-toulouse.fr/~fbachoc/)
 - [Fabrice Gamboa](https://www.math.univ-toulouse.fr/~gamboa/newwab/Pages_Fabrice_Gamboa/Main_Page.html)
 - [Max Halford](https://maxhalford.github.io/)
+- [Vincent Lefoulon](https://vayel.github.io/)
 - [Jean-Michel Loubes](https://perso.math.univ-toulouse.fr/loubes/)
 - [Laurent Risser](http://laurent.risser.free.fr/menuEng.html)
 
