@@ -305,8 +305,12 @@ class Explainer():
                     x=x,
                     y=y,
                     mode='lines+markers',
-                    hoverinfo='x+y',
+                    hoverinfo='x+y+text',
                     name=feat,
+                    text=[
+                        f'{feat} = {val}'
+                        for val in explanation.query(f'feature == "{feat}"')['value']
+                    ],
                 ))
 
             return go.Figure(
@@ -379,6 +383,7 @@ class Explainer():
                 x=explanation["importance"],
                 y=explanation["feature"],
                 orientation="h",
+                hoverinfo="x",
                 marker=dict(
                     color=colors,
                 ),
@@ -420,8 +425,12 @@ class Explainer():
                     x=x,
                     y=y,
                     mode='lines+markers',
-                    hoverinfo='x+y',
+                    hoverinfo='x+y+text',
                     name=feat,
+                    text=[
+                        f'{feat} = {val}'
+                        for val in explanation.query(f'feature == "{feat}"')['value']
+                    ],
                 ))
 
             return go.Figure(
@@ -443,7 +452,6 @@ class Explainer():
 
         figures = {}
         for feat in features:
-            feat = features[0]
             x = explanation.query(f'feature == "{feat}"')['value']
             y = explanation.query(f'feature == "{feat}"')['score']
             figures[feat] = go.Figure(
