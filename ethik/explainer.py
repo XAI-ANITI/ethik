@@ -282,7 +282,7 @@ class Explainer():
         return relevant.assign(score=np.concatenate(metrics))
 
     @classmethod
-    def make_predictions_fig(cls, explanation, with_taus=False):
+    def make_predictions_fig(cls, explanation, with_taus=False, colors=None):
         """Plots predicted means against variables values.
 
         If a single column is provided then the x-axis is made of the nominal
@@ -292,6 +292,8 @@ class Explainer():
 
         """
 
+        if colors is None:
+            colors = {}
         features = explanation['feature'].unique()
         labels = explanation['label'].unique()
         y_label = f'Proportion of {labels[0]}' # Single class
@@ -311,6 +313,7 @@ class Explainer():
                         f'{feat} = {val}'
                         for val in explanation.query(f'feature == "{feat}"')['value']
                     ],
+                    marker=dict(color=colors.get(feat)),
                 ))
 
             return go.Figure(
@@ -343,6 +346,7 @@ class Explainer():
                         mode='lines+markers',
                         hoverinfo='x+y',
                         showlegend=False,
+                        marker=dict(color=colors.get(feat)),
                     ),
                     go.Scatter(
                         x=[mean_row['value']],
@@ -404,7 +408,7 @@ class Explainer():
         )
 
     @classmethod
-    def make_metric_fig(cls, explanation, y_label='Score', with_taus=False):
+    def make_metric_fig(cls, explanation, y_label='Score', with_taus=False, colors=None):
         """Plots metric values against variable values.
 
         If a single column is provided then the x-axis is made of the nominal
@@ -414,6 +418,8 @@ class Explainer():
 
         """
 
+        if colors is None:
+            colors = {}
         features = explanation['feature'].unique()
 
         if with_taus:
@@ -431,6 +437,7 @@ class Explainer():
                         f'{feat} = {val}'
                         for val in explanation.query(f'feature == "{feat}"')['value']
                     ],
+                    marker=dict(color=colors.get(feat)),
                 ))
 
             return go.Figure(
@@ -462,6 +469,7 @@ class Explainer():
                         mode='lines+markers',
                         hoverinfo='x+y',
                         showlegend=False,
+                        marker=dict(color=colors.get(feat)),
                     ),
                     go.Scatter(
                         x=[x.mean()],
