@@ -393,6 +393,7 @@ class Explainer():
                 ),
             )],
             layout=go.Layout(
+                margin=dict(l=200, b=0, t=40),
                 xaxis=dict(
                     title="Importance",
                     range=[0, 1],
