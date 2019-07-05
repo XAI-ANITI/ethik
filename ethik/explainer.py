@@ -281,6 +281,15 @@ class Explainer():
 
         return relevant.assign(score=np.concatenate(metrics))
 
+    def performance_ranking(self, explanation):
+        def get_min_score(df):
+            return df["score"].min()
+
+        return explanation.groupby("feature")\
+                          .apply(get_min_score)\
+                          .to_frame("min_score")\
+                          .reset_index()
+
     @classmethod
     def make_predictions_fig(cls, explanation, with_taus=False, colors=None):
         """Plots predicted means against variables values.
@@ -499,6 +508,37 @@ class Explainer():
                 ),
             )
         return figures
+    
+    @classmethod
+    def make_performance_ranking_fig(cls, ranking, criterion, colors=None):
+        ranking = ranking.sort_values(by=[criterion])
+
+        return go.Figure(
+            data=[go.Bar(
+                x=ranking[criterion],
+                y=ranking["feature"],
+                orientation="h",
+                hoverinfo="x",
+                marker=dict(
+                    color=colors,
+                ),
+            )],
+            layout=go.Layout(
+                margin=dict(l=200, b=0, t=40),
+                xaxis=dict(
+                    title=criterion,
+                    range=[0, 1],
+                    showline=True,
+                    zeroline=False,
+                    side="top",
+                    tickformat="%",
+                ),
+                yaxis=dict(
+                    showline=True,
+                    zeroline=False,
+                ),
+            )
+        )
 
     def _plot(self, explanation, make_fig, inline, **fig_kwargs):
         features = explanation['feature'].unique()
@@ -523,3 +563,12 @@ class Explainer():
     def plot_metric(self, X, y, y_pred, metric, inline=False, **fig_kwargs):
         explanation = self.explain_metric(X=X, y=y, y_pred=y_pred, metric=metric)
         return self._plot(explanation, self.make_metric_fig, inline=inline, **fig_kwargs)
+
+    def plot_performance_ranking(self, X, y, y_pred, metric, criterion, inline=False, **fig_kwargs):
+        explanation = self.explain_metric(X=X, y=y, y_pred=y_pred, metric=metric)
+        ranking = self.performance_ranking(explanation)
+        return plot(self.make_performance_ranking_fig(
+            ranking,
+            criterion=criterion,
+            **fig_kwargs
+        ), inline=inline)
