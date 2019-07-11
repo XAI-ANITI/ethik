@@ -219,10 +219,11 @@ class Explainer():
         X = pd.DataFrame(to_pandas(X))
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
+        self._fit(X, y_pred)
+
         queried_features = X.columns.tolist()
         to_explain = self.info['feature'][self.info['bias'].isnull()].unique()
         X = X[X.columns.intersection(to_explain)]
-        self._fit(X, y_pred)
 
         # Discard the features that are not relevant
         relevant = self.info.query(f'feature in {X.columns.tolist()}')
@@ -275,10 +276,11 @@ class Explainer():
         X = pd.DataFrame(to_pandas(X))
         y_pred = to_pandas(y_pred)
 
+        self._fit(X, y_pred)
+
         queried_features = X.columns.tolist()
         to_explain = self.info['feature'][self.info['score'].isnull()].unique()
         X = X[X.columns.intersection(to_explain)]
-        self._fit(X, y_pred)
 
         # Discard the features that are not relevant
         relevant = self.info.query(f'feature in {X.columns.tolist()}')
