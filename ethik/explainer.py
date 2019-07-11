@@ -434,10 +434,12 @@ class Explainer():
                     showline=True,
                     zeroline=False,
                     side="top",
+                    fixedrange=True,
                 ),
                 yaxis=dict(
                     showline=True,
                     zeroline=False,
+                    fixedrange=True,
                 ),
             )
         )
@@ -557,10 +559,12 @@ class Explainer():
                     zeroline=False,
                     side="top",
                     tickformat="%",
+                    fixedrange=True,
                 ),
                 yaxis=dict(
                     showline=True,
                     zeroline=False,
+                    fixedrange=True,
                 ),
             )
         )
