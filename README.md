@@ -28,7 +28,7 @@ Ethik is a Python package for performing [fair](https://www.microsoft.com/en-us/
 ```shell
 >>> pip install ethik
 ```
---->
+-->
 
 **Via GitHub for the latest development version**
 
@@ -161,11 +161,12 @@ import ethik
 explainer = ethik.ImageExplainer(n_jobs=-1)
 explainer = explainer.fit(x_test)
 ```
----!>
+-->
 
 
 ## API
 
+**Working on it.**
 
 
 ## Authors
