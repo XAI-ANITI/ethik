@@ -313,14 +313,15 @@ class Explainer:
         return self.info.query(f"feature in {queried_features}")
 
     def rank_by_performance(self, X_test, y_test, y_test_pred, metric):
-        def get_min_score(df):
-            return df["score"].min()
+        def get_aggregates(df):
+            return pd.Series(
+                [df["score"].min(), df["score"].max()], index=["min", "max"]
+            )
 
         return (
             self.explain_performance(X_test, y_test, y_test_pred, metric)
             .groupby("feature")
-            .apply(get_min_score)
-            .to_frame("min_score")
+            .apply(get_aggregates)
             .reset_index()
         )
 
@@ -409,36 +410,6 @@ class Explainer:
         return figures
 
     @classmethod
-    def make_bias_ranking_fig(cls, explanation, colors=None):
-        #  TODO: handle multiple labels
-        #  https://plot.ly/python/axes/#subcategory-axes
-        explanation = explanation.sort_values(by=["importance"])
-
-        return go.Figure(
-            data=[
-                go.Bar(
-                    x=explanation["importance"],
-                    y=explanation["feature"],
-                    orientation="h",
-                    hoverinfo="x",
-                    marker=dict(color=colors),
-                )
-            ],
-            layout=go.Layout(
-                margin=dict(l=200, b=0, t=40),
-                xaxis=dict(
-                    title="Importance",
-                    range=[0, 1],
-                    showline=True,
-                    zeroline=False,
-                    side="top",
-                    fixedrange=True,
-                ),
-                yaxis=dict(showline=True, zeroline=False, fixedrange=True),
-            ),
-        )
-
-    @classmethod
     def make_performance_fig(
         cls, explanation, y_label="Score", with_taus=False, colors=None
     ):
@@ -524,13 +495,13 @@ class Explainer:
         return figures
 
     @classmethod
-    def make_performance_ranking_fig(cls, ranking, criterion, colors=None):
-        ranking = ranking.sort_values(by=[criterion])
+    def _make_ranking_fig(cls, ranking, score_column, title, colors=None):
+        ranking = ranking.sort_values(by=[score_column])
 
         return go.Figure(
             data=[
                 go.Bar(
-                    x=ranking[criterion],
+                    x=ranking[score_column],
                     y=ranking["feature"],
                     orientation="h",
                     hoverinfo="x",
@@ -540,16 +511,25 @@ class Explainer:
             layout=go.Layout(
                 margin=dict(l=200, b=0, t=40),
                 xaxis=dict(
-                    title=criterion,
+                    title=title,
                     range=[0, 1],
                     showline=True,
                     zeroline=False,
                     side="top",
-                    tickformat="%",
                     fixedrange=True,
                 ),
                 yaxis=dict(showline=True, zeroline=False, fixedrange=True),
             ),
+        )
+
+    @classmethod
+    def make_bias_ranking_fig(cls, ranking, colors=None):
+        return cls._make_ranking_fig(ranking, "importance", "Importance", colors=colors)
+
+    @classmethod
+    def make_performance_ranking_fig(cls, ranking, metric_name, criterion, colors=None):
+        return cls._make_ranking_fig(
+            ranking, criterion, f"{criterion} {metric_name}", colors=colors
         )
 
     def _plot(self, explanation, make_fig, inline, **fig_kwargs):
@@ -589,7 +569,7 @@ class Explainer:
         )
         return plot(
             self.make_performance_ranking_fig(
-                ranking, criterion=criterion, **fig_kwargs
+                ranking, criterion=criterion, metric_name=metric.__name__, **fig_kwargs
             ),
             inline=inline,
         )
