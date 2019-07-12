@@ -83,16 +83,16 @@ def compute_lambdas(x, target_means, max_iterations=5):
     return lambdas
 
 
-def compute_pred_means(y_pred, x, lambdas):
+def compute_pred_means(y_test_pred, x, lambdas):
     return {
-        (x.name, y_pred.name, λ): np.average(y_pred, weights=np.exp(λ * x))
+        (x.name, y_test_pred.name, λ): np.average(y_test_pred, weights=np.exp(λ * x))
         for λ in lambdas
     }
 
 
-def compute_metric(y_true, y_pred, metric, x, lambdas):
+def compute_metric(y_true, y_test_pred, metric, x, lambdas):
     return {
-        (x.name, λ): metric(y_true, y_pred, sample_weight=np.exp(λ * x))
+        (x.name, λ): metric(y_true, y_test_pred, sample_weight=np.exp(λ * x))
         for λ in lambdas
     }
 
@@ -149,7 +149,7 @@ class Explainer:
     def features(self):
         return self.info["feature"].unique().tolist()
 
-    def _fit(self, X, y_pred):
+    def _fit(self, X_test, y_test_pred):
         """Fits the explainer to a tabular dataset.
 
         During a `fit` call, the following steps are taken:
@@ -159,23 +159,23 @@ class Explainer:
         3. A grid of $\lambda$ values is generated for each $\eps$. Each $\lambda$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\eps$ shift.
 
         Parameters:
-            X (`pandas.DataFrame` or `numpy.ndarray`)
-            y_pred (`pandas.DataFrame` or `numpy.ndarray`)
+            X_test (`pandas.DataFrame` or `numpy.ndarray`)
+            y_test_pred (`pandas.DataFrame` or `numpy.ndarray`)
 
         """
 
-        X = pd.DataFrame(to_pandas(X))
-        y_pred = pd.DataFrame(to_pandas(y_pred))
+        X_test = pd.DataFrame(to_pandas(X_test))
+        y_test_pred = pd.DataFrame(to_pandas(y_test_pred))
 
-        X = X[X.columns.difference(self.features)]
-        if X.empty:
+        X_test = X_test[X_test.columns.difference(self.features)]
+        if X_test.empty:
             return self
 
         # Make the epsilons
-        q_mins = X.quantile(q=self.alpha).to_dict()
-        q_maxs = X.quantile(q=1 - self.alpha).to_dict()
-        means = X.mean().to_dict()
-        X_num = X.select_dtypes(exclude=["object", "category"])
+        q_mins = X_test.quantile(q=self.alpha).to_dict()
+        q_maxs = X_test.quantile(q=1 - self.alpha).to_dict()
+        means = X_test.mean().to_dict()
+        X_test_num = X_test.select_dtypes(exclude=["object", "category"])
         self.info = self.info.append(
             pd.concat(
                 [
@@ -196,8 +196,8 @@ class Explainer:
                             "label": y,
                         }
                     )
-                    for col in X_num.columns
-                    for y in y_pred.columns
+                    for col in X_test_num.columns
+                    for y in y_test_pred.columns
                 ],
                 ignore_index=True,
             ),
@@ -208,12 +208,12 @@ class Explainer:
         # Find a lambda for each (column, espilon) pair
         lambdas = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
             joblib.delayed(compute_lambdas)(
-                x=X[col],
+                x=X_test[col],
                 target_means=part["value"].to_numpy(),
                 max_iterations=self.max_iterations,
             )
             for col, part in self.info.groupby("feature")
-            if col in X
+            if col in X_test
         )
         lambdas = merge_dicts(lambdas)
         self.info["lambda"] = self.info.apply(
@@ -223,29 +223,29 @@ class Explainer:
 
         return self
 
-    def explain_bias(self, X, y_pred):
+    def explain_bias(self, X_test, y_test_pred):
         """Returns a DataFrame containing average predictions for each (column, tau) pair.
 
         """
-        # Coerce X and y_pred to DataFrames
-        X = pd.DataFrame(to_pandas(X))
-        y_pred = pd.DataFrame(to_pandas(y_pred))
+        # Coerce X_test and y_test_pred to DataFrames
+        X_test = pd.DataFrame(to_pandas(X_test))
+        y_test_pred = pd.DataFrame(to_pandas(y_test_pred))
 
-        self._fit(X, y_pred)
+        self._fit(X_test, y_test_pred)
 
-        queried_features = X.columns.tolist()
+        queried_features = X_test.columns.tolist()
         to_explain = self.info["feature"][self.info["bias"].isnull()].unique()
-        X = X[X.columns.intersection(to_explain)]
+        X_test = X_test[X_test.columns.intersection(to_explain)]
 
         # Discard the features that are not relevant
-        relevant = self.info.query(f"feature in {X.columns.tolist()}")
+        relevant = self.info.query(f"feature in {X_test.columns.tolist()}")
 
         # Compute the average predictions for each (column, tau) pair per label
         biases = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
             joblib.delayed(compute_pred_means)(
-                y_pred=y_pred[label], x=X[col], lambdas=part["lambda"]
+                y_test_pred=y_test_pred[label], x=X_test[col], lambdas=part["lambda"]
             )
-            for label in y_pred.columns
+            for label in y_test_pred.columns
             for col, part in relevant.groupby("feature")
         )
         biases = merge_dicts(biases)
@@ -255,7 +255,7 @@ class Explainer:
         )
         return self.info.query(f"feature in {queried_features}")
 
-    def rank_by_bias(self, X, y_pred):
+    def rank_by_bias(self, X_test, y_test_pred):
         """Returns a DataFrame containing the importance of each feature.
 
         """
@@ -266,38 +266,42 @@ class Explainer:
             return (group["bias"] - baseline).abs().mean()
 
         return (
-            self.explain_bias(X=X, y_pred=y_pred)
+            self.explain_bias(X_test=X_test, y_test_pred=y_test_pred)
             .groupby(["label", "feature"])
             .apply(get_importance)
             .to_frame("importance")
             .reset_index()
         )
 
-    def explain_performance(self, X, y, y_pred, metric):
+    def explain_performance(self, X_test, y_test, y_test_pred, metric):
         """Returns a DataFrame with metric values for each (column, tau) pair.
 
         Parameters:
             metric (callable): A function that evaluates the quality of a set of predictions. Must
-                have the following signature: `metric(y_true, y_pred, sample_weights)`. Most
+                have the following signature: `metric(y_true, y_test_pred, sample_weights)`. Most
                 metrics from scikit-learn will work.
 
         """
-        X = pd.DataFrame(to_pandas(X))
-        y_pred = to_pandas(y_pred)
+        X_test = pd.DataFrame(to_pandas(X_test))
+        y_test_pred = to_pandas(y_test_pred)
 
-        self._fit(X, y_pred)
+        self._fit(X_test, y_test_pred)
 
-        queried_features = X.columns.tolist()
+        queried_features = X_test.columns.tolist()
         to_explain = self.info["feature"][self.info["score"].isnull()].unique()
-        X = X[X.columns.intersection(to_explain)]
+        X_test = X_test[X_test.columns.intersection(to_explain)]
 
         # Discard the features that are not relevant
-        relevant = self.info.query(f"feature in {X.columns.tolist()}")
+        relevant = self.info.query(f"feature in {X_test.columns.tolist()}")
 
         # Compute the metric for each (feature, lambda) pair
         scores = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
             joblib.delayed(compute_metric)(
-                y_true=y, y_pred=y_pred, metric=metric, x=X[col], lambdas=part["lambda"]
+                y_true=y_test,
+                y_test_pred=y_test_pred,
+                metric=metric,
+                x=X_test[col],
+                lambdas=part["lambda"],
             )
             for col, part in relevant.groupby("feature")
         )
@@ -308,12 +312,12 @@ class Explainer:
         )
         return self.info.query(f"feature in {queried_features}")
 
-    def rank_by_performance(self, X, y, y_pred, metric):
+    def rank_by_performance(self, X_test, y_test, y_test_pred, metric):
         def get_min_score(df):
             return df["score"].min()
 
         return (
-            self.explain_performance(X, y, y_pred, metric)
+            self.explain_performance(X_test, y_test, y_test_pred, metric)
             .groupby("feature")
             .apply(get_min_score)
             .to_frame("min_score")
@@ -559,24 +563,30 @@ class Explainer:
             inline=inline,
         )
 
-    def plot_bias(self, X, y_pred, inline=False, **fig_kwargs):
-        explanation = self.explain_bias(X=X, y_pred=y_pred)
+    def plot_bias(self, X_test, y_test_pred, inline=False, **fig_kwargs):
+        explanation = self.explain_bias(X_test=X_test, y_test_pred=y_test_pred)
         return self._plot(explanation, self.make_bias_fig, inline=inline, **fig_kwargs)
 
-    def plot_bias_ranking(self, X, y_pred, inline=False, **fig_kwargs):
-        ranking = self.rank_by_bias(X=X, y_pred=y_pred)
+    def plot_bias_ranking(self, X_test, y_test_pred, inline=False, **fig_kwargs):
+        ranking = self.rank_by_bias(X_test=X_test, y_test_pred=y_test_pred)
         return plot(self.make_bias_ranking_fig(ranking, **fig_kwargs), inline=inline)
 
-    def plot_performance(self, X, y, y_pred, metric, inline=False, **fig_kwargs):
-        explanation = self.explain_performance(X=X, y=y, y_pred=y_pred, metric=metric)
+    def plot_performance(
+        self, X_test, y_test, y_test_pred, metric, inline=False, **fig_kwargs
+    ):
+        explanation = self.explain_performance(
+            X_test=X_test, y_test=y_test, y_test_pred=y_test_pred, metric=metric
+        )
         return self._plot(
             explanation, self.make_performance_fig, inline=inline, **fig_kwargs
         )
 
     def plot_performance_ranking(
-        self, X, y, y_pred, metric, criterion, inline=False, **fig_kwargs
+        self, X_test, y_test, y_test_pred, metric, criterion, inline=False, **fig_kwargs
     ):
-        ranking = self.rank_by_performance(X=X, y=y, y_pred=y_pred, metric=metric)
+        ranking = self.rank_by_performance(
+            X_test=X_test, y_test=y_test, y_test_pred=y_test_pred, metric=metric
+        )
         return plot(
             self.make_performance_ranking_fig(
                 ranking, criterion=criterion, **fig_kwargs
