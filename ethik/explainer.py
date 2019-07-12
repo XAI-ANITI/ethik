@@ -8,7 +8,7 @@ import plotly
 import plotly.graph_objs as go
 
 
-__all__ = ['Explainer']
+__all__ = ["Explainer"]
 
 
 def plot(fig, inline=False):
@@ -41,7 +41,7 @@ def to_pandas(x):
 
     if isinstance(x, np.ndarray):
         if x.ndim > 2:
-            raise ValueError('x must have 1 or 2 dimensions')
+            raise ValueError("x must have 1 or 2 dimensions")
         if x.ndim == 2:
             return pd.DataFrame(x)
         return pd.Series(x)
@@ -97,7 +97,7 @@ def compute_metric(y_true, y_pred, metric, x, lambdas):
     }
 
 
-class Explainer():
+class Explainer:
     """Explains the bias and reliability of model predictions.
 
     Parameters:
@@ -114,22 +114,26 @@ class Explainer():
 
     """
 
-    def __init__(self, alpha=0.05, n_taus=41, max_iterations=5, n_jobs=-1, verbose=False):
+    def __init__(
+        self, alpha=0.05, n_taus=41, max_iterations=5, n_jobs=-1, verbose=False
+    ):
         if not 0 < alpha < 0.5:
-            raise ValueError('alpha must be between 0 and 0.5, got '
-                             f'{alpha}')
+            raise ValueError("alpha must be between 0 and 0.5, got " f"{alpha}")
 
         if not n_taus > 0:
-            raise ValueError('n_taus must be a strictly positive integer, got '
-                             f'{n_taus}')
+            raise ValueError(
+                "n_taus must be a strictly positive integer, got " f"{n_taus}"
+            )
 
         if not max_iterations > 0:
-            raise ValueError('max_iterations must be a strictly positive '
-                             f'integer, got {max_iterations}')
+            raise ValueError(
+                "max_iterations must be a strictly positive "
+                f"integer, got {max_iterations}"
+            )
 
-        self.info = pd.DataFrame(columns=[
-            'feature', 'tau', 'value', 'lambda', 'label', 'bias', 'score',
-        ])
+        self.info = pd.DataFrame(
+            columns=["feature", "tau", "value", "lambda", "label", "bias", "score"]
+        )
         self.alpha = alpha
         self.n_taus = n_taus
         self.max_iterations = max_iterations
@@ -143,7 +147,7 @@ class Explainer():
 
     @property
     def features(self):
-        return self.info['feature'].unique().tolist()
+        return self.info["feature"].unique().tolist()
 
     def _fit(self, X, y_pred):
         """Fits the explainer to a tabular dataset.
@@ -156,6 +160,7 @@ class Explainer():
 
         Parameters:
             X (`pandas.DataFrame` or `numpy.ndarray`)
+            y_pred (`pandas.DataFrame` or `numpy.ndarray`)
 
         """
 
@@ -170,43 +175,50 @@ class Explainer():
         q_mins = X.quantile(q=self.alpha).to_dict()
         q_maxs = X.quantile(q=1 - self.alpha).to_dict()
         means = X.mean().to_dict()
-        X_num = X.select_dtypes(exclude=['object', 'category'])
-        self.info = self.info.append(pd.concat(
-            [
-                pd.DataFrame({
-                    'tau': self.taus,
-                    'value': [
-                        means[col] + tau * (
-                            (means[col] - q_mins[col])
-                            if tau < 0 else
-                            (q_maxs[col] - means[col])
-                        )
-                        for tau in self.taus
-                    ],
-                    'feature': col,
-                    'label': y
-                })
-                for col in X_num.columns for y in y_pred.columns
-            ],
-            ignore_index=True
-        ), ignore_index=True, sort=False)
+        X_num = X.select_dtypes(exclude=["object", "category"])
+        self.info = self.info.append(
+            pd.concat(
+                [
+                    pd.DataFrame(
+                        {
+                            "tau": self.taus,
+                            "value": [
+                                means[col]
+                                + tau
+                                * (
+                                    (means[col] - q_mins[col])
+                                    if tau < 0
+                                    else (q_maxs[col] - means[col])
+                                )
+                                for tau in self.taus
+                            ],
+                            "feature": col,
+                            "label": y,
+                        }
+                    )
+                    for col in X_num.columns
+                    for y in y_pred.columns
+                ],
+                ignore_index=True,
+            ),
+            ignore_index=True,
+            sort=False,
+        )
 
         # Find a lambda for each (column, espilon) pair
-        lambdas = joblib.Parallel(
-            n_jobs=self.n_jobs,
-            verbose=self.verbose,
-        )(
+        lambdas = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
             joblib.delayed(compute_lambdas)(
                 x=X[col],
-                target_means=part['value'].to_numpy(),
-                max_iterations=self.max_iterations
+                target_means=part["value"].to_numpy(),
+                max_iterations=self.max_iterations,
             )
-            for col, part in self.info.groupby('feature') if col in X
+            for col, part in self.info.groupby("feature")
+            if col in X
         )
         lambdas = merge_dicts(lambdas)
-        self.info['lambda'] = self.info.apply(
-            lambda r: lambdas.get((r['feature'], r['value']), r['lambda']),
-            axis='columns'
+        self.info["lambda"] = self.info.apply(
+            lambda r: lambdas.get((r["feature"], r["value"]), r["lambda"]),
+            axis="columns",
         )
 
         return self
@@ -222,31 +234,26 @@ class Explainer():
         self._fit(X, y_pred)
 
         queried_features = X.columns.tolist()
-        to_explain = self.info['feature'][self.info['bias'].isnull()].unique()
+        to_explain = self.info["feature"][self.info["bias"].isnull()].unique()
         X = X[X.columns.intersection(to_explain)]
 
         # Discard the features that are not relevant
-        relevant = self.info.query(f'feature in {X.columns.tolist()}')
+        relevant = self.info.query(f"feature in {X.columns.tolist()}")
 
         # Compute the average predictions for each (column, tau) pair per label
-        biases = joblib.Parallel(
-            n_jobs=self.n_jobs,
-            verbose=self.verbose,
-        )(
+        biases = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
             joblib.delayed(compute_pred_means)(
-                y_pred=y_pred[label],
-                x=X[col],
-                lambdas=part['lambda']
+                y_pred=y_pred[label], x=X[col], lambdas=part["lambda"]
             )
             for label in y_pred.columns
-            for col, part in relevant.groupby('feature')
+            for col, part in relevant.groupby("feature")
         )
         biases = merge_dicts(biases)
-        self.info['bias'] = self.info.apply(
-            lambda r: biases.get((r['feature'], r['label'], r['lambda']), r['bias']),
-            axis='columns'
+        self.info["bias"] = self.info.apply(
+            lambda r: biases.get((r["feature"], r["label"], r["lambda"]), r["bias"]),
+            axis="columns",
         )
-        return self.info.query(f'feature in {queried_features}')
+        return self.info.query(f"feature in {queried_features}")
 
     def rank_by_bias(self, X, y_pred):
         """Returns a DataFrame containing the importance of each feature.
@@ -255,14 +262,16 @@ class Explainer():
 
         def get_importance(group):
             """Computes the average absolute difference in bias changes per tau increase."""
-            baseline = group.query('tau == 0').iloc[0]['bias']
-            return (group['bias'] - baseline).abs().mean()
+            baseline = group.query("tau == 0").iloc[0]["bias"]
+            return (group["bias"] - baseline).abs().mean()
 
-        return self.explain_bias(X=X, y_pred=y_pred)\
-                   .groupby(['label', 'feature'])\
-                   .apply(get_importance)\
-                   .to_frame('importance')\
-                   .reset_index()
+        return (
+            self.explain_bias(X=X, y_pred=y_pred)
+            .groupby(["label", "feature"])
+            .apply(get_importance)
+            .to_frame("importance")
+            .reset_index()
+        )
 
     def explain_performance(self, X, y, y_pred, metric):
         """Returns a DataFrame with metric values for each (column, tau) pair.
@@ -279,41 +288,37 @@ class Explainer():
         self._fit(X, y_pred)
 
         queried_features = X.columns.tolist()
-        to_explain = self.info['feature'][self.info['score'].isnull()].unique()
+        to_explain = self.info["feature"][self.info["score"].isnull()].unique()
         X = X[X.columns.intersection(to_explain)]
 
         # Discard the features that are not relevant
-        relevant = self.info.query(f'feature in {X.columns.tolist()}')
+        relevant = self.info.query(f"feature in {X.columns.tolist()}")
 
         # Compute the metric for each (feature, lambda) pair
-        scores = joblib.Parallel(
-            n_jobs=self.n_jobs,
-            verbose=self.verbose,
-        )(
+        scores = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
             joblib.delayed(compute_metric)(
-                y_true=y,
-                y_pred=y_pred,
-                metric=metric,
-                x=X[col],
-                lambdas=part['lambda']
+                y_true=y, y_pred=y_pred, metric=metric, x=X[col], lambdas=part["lambda"]
             )
-            for col, part in relevant.groupby('feature')
+            for col, part in relevant.groupby("feature")
         )
         scores = merge_dicts(scores)
-        self.info['score'] = self.info.apply(
-            lambda r: scores.get((r['feature'], r['lambda']), r['score']),
-            axis='columns'
+        self.info["score"] = self.info.apply(
+            lambda r: scores.get((r["feature"], r["lambda"]), r["score"]),
+            axis="columns",
         )
-        return self.info.query(f'feature in {queried_features}')
+        return self.info.query(f"feature in {queried_features}")
 
     def rank_by_performance(self, X, y, y_pred, metric):
         def get_min_score(df):
             return df["score"].min()
 
-        return self.explain_performance(X, y, y_pred, metric).groupby("feature")\
-                          .apply(get_min_score)\
-                          .to_frame("min_score")\
-                          .reset_index()
+        return (
+            self.explain_performance(X, y, y_pred, metric)
+            .groupby("feature")
+            .apply(get_min_score)
+            .to_frame("min_score")
+            .reset_index()
+        )
 
     @classmethod
     def make_bias_fig(cls, explanation, with_taus=False, colors=None):
@@ -328,83 +333,72 @@ class Explainer():
 
         if colors is None:
             colors = {}
-        features = explanation['feature'].unique()
-        labels = explanation['label'].unique()
-        y_label = f'Proportion of {labels[0]}' # Single class
+        features = explanation["feature"].unique()
+        labels = explanation["label"].unique()
+        y_label = f"Proportion of {labels[0]}"  #  Single class
 
         if with_taus:
             traces = []
             for feat in features:
-                x = explanation.query(f'feature == "{feat}"')['tau']
-                y = explanation.query(f'feature == "{feat}"')['bias']
-                traces.append(go.Scatter(
-                    x=x,
-                    y=y,
-                    mode='lines+markers',
-                    hoverinfo='x+y+text',
-                    name=feat,
-                    text=[
-                        f'{feat} = {val}'
-                        for val in explanation.query(f'feature == "{feat}"')['value']
-                    ],
-                    marker=dict(color=colors.get(feat)),
-                ))
+                x = explanation.query(f'feature == "{feat}"')["tau"]
+                y = explanation.query(f'feature == "{feat}"')["bias"]
+                traces.append(
+                    go.Scatter(
+                        x=x,
+                        y=y,
+                        mode="lines+markers",
+                        hoverinfo="x+y+text",
+                        name=feat,
+                        text=[
+                            f"{feat} = {val}"
+                            for val in explanation.query(f'feature == "{feat}"')[
+                                "value"
+                            ]
+                        ],
+                        marker=dict(color=colors.get(feat)),
+                    )
+                )
 
             return go.Figure(
                 data=traces,
                 layout=go.Layout(
                     margin=dict(t=50, r=50),
-                    xaxis=dict(
-                        title='tau',
-                        zeroline=False,
-                    ),
+                    xaxis=dict(title="tau", zeroline=False),
                     yaxis=dict(
-                        title=y_label,
-                        range=[0, 1],
-                        showline=True,
-                        tickformat='%',
+                        title=y_label, range=[0, 1], showline=True, tickformat="%"
                     ),
                 ),
             )
 
         figures = {}
         for feat in features:
-            x = explanation.query(f'feature == "{feat}"')['value']
-            y = explanation.query(f'feature == "{feat}"')['bias']
+            x = explanation.query(f'feature == "{feat}"')["value"]
+            y = explanation.query(f'feature == "{feat}"')["bias"]
             mean_row = explanation.query(f'feature == "{feat}" and tau == 0').iloc[0]
             figures[feat] = go.Figure(
                 data=[
                     go.Scatter(
                         x=x,
                         y=y,
-                        mode='lines+markers',
-                        hoverinfo='x+y',
+                        mode="lines+markers",
+                        hoverinfo="x+y",
                         showlegend=False,
                         marker=dict(color=colors.get(feat)),
                     ),
                     go.Scatter(
-                        x=[mean_row['value']],
-                        y=[mean_row['bias']],
-                        mode='markers',
-                        name='Original mean',
-                        hoverinfo='skip',
-                        marker=dict(
-                            symbol='x',
-                            size=9,
-                        ),
+                        x=[mean_row["value"]],
+                        y=[mean_row["bias"]],
+                        mode="markers",
+                        name="Original mean",
+                        hoverinfo="skip",
+                        marker=dict(symbol="x", size=9),
                     ),
                 ],
                 layout=go.Layout(
                     margin=dict(t=50, r=50),
-                    xaxis=dict(
-                        title=f'Mean {feat}',
-                        zeroline=False,
-                    ),
+                    xaxis=dict(title=f"Mean {feat}", zeroline=False),
                     yaxis=dict(
-                        title=y_label,
-                        range=[0, 1],
-                        showline=True,
-                        tickformat='%',
+                        title=y_label, range=[0, 1], showline=True, tickformat="%"
                     ),
                 ),
             )
@@ -412,20 +406,20 @@ class Explainer():
 
     @classmethod
     def make_bias_ranking_fig(cls, explanation, colors=None):
-        # TODO: handle multiple labels
-        # https://plot.ly/python/axes/#subcategory-axes
+        #  TODO: handle multiple labels
+        #  https://plot.ly/python/axes/#subcategory-axes
         explanation = explanation.sort_values(by=["importance"])
 
         return go.Figure(
-            data=[go.Bar(
-                x=explanation["importance"],
-                y=explanation["feature"],
-                orientation="h",
-                hoverinfo="x",
-                marker=dict(
-                    color=colors,
-                ),
-            )],
+            data=[
+                go.Bar(
+                    x=explanation["importance"],
+                    y=explanation["feature"],
+                    orientation="h",
+                    hoverinfo="x",
+                    marker=dict(color=colors),
+                )
+            ],
             layout=go.Layout(
                 margin=dict(l=200, b=0, t=40),
                 xaxis=dict(
@@ -436,16 +430,14 @@ class Explainer():
                     side="top",
                     fixedrange=True,
                 ),
-                yaxis=dict(
-                    showline=True,
-                    zeroline=False,
-                    fixedrange=True,
-                ),
-            )
+                yaxis=dict(showline=True, zeroline=False, fixedrange=True),
+            ),
         )
 
     @classmethod
-    def make_performance_fig(cls, explanation, y_label='Score', with_taus=False, colors=None):
+    def make_performance_fig(
+        cls, explanation, y_label="Score", with_taus=False, colors=None
+    ):
         """Plots metric values against variable values.
 
         If a single column is provided then the x-axis is made of the nominal
@@ -457,99 +449,90 @@ class Explainer():
 
         if colors is None:
             colors = {}
-        features = explanation['feature'].unique()
+        features = explanation["feature"].unique()
 
         if with_taus:
             traces = []
             for feat in features:
-                x = explanation.query(f'feature == "{feat}"')['tau']
-                y = explanation.query(f'feature == "{feat}"')['score']
-                traces.append(go.Scatter(
-                    x=x,
-                    y=y,
-                    mode='lines+markers',
-                    hoverinfo='x+y+text',
-                    name=feat,
-                    text=[
-                        f'{feat} = {val}'
-                        for val in explanation.query(f'feature == "{feat}"')['value']
-                    ],
-                    marker=dict(color=colors.get(feat)),
-                ))
+                x = explanation.query(f'feature == "{feat}"')["tau"]
+                y = explanation.query(f'feature == "{feat}"')["score"]
+                traces.append(
+                    go.Scatter(
+                        x=x,
+                        y=y,
+                        mode="lines+markers",
+                        hoverinfo="x+y+text",
+                        name=feat,
+                        text=[
+                            f"{feat} = {val}"
+                            for val in explanation.query(f'feature == "{feat}"')[
+                                "value"
+                            ]
+                        ],
+                        marker=dict(color=colors.get(feat)),
+                    )
+                )
 
             return go.Figure(
                 data=traces,
                 layout=go.Layout(
                     margin=dict(t=50, r=50),
-                    xaxis=dict(
-                        title='tau',
-                        zeroline=False,
-                    ),
+                    xaxis=dict(title="tau", zeroline=False),
                     yaxis=dict(
-                        title=y_label,
-                        range=[0, 1],
-                        showline=True,
-                        tickformat='%',
+                        title=y_label, range=[0, 1], showline=True, tickformat="%"
                     ),
                 ),
             )
 
         figures = {}
         for feat in features:
-            x = explanation.query(f'feature == "{feat}"')['value']
-            y = explanation.query(f'feature == "{feat}"')['score']
+            x = explanation.query(f'feature == "{feat}"')["value"]
+            y = explanation.query(f'feature == "{feat}"')["score"]
             figures[feat] = go.Figure(
                 data=[
                     go.Scatter(
                         x=x,
                         y=y,
-                        mode='lines+markers',
-                        hoverinfo='x+y',
+                        mode="lines+markers",
+                        hoverinfo="x+y",
                         showlegend=False,
                         marker=dict(color=colors.get(feat)),
                     ),
                     go.Scatter(
                         x=[x.mean()],
-                        y=explanation.query(f'feature == "{feat}" and tau == 0')['score'],
-                        mode='markers',
-                        name='Original mean',
-                        hoverinfo='skip',
-                        marker=dict(
-                            symbol='x',
-                            size=9,
-                        ),
+                        y=explanation.query(f'feature == "{feat}" and tau == 0')[
+                            "score"
+                        ],
+                        mode="markers",
+                        name="Original mean",
+                        hoverinfo="skip",
+                        marker=dict(symbol="x", size=9),
                     ),
                 ],
                 layout=go.Layout(
                     margin=dict(t=50, r=50),
-                    xaxis=dict(
-                        title=f'Mean {feat}',
-                        zeroline=False,
-                    ),
+                    xaxis=dict(title=f"Mean {feat}", zeroline=False),
                     yaxis=dict(
-                        title=y_label,
-                        range=[0, 1],
-                        showline=True,
-                        tickformat='%',
+                        title=y_label, range=[0, 1], showline=True, tickformat="%"
                     ),
                 ),
             )
         return figures
-    
+
     @classmethod
     def make_performance_ranking_fig(cls, ranking, criterion, colors=None):
         ranking = ranking.sort_values(by=[criterion])
 
         return go.Figure(
-            data=[go.Bar(
-                x=ranking[criterion],
-                y=ranking["feature"],
-                orientation="h",
-                hoverinfo="x",
-                marker=dict(
-                    color=colors,
-                ),
-            )],
+            data=[
+                go.Bar(
+                    x=ranking[criterion],
+                    y=ranking["feature"],
+                    orientation="h",
+                    hoverinfo="x",
+                    marker=dict(color=colors),
+                )
+            ],
             layout=go.Layout(
                 margin=dict(l=200, b=0, t=40),
                 xaxis=dict(
@@ -561,20 +544,15 @@ class Explainer():
                     tickformat="%",
                     fixedrange=True,
                 ),
-                yaxis=dict(
-                    showline=True,
-                    zeroline=False,
-                    fixedrange=True,
-                ),
-            )
+                yaxis=dict(showline=True, zeroline=False, fixedrange=True),
+            ),
         )
 
     def _plot(self, explanation, make_fig, inline, **fig_kwargs):
-        features = explanation['feature'].unique()
+        features = explanation["feature"].unique()
         if len(features) > 1:
             return plot(
-                make_fig(explanation, with_taus=True, **fig_kwargs),
-                inline=inline,
+                make_fig(explanation, with_taus=True, **fig_kwargs), inline=inline
             )
         return plot(
             make_fig(explanation, with_taus=False, **fig_kwargs)[features[0]],
@@ -591,12 +569,17 @@ class Explainer():
 
     def plot_performance(self, X, y, y_pred, metric, inline=False, **fig_kwargs):
         explanation = self.explain_performance(X=X, y=y, y_pred=y_pred, metric=metric)
-        return self._plot(explanation, self.make_performance_fig, inline=inline, **fig_kwargs)
+        return self._plot(
+            explanation, self.make_performance_fig, inline=inline, **fig_kwargs
+        )
 
-    def plot_performance_ranking(self, X, y, y_pred, metric, criterion, inline=False, **fig_kwargs):
+    def plot_performance_ranking(
+        self, X, y, y_pred, metric, criterion, inline=False, **fig_kwargs
+    ):
         ranking = self.rank_by_performance(X=X, y=y, y_pred=y_pred, metric=metric)
-        return plot(self.make_performance_ranking_fig(
-            ranking,
-            criterion=criterion,
-            **fig_kwargs
-        ), inline=inline)
+        return plot(
+            self.make_performance_ranking_fig(
+                ranking, criterion=criterion, **fig_kwargs
+            ),
+            inline=inline,
+        )

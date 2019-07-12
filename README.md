@@ -22,16 +22,27 @@ Ethik is a Python package for performing [fair](https://www.microsoft.com/en-us/
 
 :warning: Python 3.6 or above is required :snake:
 
+<!---
 **Via [PyPI](https://pypi.org/project/ethik/)**
 
 ```shell
 >>> pip install ethik
 ```
+--->
 
 **Via GitHub for the latest development version**
 
 ```shell
 >>> pip install git+https://github.com/MaxHalford/ethik
+```
+
+### Development
+
+```shell
+>>> git clone https://github.com/MaxHalford/ethik
+>>> cd ethik
+>>> pip install pre-commit # For black
+>>> python setup.py develop
 ```
 
 ## User guide

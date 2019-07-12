@@ -12,7 +12,7 @@ def images_to_dataframe(images):
     img_shape = images[0].shape
     return pd.DataFrame(
         data=images.reshape(len(images), -1),
-        columns=itertools.product(*[np.arange(n) for n in img_shape])
+        columns=itertools.product(*[np.arange(n) for n in img_shape]),
     )
 
 
@@ -30,7 +30,7 @@ class ImageExplainer(explainer.Explainer):
             n_taus=2,
             max_iterations=max_iterations,
             n_jobs=n_jobs,
-            verbose=verbose
+            verbose=verbose,
         )
 
     def fit(self, images):
@@ -49,12 +49,14 @@ class ImageExplainer(explainer.Explainer):
         if isinstance(means.columns, pd.MultiIndex):
 
             # Determine the number of rows from the number of columns and the number of labels
-            labels = means.columns.unique('labels')
+            labels = means.columns.unique("labels")
             n_rows = math.ceil(len(labels) / n_cols)
 
             # Make one plot per label
-            fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * width, n_rows * width))
-            for ax in axes.ravel()[len(labels):]:
+            fig, axes = plt.subplots(
+                n_rows, n_cols, figsize=(n_cols * width, n_rows * width)
+            )
+            for ax in axes.ravel()[len(labels) :]:
                 fig.delaxes(ax)
 
             v_min = math.inf
@@ -62,12 +64,14 @@ class ImageExplainer(explainer.Explainer):
 
             for label, ax in zip(labels, axes.flat):
                 label_means = means[label]
-                diffs = (label_means.iloc[-1] - label_means.iloc[0]).fillna(0.)
+                diffs = (label_means.iloc[-1] - label_means.iloc[0]).fillna(0.0)
 
                 v_min = min(v_min, diffs.min())
                 v_max = max(v_max, diffs.max())
 
-                ax.imshow(diffs.to_numpy().reshape(self.img_shape), interpolation='none')
+                ax.imshow(
+                    diffs.to_numpy().reshape(self.img_shape), interpolation="none"
+                )
                 ax.get_xaxis().set_visible(False)
                 ax.get_yaxis().set_visible(False)
                 ax.set_title(label, fontsize=20)
@@ -81,7 +85,7 @@ class ImageExplainer(explainer.Explainer):
             return fig, axes
 
         fig, ax = plt.subplots()
-        diffs = (means.iloc[-1] - means.iloc[0]).fillna(0.)
+        diffs = (means.iloc[-1] - means.iloc[0]).fillna(0.0)
         img = ax.imshow(diffs.to_numpy().reshape(self.img_shape))
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
@@ -93,16 +97,13 @@ class ImageExplainer(explainer.Explainer):
     def plot_metric(self, images, y, y_pred, metric):
 
         metrics = self.explain_metric(
-            X=images_to_dataframe(images),
-            y=y,
-            y_pred=y_pred,
-            metric=metric
+            X=images_to_dataframe(images), y=y, y_pred=y_pred, metric=metric
         )
 
         # Create a plot if none is provided
         fig, ax = plt.subplots()
 
-        diffs = (metrics.iloc[-1] - metrics.iloc[0]).fillna(0.)
+        diffs = (metrics.iloc[-1] - metrics.iloc[0]).fillna(0.0)
         img = ax.imshow(diffs.to_numpy().reshape(self.img_shape))
 
         fig.colorbar(img, ax=ax)

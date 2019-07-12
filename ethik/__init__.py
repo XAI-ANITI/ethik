@@ -3,4 +3,4 @@ from .explainer import Explainer
 from .image_explainer import ImageExplainer
 
 
-__all__ = ['__version__', 'Explainer', 'ImageExplainer']
+__all__ = ["__version__", "Explainer", "ImageExplainer"]
