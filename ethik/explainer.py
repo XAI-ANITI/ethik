@@ -83,16 +83,16 @@ def compute_lambdas(x, target_means, max_iterations=5):
     return lambdas
 
 
-def compute_pred_means(y_test_pred, x, lambdas):
+def compute_bias(y_test_pred, x, lambdas):
     return {
         (x.name, y_test_pred.name, λ): np.average(y_test_pred, weights=np.exp(λ * x))
         for λ in lambdas
     }
 
 
-def compute_metric(y_true, y_test_pred, metric, x, lambdas):
+def compute_performance(y_test, y_test_pred, metric, x, lambdas):
     return {
-        (x.name, λ): metric(y_true, y_test_pred, sample_weight=np.exp(λ * x))
+        (x.name, λ): metric(y_test, y_test_pred, sample_weight=np.exp(λ * x))
         for λ in lambdas
     }
 
@@ -242,7 +242,7 @@ class Explainer:
 
         # Compute the average predictions for each (column, tau) pair per label
         biases = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
-            joblib.delayed(compute_pred_means)(
+            joblib.delayed(compute_bias)(
                 y_test_pred=y_test_pred[label], x=X_test[col], lambdas=part["lambda"]
             )
             for label in y_test_pred.columns
@@ -278,7 +278,7 @@ class Explainer:
 
         Parameters:
             metric (callable): A function that evaluates the quality of a set of predictions. Must
-                have the following signature: `metric(y_true, y_test_pred, sample_weights)`. Most
+                have the following signature: `metric(y_test, y_test_pred, sample_weights)`. Most
                 metrics from scikit-learn will work.
 
         """
@@ -296,8 +296,8 @@ class Explainer:
 
         # Compute the metric for each (feature, lambda) pair
         scores = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
-            joblib.delayed(compute_metric)(
-                y_true=y_test,
+            joblib.delayed(compute_performance)(
+                y_test=y_test,
                 y_test_pred=y_test_pred,
                 metric=metric,
                 x=X_test[col],
