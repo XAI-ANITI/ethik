@@ -1,5 +1,6 @@
 import collections
 import decimal
+import functools
 
 import joblib
 import numpy as np
@@ -97,7 +98,7 @@ def compute_performance(y_test, y_test_pred, metric, x, lambdas):
     }
 
 
-class Explainer:
+class Explainer(pd.DataFrame):
     """Explains the bias and reliability of model predictions.
 
     Parameters:
@@ -114,8 +115,17 @@ class Explainer:
 
     """
 
+    _metadata = ["alpha", "n_taus", "max_iterations", "n_jobs", "verbose"]
+
     def __init__(
-        self, alpha=0.05, n_taus=41, max_iterations=5, n_jobs=-1, verbose=False
+        self,
+        *df_args,
+        alpha=0.05,
+        n_taus=41,
+        max_iterations=5,
+        n_jobs=-1,
+        verbose=False,
+        **df_kwargs,
     ):
         if not 0 < alpha < 0.5:
             raise ValueError("alpha must be between 0 and 0.5, got " f"{alpha}")
@@ -131,8 +141,11 @@ class Explainer:
                 f"integer, got {max_iterations}"
             )
 
-        self.info = pd.DataFrame(
-            columns=["feature", "tau", "value", "lambda", "label", "bias", "score"]
+        #  TODO: one column per performance metric
+        super().__init__(
+            *df_args,
+            columns=["feature", "tau", "value", "lambda", "label", "bias", "score"],
+            **df_kwargs,
         )
         self.alpha = alpha
         self.n_taus = n_taus
@@ -141,13 +154,24 @@ class Explainer:
         self.verbose = verbose
 
     @property
+    def _constructor(self):
+        return functools.partial(
+            Explainer,
+            alpha=self.alpha,
+            n_taus=self.n_taus,
+            max_iterations=self.max_iterations,
+            n_jobs=self.n_jobs,
+            verbose=self.verbose,
+        )
+
+    @property
     def taus(self):
         tau_precision = 2 / (self.n_taus - 1)
         return list(decimal_range(-1, 1, tau_precision))
 
     @property
     def features(self):
-        return self.info["feature"].unique().tolist()
+        return self["feature"].unique().tolist()
 
     def _fit(self, X_test, y_test_pred):
         """Fits the explainer to a tabular dataset.
@@ -176,34 +200,33 @@ class Explainer:
         q_maxs = X_test.quantile(q=1 - self.alpha).to_dict()
         means = X_test.mean().to_dict()
         X_test_num = X_test.select_dtypes(exclude=["object", "category"])
-        self.info = self.info.append(
-            pd.concat(
-                [
-                    pd.DataFrame(
-                        {
-                            "tau": self.taus,
-                            "value": [
-                                means[col]
-                                + tau
-                                * (
-                                    (means[col] - q_mins[col])
-                                    if tau < 0
-                                    else (q_maxs[col] - means[col])
-                                )
-                                for tau in self.taus
-                            ],
-                            "feature": col,
-                            "label": y,
-                        }
-                    )
-                    for col in X_test_num.columns
-                    for y in y_test_pred.columns
-                ],
-                ignore_index=True,
-            ),
+        additional_info = pd.concat(
+            [
+                pd.DataFrame(
+                    {
+                        "tau": self.taus,
+                        "value": [
+                            means[col]
+                            + tau
+                            * (
+                                (means[col] - q_mins[col])
+                                if tau < 0
+                                else (q_maxs[col] - means[col])
+                            )
+                            for tau in self.taus
+                        ],
+                        "feature": col,
+                        "label": y,
+                    }
+                )
+                for col in X_test_num.columns
+                for y in y_test_pred.columns
+            ],
             ignore_index=True,
-            sort=False,
         )
+        #  TODO: find a better way to append rows inplace?
+        for _, row in additional_info.iterrows():
+            self.loc[len(self)] = row
 
         # Find a lambda for each (column, espilon) pair
         lambdas = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
@@ -212,11 +235,11 @@ class Explainer:
                 target_means=part["value"].to_numpy(),
                 max_iterations=self.max_iterations,
             )
-            for col, part in self.info.groupby("feature")
+            for col, part in self.groupby("feature")
             if col in X_test
         )
         lambdas = merge_dicts(lambdas)
-        self.info["lambda"] = self.info.apply(
+        self["lambda"] = self.apply(
             lambda r: lambdas.get((r["feature"], r["value"]), r["lambda"]),
             axis="columns",
         )
@@ -234,11 +257,11 @@ class Explainer:
         self._fit(X_test, y_test_pred)
 
         queried_features = X_test.columns.tolist()
-        to_explain = self.info["feature"][self.info["bias"].isnull()].unique()
+        to_explain = self["feature"][self["bias"].isnull()].unique()
         X_test = X_test[X_test.columns.intersection(to_explain)]
 
         # Discard the features that are not relevant
-        relevant = self.info.query(f"feature in {X_test.columns.tolist()}")
+        relevant = self.query(f"feature in {X_test.columns.tolist()}")
 
         # Compute the average predictions for each (column, tau) pair per label
         biases = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
@@ -249,11 +272,11 @@ class Explainer:
             for col, part in relevant.groupby("feature")
         )
         biases = merge_dicts(biases)
-        self.info["bias"] = self.info.apply(
+        self["bias"] = self.apply(
             lambda r: biases.get((r["feature"], r["label"], r["lambda"]), r["bias"]),
             axis="columns",
         )
-        return self.info.query(f"feature in {queried_features}")
+        return self.query(f"feature in {queried_features}")
 
     def rank_by_bias(self, X_test, y_test_pred):
         """Returns a DataFrame containing the importance of each feature.
@@ -288,11 +311,11 @@ class Explainer:
         self._fit(X_test, y_test_pred)
 
         queried_features = X_test.columns.tolist()
-        to_explain = self.info["feature"][self.info["score"].isnull()].unique()
+        to_explain = self["feature"][self["score"].isnull()].unique()
         X_test = X_test[X_test.columns.intersection(to_explain)]
 
         # Discard the features that are not relevant
-        relevant = self.info.query(f"feature in {X_test.columns.tolist()}")
+        relevant = self.query(f"feature in {X_test.columns.tolist()}")
 
         # Compute the metric for each (feature, lambda) pair
         scores = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
@@ -306,11 +329,11 @@ class Explainer:
             for col, part in relevant.groupby("feature")
         )
         scores = merge_dicts(scores)
-        self.info["score"] = self.info.apply(
+        self["score"] = self.apply(
             lambda r: scores.get((r["feature"], r["lambda"]), r["score"]),
             axis="columns",
         )
-        return self.info.query(f"feature in {queried_features}")
+        return self.query(f"feature in {queried_features}")
 
     def rank_by_performance(self, X_test, y_test, y_test_pred, metric):
         def get_aggregates(df):
