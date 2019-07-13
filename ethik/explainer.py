@@ -84,16 +84,16 @@ def compute_lambdas(x, target_means, max_iterations=5):
     return lambdas
 
 
-def compute_bias(y_test_pred, x, lambdas):
+def compute_bias(y_pred, x, lambdas):
     return {
-        (x.name, y_test_pred.name, λ): np.average(y_test_pred, weights=np.exp(λ * x))
+        (x.name, y_pred.name, λ): np.average(y_pred, weights=np.exp(λ * x))
         for λ in lambdas
     }
 
 
-def compute_performance(y_test, y_test_pred, metric, x, lambdas):
+def compute_performance(y_test, y_pred, metric, x, lambdas):
     return {
-        (x.name, λ): metric(y_test, y_test_pred, sample_weight=np.exp(λ * x))
+        (x.name, λ): metric(y_test, y_pred, sample_weight=np.exp(λ * x))
         for λ in lambdas
     }
 
@@ -173,7 +173,7 @@ class Explainer(pd.DataFrame):
     def features(self):
         return self["feature"].unique().tolist()
 
-    def _fit(self, X_test, y_test_pred):
+    def _fit(self, X_test, y_pred):
         """Fits the explainer to a tabular dataset.
 
         During a `fit` call, the following steps are taken:
@@ -184,12 +184,12 @@ class Explainer(pd.DataFrame):
 
         Parameters:
             X_test (`pandas.DataFrame` or `numpy.ndarray`)
-            y_test_pred (`pandas.DataFrame` or `numpy.ndarray`)
+            y_pred (`pandas.DataFrame` or `numpy.ndarray`)
 
         """
 
         X_test = pd.DataFrame(to_pandas(X_test))
-        y_test_pred = pd.DataFrame(to_pandas(y_test_pred))
+        y_pred = pd.DataFrame(to_pandas(y_pred))
 
         X_test = X_test[X_test.columns.difference(self.features)]
         if X_test.empty:
@@ -220,7 +220,7 @@ class Explainer(pd.DataFrame):
                     }
                 )
                 for col in X_test_num.columns
-                for y in y_test_pred.columns
+                for y in y_pred.columns
             ],
             ignore_index=True,
         )
@@ -246,15 +246,15 @@ class Explainer(pd.DataFrame):
 
         return self
 
-    def explain_bias(self, X_test, y_test_pred):
+    def explain_bias(self, X_test, y_pred):
         """Returns a DataFrame containing average predictions for each (column, tau) pair.
 
         """
-        # Coerce X_test and y_test_pred to DataFrames
+        # Coerce X_test and y_pred to DataFrames
         X_test = pd.DataFrame(to_pandas(X_test))
-        y_test_pred = pd.DataFrame(to_pandas(y_test_pred))
+        y_pred = pd.DataFrame(to_pandas(y_pred))
 
-        self._fit(X_test, y_test_pred)
+        self._fit(X_test, y_pred)
 
         queried_features = X_test.columns.tolist()
         to_explain = self["feature"][self["bias"].isnull()].unique()
@@ -266,9 +266,9 @@ class Explainer(pd.DataFrame):
         # Compute the average predictions for each (column, tau) pair per label
         biases = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
             joblib.delayed(compute_bias)(
-                y_test_pred=y_test_pred[label], x=X_test[col], lambdas=part["lambda"]
+                y_pred=y_pred[label], x=X_test[col], lambdas=part["lambda"]
             )
-            for label in y_test_pred.columns
+            for label in y_pred.columns
             for col, part in relevant.groupby("feature")
         )
         biases = merge_dicts(biases)
@@ -278,7 +278,7 @@ class Explainer(pd.DataFrame):
         )
         return self.query(f"feature in {queried_features}")
 
-    def rank_by_bias(self, X_test, y_test_pred):
+    def rank_by_bias(self, X_test, y_pred):
         """Returns a DataFrame containing the importance of each feature.
 
         """
@@ -289,26 +289,26 @@ class Explainer(pd.DataFrame):
             return (group["bias"] - baseline).abs().mean()
 
         return (
-            self.explain_bias(X_test=X_test, y_test_pred=y_test_pred)
+            self.explain_bias(X_test=X_test, y_pred=y_pred)
             .groupby(["label", "feature"])
             .apply(get_importance)
             .to_frame("importance")
             .reset_index()
         )
 
-    def explain_performance(self, X_test, y_test, y_test_pred, metric):
+    def explain_performance(self, X_test, y_test, y_pred, metric):
         """Returns a DataFrame with metric values for each (column, tau) pair.
 
         Parameters:
             metric (callable): A function that evaluates the quality of a set of predictions. Must
-                have the following signature: `metric(y_test, y_test_pred, sample_weights)`. Most
+                have the following signature: `metric(y_test, y_pred, sample_weights)`. Most
                 metrics from scikit-learn will work.
 
         """
         X_test = pd.DataFrame(to_pandas(X_test))
-        y_test_pred = to_pandas(y_test_pred)
+        y_pred = to_pandas(y_pred)
 
-        self._fit(X_test, y_test_pred)
+        self._fit(X_test, y_pred)
 
         queried_features = X_test.columns.tolist()
         to_explain = self["feature"][self["score"].isnull()].unique()
@@ -321,7 +321,7 @@ class Explainer(pd.DataFrame):
         scores = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
             joblib.delayed(compute_performance)(
                 y_test=y_test,
-                y_test_pred=y_test_pred,
+                y_pred=y_pred,
                 metric=metric,
                 x=X_test[col],
                 lambdas=part["lambda"],
@@ -335,14 +335,14 @@ class Explainer(pd.DataFrame):
         )
         return self.query(f"feature in {queried_features}")
 
-    def rank_by_performance(self, X_test, y_test, y_test_pred, metric):
+    def rank_by_performance(self, X_test, y_test, y_pred, metric):
         def get_aggregates(df):
             return pd.Series(
                 [df["score"].min(), df["score"].max()], index=["min", "max"]
             )
 
         return (
-            self.explain_performance(X_test, y_test, y_test_pred, metric)
+            self.explain_performance(X_test, y_test, y_pred, metric)
             .groupby("feature")
             .apply(get_aggregates)
             .reset_index()
@@ -566,29 +566,29 @@ class Explainer(pd.DataFrame):
             inline=inline,
         )
 
-    def plot_bias(self, X_test, y_test_pred, inline=False, **fig_kwargs):
-        explanation = self.explain_bias(X_test=X_test, y_test_pred=y_test_pred)
+    def plot_bias(self, X_test, y_pred, inline=False, **fig_kwargs):
+        explanation = self.explain_bias(X_test=X_test, y_pred=y_pred)
         return self._plot(explanation, self.make_bias_fig, inline=inline, **fig_kwargs)
 
-    def plot_bias_ranking(self, X_test, y_test_pred, inline=False, **fig_kwargs):
-        ranking = self.rank_by_bias(X_test=X_test, y_test_pred=y_test_pred)
+    def plot_bias_ranking(self, X_test, y_pred, inline=False, **fig_kwargs):
+        ranking = self.rank_by_bias(X_test=X_test, y_pred=y_pred)
         return plot(self.make_bias_ranking_fig(ranking, **fig_kwargs), inline=inline)
 
     def plot_performance(
-        self, X_test, y_test, y_test_pred, metric, inline=False, **fig_kwargs
+        self, X_test, y_test, y_pred, metric, inline=False, **fig_kwargs
     ):
         explanation = self.explain_performance(
-            X_test=X_test, y_test=y_test, y_test_pred=y_test_pred, metric=metric
+            X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
         return self._plot(
             explanation, self.make_performance_fig, inline=inline, **fig_kwargs
         )
 
     def plot_performance_ranking(
-        self, X_test, y_test, y_test_pred, metric, criterion, inline=False, **fig_kwargs
+        self, X_test, y_test, y_pred, metric, criterion, inline=False, **fig_kwargs
     ):
         ranking = self.rank_by_performance(
-            X_test=X_test, y_test=y_test, y_test_pred=y_test_pred, metric=metric
+            X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
         return plot(
             self.make_performance_ranking_fig(
