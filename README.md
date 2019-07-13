@@ -85,7 +85,7 @@ explainer = ethik.Explainer()
 `ethik` can be used to understand how model predictions vary as a function of one or more features. For example we may want the model predicts with respect to the `age` feature.
 
 ```python
-explainer.plot_bias(X_test=X_test['age'], y_test_pred=y_pred)
+explainer.plot_bias(X_test=X_test['age'], y_pred=y_pred)
 ```
 
 <div align="center">
@@ -97,7 +97,7 @@ Recall that the target indicates if a person's salary is above $50k. **We can se
 We can also plot the distribution of predictions for more than one variable. However, because different variables have different scales we have to use a common measure to display them together. For this purpose we plot the τ ("tau") values. These values are contained between -1 and 1 and simply reflect by how much the variable is shifted from it's mean towards it's lower and upper quantiles. In the following figure a tau value of -1 corresponds to just under 20 years old whereas a tau value of 1 refers to being slightly over 60 years old.
 
 ```python
-explainer.plot_bias(X_test=X_test['age', 'education-num'], y_test_pred=y_pred)
+explainer.plot_bias(X_test=X_test['age', 'education-num'], y_pred=y_pred)
 ```
 
 <div align="center">
@@ -114,7 +114,7 @@ Our methodology can also be used to evaluate the reliability of a model under di
 explainer.plot_performance(
     X_test=X_test['age'],
     y_test=y_test,
-    y_test_pred=y_pred > 0.5,
+    y_pred=y_pred > 0.5,
     metric=metrics.accuracy_score
 )
 ```
@@ -131,7 +131,7 @@ Similarly to the `plot_predictions` method, we can display the performance of th
 explainer.plot_performance(
     X_test=X_test['age', 'education-num'],
     y_test=y_test,
-    y_test_pred=y_pred > 0.5,
+    y_pred=y_pred > 0.5,
     metric=metrics.accuracy_score
 )
 ```
