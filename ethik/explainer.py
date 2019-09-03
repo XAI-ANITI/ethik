@@ -104,6 +104,19 @@ def metric_to_col(metric):
     return metric.__name__
 
 
+def make_dataset_numeric(X):
+    X_num = X.select_dtypes(exclude=["object", "category"])
+    X_cat = X.select_dtypes(include=["object", "category"])
+    cat_features = {}
+    for cat_feat in X_cat:
+        values = X_cat[cat_feat].unique()
+        new_num_cols = [f"{cat_feat}__{v}" for v in values]
+        cat_features[cat_feat] = new_num_cols
+        for v, new_col in zip(values, new_num_cols):
+            X_num[new_col] = (X_cat[cat_feat] == v).astype(int)
+    return X_num, cat_features
+
+
 class Explainer:
     """Explains the bias and reliability of model predictions.
 
@@ -148,6 +161,7 @@ class Explainer:
         self.info = pd.DataFrame(
             columns=["feature", "tau", "value", "lambda", "label", "bias"]
         )
+        self.cat_features = {}
 
     @property
     def taus(self):
@@ -156,7 +170,7 @@ class Explainer:
 
     @property
     def features(self):
-        return self.info["feature"].unique().tolist()
+        return self.info["feature"].unique().tolist() + list(self.cat_features)
 
     def _fit(self, X_test, y_pred):
         """Fits the explainer to a tabular dataset.
@@ -180,11 +194,13 @@ class Explainer:
         if X_test.empty:
             return self
 
+        X_test_num, cat_features = make_dataset_numeric(X_test)
+        self.cat_features = merge_dicts([self.cat_features, cat_features])
+
         # Make the epsilons
-        q_mins = X_test.quantile(q=self.alpha).to_dict()
-        q_maxs = X_test.quantile(q=1 - self.alpha).to_dict()
-        means = X_test.mean().to_dict()
-        X_test_num = X_test.select_dtypes(exclude=["object", "category"])
+        q_mins = X_test_num.quantile(q=self.alpha).to_dict()
+        q_maxs = X_test_num.quantile(q=1 - self.alpha).to_dict()
+        means = X_test_num.mean().to_dict()
         additional_info = pd.concat(
             [
                 pd.DataFrame(
@@ -214,12 +230,12 @@ class Explainer:
         # Find a lambda for each (column, espilon) pair
         lambdas = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
             joblib.delayed(compute_lambdas)(
-                x=X_test[col],
+                x=X_test_num[col],
                 target_means=part["value"].unique(),
                 max_iterations=self.max_iterations,
             )
             for col, part in self.info.groupby("feature")
-            if col in X_test
+            if col in X_test_num
         )
         lambdas = merge_dicts(lambdas)
         self.info["lambda"] = self.info.apply(
@@ -239,6 +255,7 @@ class Explainer:
 
         self._fit(X_test, y_pred)
 
+        X_test, _ = make_dataset_numeric(X_test)
         queried_features = X_test.columns.tolist()
         to_explain = self.info["feature"][self.info["bias"].isnull()].unique()
         X_test = X_test[X_test.columns.intersection(to_explain)]
@@ -299,6 +316,7 @@ class Explainer:
         self._fit(X_test, y_pred)
 
         # Discard the features for which the score has already been computed
+        X_test, _ = make_dataset_numeric(X_test)
         queried_features = X_test.columns.tolist()
         to_explain = self.info["feature"][self.info[metric_col].isnull()].unique()
         X_test = X_test[X_test.columns.intersection(to_explain)]
