@@ -84,18 +84,24 @@ def compute_lambdas(x, target_means, max_iterations=5):
     return lambdas
 
 
-def compute_bias(y_pred, x, lambdas):
-    return {
-        (x.name, y_pred.name, λ): np.average(y_pred, weights=np.exp(λ * x))
+def compute_bias(y_pred, x, lambdas, sample_index):
+    return [
+        (
+            x.name,
+            y_pred.name,
+            λ,
+            sample_index,
+            np.average(y_pred, weights=np.exp(λ * x)),
+        )
         for λ in lambdas
-    }
+    ]
 
 
-def compute_performance(y_test, y_pred, metric, x, lambdas):
-    return {
-        (x.name, λ): metric(y_test, y_pred, sample_weight=np.exp(λ * x))
+def compute_performance(y_test, y_pred, metric, x, lambdas, sample_index):
+    return [
+        (x.name, λ, sample_index, metric(y_test, y_pred, sample_weight=np.exp(λ * x)))
         for λ in lambdas
-    }
+    ]
 
 
 def metric_to_col(metric):
@@ -117,6 +123,11 @@ def make_dataset_numeric(X):
     return X_num, cat_features
 
 
+def yield_masks(n_masks, n, p):
+    for _ in range(n_masks):
+        yield np.random.binomial(1, p, size=n).astype(bool)
+
+
 class Explainer:
     """Explains the bias and reliability of model predictions.
 
@@ -135,7 +146,15 @@ class Explainer:
     """
 
     def __init__(
-        self, alpha=0.05, n_taus=41, max_iterations=5, n_jobs=-1, verbose=False
+        self,
+        alpha=0.05,
+        n_taus=41,
+        max_iterations=5,
+        n_jobs=-1,
+        verbose=False,
+        n_samples=1,
+        sample_frac=0.8,
+        conf_level=0.05,
     ):
         if not 0 < alpha < 0.5:
             raise ValueError("alpha must be between 0 and 0.5, got " f"{alpha}")
@@ -151,6 +170,15 @@ class Explainer:
                 f"integer, got {max_iterations}"
             )
 
+        if n_samples < 1:
+            raise ValueError(f"n_samples must be strictly positive, got {n_samples}")
+
+        if not 0 < sample_frac < 1:
+            raise ValueError(f"sample_frac must be between 0 and 1, got {sample_frac}")
+
+        if not 0 < conf_level < 0.5:
+            raise ValueError(f"conf_level must be between 0 and 0.5, got {conf_level}")
+
         #  TODO: one column per performance metric
         self.alpha = alpha
         self.n_taus = n_taus
@@ -158,8 +186,20 @@ class Explainer:
         self.n_jobs = n_jobs
         self.verbose = verbose
         self.metric_cols = set()
+        self.n_samples = n_samples
+        self.sample_frac = sample_frac if n_samples > 1 else 1
+        self.conf_level = conf_level
         self.info = pd.DataFrame(
-            columns=["feature", "tau", "value", "lambda", "label", "bias"]
+            columns=[
+                "feature",
+                "tau",
+                "value",
+                "lambda",
+                "label",
+                "bias",
+                "bias_low",
+                "bias_high",
+            ]
         )
         self.cat_features = {}
 
@@ -262,20 +302,43 @@ class Explainer:
 
         # Discard the features that are not relevant
         relevant = self.info.query(f"feature in {X_test.columns.tolist()}")
+        if relevant.empty:
+            return self.info.query(f"feature in {queried_features}")
 
         # Compute the average predictions for each (column, tau) pair per label
         biases = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
             joblib.delayed(compute_bias)(
-                y_pred=y_pred[label], x=X_test[col], lambdas=part["lambda"].unique()
+                y_pred=y_pred[label][mask],
+                x=X_test[col][mask],
+                lambdas=part["lambda"].unique(),
+                sample_index=i,
             )
             for label in y_pred.columns
             for col, part in relevant.groupby("feature")
+            for i, mask in enumerate(
+                yield_masks(self.n_samples, len(X_test), self.sample_frac)
+            )
         )
-        biases = merge_dicts(biases)
-        self.info["bias"] = self.info.apply(
-            lambda r: biases.get((r["feature"], r["label"], r["lambda"]), r["bias"]),
-            axis="columns",
+        biases = pd.DataFrame(
+            [t for b in biases for t in b],
+            columns=["feature", "label", "lambda", "sample_index", "bias"],
         )
+        biases = biases.groupby(["feature", "label", "lambda"])["bias"].agg(
+            [
+                ("bias", "mean"),
+                ("bias_low", functools.partial(np.quantile, q=self.conf_level)),
+                ("bias_high", functools.partial(np.quantile, q=1 - self.conf_level)),
+            ]
+        )
+
+        #  TODO: merge all columns in a single operation?
+        for col in biases.columns:
+            self.info[col] = self.info.apply(
+                lambda r: biases[col].get(
+                    (r["feature"], r["label"], r["lambda"]), r[col]
+                ),
+                axis="columns",
+            )
         return self.info.query(f"feature in {queried_features}")
 
     def rank_by_bias(self, X_test, y_pred):
@@ -308,10 +371,13 @@ class Explainer:
         metric_col = metric_to_col(metric)
         if metric_col not in self.info.columns:
             self.info[metric_col] = None
+            self.info[f"{metric_col}_low"] = None
+            self.info[f"{metric_col}_high"] = None
         self.metric_cols.add(metric_col)
 
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = to_pandas(y_pred)
+        y_test = np.asarray(y_test)
 
         self._fit(X_test, y_pred)
 
@@ -320,30 +386,51 @@ class Explainer:
         queried_features = X_test.columns.tolist()
         to_explain = self.info["feature"][self.info[metric_col].isnull()].unique()
         X_test = X_test[X_test.columns.intersection(to_explain)]
+        relevant = self.info.query(f"feature in {X_test.columns.tolist()}")
+        if relevant.empty:
+            return self.info.query(f"feature in {queried_features}")
 
         # Compute the metric for each (feature, lambda) pair
         scores = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
             joblib.delayed(compute_performance)(
-                y_test=y_test,
-                y_pred=y_pred,
+                y_test=y_test[mask],
+                y_pred=y_pred[mask],
                 metric=metric,
-                x=X_test[col],
+                x=X_test[col][mask],
                 lambdas=part["lambda"].unique(),
+                sample_index=i,
             )
-            for col, part in self.info.query(
-                f"feature in {X_test.columns.tolist()}"
-            ).groupby("feature")
+            for col, part in relevant.groupby("feature")
+            for i, mask in enumerate(
+                yield_masks(self.n_samples, len(X_test), self.sample_frac)
+            )
         )
-        scores = merge_dicts(scores)
-        self.info[metric_col] = self.info.apply(
-            lambda r: scores.get((r["feature"], r["lambda"]), r[metric_col]),
-            axis="columns",
+        scores = pd.DataFrame(
+            [t for s in scores for t in s],
+            columns=["feature", "lambda", "sample_index", metric_col],
         )
-
+        scores = scores.groupby(["feature", "lambda"])[metric_col].agg(
+            [
+                (metric_col, "mean"),
+                (
+                    f"{metric_col}_low",
+                    functools.partial(np.quantile, q=self.conf_level),
+                ),
+                (
+                    f"{metric_col}_high",
+                    functools.partial(np.quantile, q=1 - self.conf_level),
+                ),
+            ]
+        )
+        #  TODO: merge all columns in a single operation?
+        for col in scores.columns:
+            self.info[col] = self.info.apply(
+                lambda r: scores[col].get((r["feature"], r["lambda"]), r[col]),
+                axis="columns",
+            )
         return self.info.query(f"feature in {queried_features}")
 
     def rank_by_performance(self, X_test, y_test, y_pred, metric):
-
         metric_col = metric_to_col(metric)
 
         def get_aggregates(df):
@@ -358,8 +445,7 @@ class Explainer:
             .reset_index()
         )
 
-    @classmethod
-    def make_bias_fig(cls, explanation, with_taus=False, colors=None):
+    def make_bias_fig(self, explanation, with_taus=False, colors=None):
         """Plots predicted means against variables values.
 
         If a single column is provided then the x-axis is made of the nominal
@@ -376,11 +462,11 @@ class Explainer:
         y_label = f"Proportion of {labels[0]}"  #  Single class
 
         if with_taus:
-            traces = []
+            fig = go.Figure()
             for feat in features:
                 x = explanation.query(f'feature == "{feat}"')["tau"]
                 y = explanation.query(f'feature == "{feat}"')["bias"]
-                traces.append(
+                fig.add_trace(
                     go.Scatter(
                         x=x,
                         y=y,
@@ -397,53 +483,65 @@ class Explainer:
                     )
                 )
 
-            return go.Figure(
-                data=traces,
-                layout=go.Layout(
-                    margin=dict(t=50, r=50),
-                    xaxis=dict(title="tau", zeroline=False),
-                    yaxis=dict(
-                        title=y_label, range=[0, 1], showline=True, tickformat="%"
-                    ),
-                ),
+            fig.update_layout(
+                margin=dict(t=50, r=50),
+                xaxis=dict(title="tau", zeroline=False),
+                yaxis=dict(title=y_label, range=[0, 1], showline=True, tickformat="%"),
+                plot_bgcolor="white",
             )
+            return fig
 
         figures = {}
         for feat in features:
+            fig = go.Figure()
             x = explanation.query(f'feature == "{feat}"')["value"]
             y = explanation.query(f'feature == "{feat}"')["bias"]
             mean_row = explanation.query(f'feature == "{feat}" and tau == 0').iloc[0]
-            figures[feat] = go.Figure(
-                data=[
+
+            if self.n_samples > 1:
+                low = explanation.query(f'feature == "{feat}"')["bias_low"]
+                high = explanation.query(f'feature == "{feat}"')["bias_high"]
+                fig.add_trace(
                     go.Scatter(
-                        x=x,
-                        y=y,
-                        mode="lines+markers",
-                        hoverinfo="x+y",
-                        showlegend=False,
-                        marker=dict(color=colors.get(feat)),
-                    ),
-                    go.Scatter(
-                        x=[mean_row["value"]],
-                        y=[mean_row["bias"]],
-                        mode="markers",
-                        name="Original mean",
-                        hoverinfo="skip",
-                        marker=dict(symbol="x", size=9),
-                    ),
-                ],
-                layout=go.Layout(
-                    margin=dict(t=50, r=50),
-                    xaxis=dict(title=f"Mean {feat}", zeroline=False),
-                    yaxis=dict(
-                        title=y_label, range=[0, 1], showline=True, tickformat="%"
-                    ),
-                ),
+                        x=np.concatenate((x, x[::-1])),
+                        y=np.concatenate((low, high[::-1])),
+                        name=f"{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%",
+                        fill="toself",
+                        fillcolor="#eee",  # TODO: same color as mean line?
+                        line_color="rgba(0, 0, 0, 0)",
+                    )
+                )
+
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=y,
+                    mode="lines+markers",
+                    hoverinfo="x+y",
+                    showlegend=False,
+                    marker=dict(color=colors.get(feat)),
+                )
             )
+            fig.add_trace(
+                go.Scatter(
+                    x=[mean_row["value"]],
+                    y=[mean_row["bias"]],
+                    mode="markers",
+                    name="Original mean",
+                    hoverinfo="skip",
+                    marker=dict(symbol="x", size=9),
+                )
+            )
+            fig.update_layout(
+                margin=dict(t=50, r=50),
+                xaxis=dict(title=f"Mean {feat}", zeroline=False),
+                yaxis=dict(title=y_label, range=[0, 1], showline=True, tickformat="%"),
+                plot_bgcolor="white",
+            )
+            figures[feat] = fig
         return figures
 
-    @classmethod
-    def make_performance_fig(cls, explanation, metric, with_taus=False, colors=None):
+    def make_performance_fig(self, explanation, metric, with_taus=False, colors=None):
         """Plots metric values against variable values.
 
         If a single column is provided then the x-axis is made of the nominal
@@ -459,11 +557,11 @@ class Explainer:
         metric_col = metric_to_col(metric)
 
         if with_taus:
-            traces = []
+            fig = go.Figure()
             for feat in features:
                 x = explanation.query(f'feature == "{feat}"')["tau"]
                 y = explanation.query(f'feature == "{feat}"')[metric_col]
-                traces.append(
+                fig.add_trace(
                     go.Scatter(
                         x=x,
                         y=y,
@@ -479,51 +577,66 @@ class Explainer:
                         marker=dict(color=colors.get(feat)),
                     )
                 )
-
-            return go.Figure(
-                data=traces,
-                layout=go.Layout(
-                    margin=dict(t=50, r=50),
-                    xaxis=dict(title="tau", zeroline=False),
-                    yaxis=dict(
-                        title=metric_col, range=[0, 1], showline=True, tickformat="%"
-                    ),
+            fig.update_layout(
+                margin=dict(t=50, r=50),
+                xaxis=dict(title="tau", zeroline=False),
+                yaxis=dict(
+                    title=metric_col, range=[0, 1], showline=True, tickformat="%"
                 ),
+                plot_bgcolor="white",
             )
+            return fig
 
         figures = {}
         for feat in features:
+            fig = go.Figure()
             x = explanation.query(f'feature == "{feat}"')["value"]
             y = explanation.query(f'feature == "{feat}"')[metric_col]
-            figures[feat] = go.Figure(
-                data=[
+            mean_row = explanation.query(f'feature == "{feat}" and tau == 0').iloc[0]
+
+            if self.n_samples > 1:
+                low = explanation.query(f'feature == "{feat}"')[f"{metric_col}_low"]
+                high = explanation.query(f'feature == "{feat}"')[f"{metric_col}_high"]
+                fig.add_trace(
                     go.Scatter(
-                        x=x,
-                        y=y,
-                        mode="lines+markers",
-                        hoverinfo="x+y",
-                        showlegend=False,
-                        marker=dict(color=colors.get(feat)),
-                    ),
-                    go.Scatter(
-                        x=[x.mean()],
-                        y=explanation.query(f'feature == "{feat}" and tau == 0')[
-                            metric_col
-                        ],
-                        mode="markers",
-                        name="Original mean",
-                        hoverinfo="skip",
-                        marker=dict(symbol="x", size=9),
-                    ),
-                ],
-                layout=go.Layout(
-                    margin=dict(t=50, r=50),
-                    xaxis=dict(title=f"Mean {feat}", zeroline=False),
-                    yaxis=dict(
-                        title=metric_col, range=[0, 1], showline=True, tickformat="%"
-                    ),
-                ),
+                        x=np.concatenate((x, x[::-1])),
+                        y=np.concatenate((low, high[::-1])),
+                        name=f"{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%",
+                        fill="toself",
+                        fillcolor="#eee",  # TODO: same color as mean line?
+                        line_color="rgba(0, 0, 0, 0)",
+                    )
+                )
+
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=y,
+                    mode="lines+markers",
+                    hoverinfo="x+y",
+                    showlegend=False,
+                    marker=dict(color=colors.get(feat)),
+                )
             )
+            fig.add_trace(
+                go.Scatter(
+                    x=[mean_row["value"]],
+                    y=[mean_row[metric_col]],
+                    mode="markers",
+                    name="Original mean",
+                    hoverinfo="skip",
+                    marker=dict(symbol="x", size=9),
+                )
+            )
+            fig.update_layout(
+                margin=dict(t=50, r=50),
+                xaxis=dict(title=f"Mean {feat}", zeroline=False),
+                yaxis=dict(
+                    title=metric_col, range=[0, 1], showline=True, tickformat="%"
+                ),
+                plot_bgcolor="white",
+            )
+            figures[feat] = fig
         return figures
 
     @classmethod
@@ -551,6 +664,7 @@ class Explainer:
                     fixedrange=True,
                 ),
                 yaxis=dict(showline=True, zeroline=False, fixedrange=True),
+                plot_bgcolor="white",
             ),
         )
 
