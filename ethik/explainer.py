@@ -50,10 +50,6 @@ def to_pandas(x):
     return to_pandas(np.asarray(x))
 
 
-def merge_dicts(dicts):
-    return dict(collections.ChainMap(*dicts))
-
-
 def compute_lambdas(x, target_means, max_iterations=5):
     """Finds a good lambda for a variable and a given epsilon value."""
 
@@ -235,7 +231,7 @@ class Explainer:
             return self
 
         X_test_num, cat_features = make_dataset_numeric(X_test)
-        self.cat_features = merge_dicts([self.cat_features, cat_features])
+        self.cat_features = {**self.cat_features, **cat_features}
 
         # Make the epsilons
         q_mins = X_test_num.quantile(q=self.alpha).to_dict()
@@ -277,7 +273,7 @@ class Explainer:
             for col, part in self.info.groupby("feature")
             if col in X_test_num
         )
-        lambdas = merge_dicts(lambdas)
+        lambdas = dict(collections.ChainMap(*lambdas))
         self.info["lambda"] = self.info.apply(
             lambda r: lambdas.get((r["feature"], r["value"]), r["lambda"]),
             axis="columns",
