@@ -406,202 +406,105 @@ class Explainer:
             .reset_index()
         )
 
-    def make_bias_fig(self, explanation, with_taus=False, colors=None):
-        """Plots predicted means against variables values.
-
-        If a single column is provided then the x-axis is made of the nominal
-        values from that column. However if a list of columns is passed then
-        the x-axis contains the tau values. This method makes use of the
-        `explain_predictions` method.
-
-        """
-
+    def _make_explanation_fig(
+        self, explanation, col, y_label, with_taus=False, colors=None
+    ):
         if colors is None:
             colors = {}
         features = explanation["feature"].unique()
+
+        if with_taus:
+            fig = go.Figure()
+            for feat in features:
+                x = explanation.query(f'feature == "{feat}"')["tau"]
+                y = explanation.query(f'feature == "{feat}"')[col]
+                fig.add_trace(
+                    go.Scatter(
+                        x=x,
+                        y=y,
+                        mode="lines+markers",
+                        hoverinfo="x+y+text",
+                        name=feat,
+                        text=[
+                            f"{feat} = {val}"
+                            for val in explanation.query(f'feature == "{feat}"')[
+                                "value"
+                            ]
+                        ],
+                        marker=dict(color=colors.get(feat)),
+                    )
+                )
+
+            fig.update_layout(
+                margin=dict(t=50, r=50),
+                xaxis=dict(title="tau", zeroline=False),
+                yaxis=dict(title=y_label, range=[0, 1], showline=True, tickformat="%"),
+                plot_bgcolor="white",
+            )
+            return fig
+
+        figures = {}
+        for feat in features:
+            fig = go.Figure()
+            x = explanation.query(f'feature == "{feat}"')["value"]
+            y = explanation.query(f'feature == "{feat}"')[col]
+            mean_row = explanation.query(f'feature == "{feat}" and tau == 0').iloc[0]
+
+            if self.n_samples > 1:
+                low = explanation.query(f'feature == "{feat}"')[f"{col}_low"]
+                high = explanation.query(f'feature == "{feat}"')[f"{col}_high"]
+                fig.add_trace(
+                    go.Scatter(
+                        x=np.concatenate((x, x[::-1])),
+                        y=np.concatenate((low, high[::-1])),
+                        name=f"{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%",
+                        fill="toself",
+                        fillcolor="#eee",  # TODO: same color as mean line?
+                        line_color="rgba(0, 0, 0, 0)",
+                    )
+                )
+
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=y,
+                    mode="lines+markers",
+                    hoverinfo="x+y",
+                    showlegend=False,
+                    marker=dict(color=colors.get(feat)),
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=[mean_row["value"]],
+                    y=[mean_row[col]],
+                    mode="markers",
+                    name="Original mean",
+                    hoverinfo="skip",
+                    marker=dict(symbol="x", size=9),
+                )
+            )
+            fig.update_layout(
+                margin=dict(t=50, r=50),
+                xaxis=dict(title=f"Mean {feat}", zeroline=False),
+                yaxis=dict(title=y_label, range=[0, 1], showline=True, tickformat="%"),
+                plot_bgcolor="white",
+            )
+            figures[feat] = fig
+        return figures
+
+    def make_bias_fig(self, explanation, **fig_kwargs):
         labels = explanation["label"].unique()
         y_label = f"Proportion of {labels[0]}"  #  Single class
+        return self._make_explanation_fig(explanation, "bias", y_label, **fig_kwargs)
 
-        if with_taus:
-            fig = go.Figure()
-            for feat in features:
-                x = explanation.query(f'feature == "{feat}"')["tau"]
-                y = explanation.query(f'feature == "{feat}"')["bias"]
-                fig.add_trace(
-                    go.Scatter(
-                        x=x,
-                        y=y,
-                        mode="lines+markers",
-                        hoverinfo="x+y+text",
-                        name=feat,
-                        text=[
-                            f"{feat} = {val}"
-                            for val in explanation.query(f'feature == "{feat}"')[
-                                "value"
-                            ]
-                        ],
-                        marker=dict(color=colors.get(feat)),
-                    )
-                )
-
-            fig.update_layout(
-                margin=dict(t=50, r=50),
-                xaxis=dict(title="tau", zeroline=False),
-                yaxis=dict(title=y_label, range=[0, 1], showline=True, tickformat="%"),
-                plot_bgcolor="white",
-            )
-            return fig
-
-        figures = {}
-        for feat in features:
-            fig = go.Figure()
-            x = explanation.query(f'feature == "{feat}"')["value"]
-            y = explanation.query(f'feature == "{feat}"')["bias"]
-            mean_row = explanation.query(f'feature == "{feat}" and tau == 0').iloc[0]
-
-            if self.n_samples > 1:
-                low = explanation.query(f'feature == "{feat}"')["bias_low"]
-                high = explanation.query(f'feature == "{feat}"')["bias_high"]
-                fig.add_trace(
-                    go.Scatter(
-                        x=np.concatenate((x, x[::-1])),
-                        y=np.concatenate((low, high[::-1])),
-                        name=f"{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%",
-                        fill="toself",
-                        fillcolor="#eee",  # TODO: same color as mean line?
-                        line_color="rgba(0, 0, 0, 0)",
-                    )
-                )
-
-            fig.add_trace(
-                go.Scatter(
-                    x=x,
-                    y=y,
-                    mode="lines+markers",
-                    hoverinfo="x+y",
-                    showlegend=False,
-                    marker=dict(color=colors.get(feat)),
-                )
-            )
-            fig.add_trace(
-                go.Scatter(
-                    x=[mean_row["value"]],
-                    y=[mean_row["bias"]],
-                    mode="markers",
-                    name="Original mean",
-                    hoverinfo="skip",
-                    marker=dict(symbol="x", size=9),
-                )
-            )
-            fig.update_layout(
-                margin=dict(t=50, r=50),
-                xaxis=dict(title=f"Mean {feat}", zeroline=False),
-                yaxis=dict(title=y_label, range=[0, 1], showline=True, tickformat="%"),
-                plot_bgcolor="white",
-            )
-            figures[feat] = fig
-        return figures
-
-    def make_performance_fig(self, explanation, metric, with_taus=False, colors=None):
-        """Plots metric values against variable values.
-
-        If a single column is provided then the x-axis is made of the nominal
-        values from that column. However if a list of columns is passed then
-        the x-axis contains the tau values. This method makes use of the
-        `explain_metric` method.
-
-        """
-
-        if colors is None:
-            colors = {}
-        features = explanation["feature"].unique()
+    def make_performance_fig(self, explanation, metric, **fig_kwargs):
         metric_col = metric_to_col(metric)
+        return self._make_explanation_fig(
+            explanation, metric_col, y_label=metric_col, **fig_kwargs
+        )
 
-        if with_taus:
-            fig = go.Figure()
-            for feat in features:
-                x = explanation.query(f'feature == "{feat}"')["tau"]
-                y = explanation.query(f'feature == "{feat}"')[metric_col]
-                fig.add_trace(
-                    go.Scatter(
-                        x=x,
-                        y=y,
-                        mode="lines+markers",
-                        hoverinfo="x+y+text",
-                        name=feat,
-                        text=[
-                            f"{feat} = {val}"
-                            for val in explanation.query(f'feature == "{feat}"')[
-                                "value"
-                            ]
-                        ],
-                        marker=dict(color=colors.get(feat)),
-                    )
-                )
-            fig.update_layout(
-                margin=dict(t=50, r=50),
-                xaxis=dict(title="tau", zeroline=False),
-                yaxis=dict(
-                    title=metric_col, range=[0, 1], showline=True, tickformat="%"
-                ),
-                plot_bgcolor="white",
-            )
-            return fig
-
-        figures = {}
-        for feat in features:
-            fig = go.Figure()
-            x = explanation.query(f'feature == "{feat}"')["value"]
-            y = explanation.query(f'feature == "{feat}"')[metric_col]
-            mean_row = explanation.query(f'feature == "{feat}" and tau == 0').iloc[0]
-
-            if self.n_samples > 1:
-                low = explanation.query(f'feature == "{feat}"')[f"{metric_col}_low"]
-                high = explanation.query(f'feature == "{feat}"')[f"{metric_col}_high"]
-                fig.add_trace(
-                    go.Scatter(
-                        x=np.concatenate((x, x[::-1])),
-                        y=np.concatenate((low, high[::-1])),
-                        name=f"{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%",
-                        fill="toself",
-                        fillcolor="#eee",  # TODO: same color as mean line?
-                        line_color="rgba(0, 0, 0, 0)",
-                    )
-                )
-
-            fig.add_trace(
-                go.Scatter(
-                    x=x,
-                    y=y,
-                    mode="lines+markers",
-                    hoverinfo="x+y",
-                    showlegend=False,
-                    marker=dict(color=colors.get(feat)),
-                )
-            )
-            fig.add_trace(
-                go.Scatter(
-                    x=[mean_row["value"]],
-                    y=[mean_row[metric_col]],
-                    mode="markers",
-                    name="Original mean",
-                    hoverinfo="skip",
-                    marker=dict(symbol="x", size=9),
-                )
-            )
-            fig.update_layout(
-                margin=dict(t=50, r=50),
-                xaxis=dict(title=f"Mean {feat}", zeroline=False),
-                yaxis=dict(
-                    title=metric_col, range=[0, 1], showline=True, tickformat="%"
-                ),
-                plot_bgcolor="white",
-            )
-            figures[feat] = fig
-        return figures
-
-    @classmethod
-    def _make_ranking_fig(cls, ranking, score_column, title, colors=None):
+    def _make_ranking_fig(self, ranking, score_column, title, colors=None):
         ranking = ranking.sort_values(by=[score_column])
 
         return go.Figure(
@@ -629,13 +532,13 @@ class Explainer:
             ),
         )
 
-    @classmethod
-    def make_bias_ranking_fig(cls, ranking, colors=None):
-        return cls._make_ranking_fig(ranking, "importance", "Importance", colors=colors)
+    def make_bias_ranking_fig(self, ranking, colors=None):
+        return self._make_ranking_fig(
+            ranking, "importance", "Importance", colors=colors
+        )
 
-    @classmethod
-    def make_performance_ranking_fig(cls, ranking, metric, criterion, colors=None):
-        return cls._make_ranking_fig(
+    def make_performance_ranking_fig(self, ranking, metric, criterion, colors=None):
+        return self._make_ranking_fig(
             ranking, criterion, f"{criterion} {metric_to_col(metric)}", colors=colors
         )
 
