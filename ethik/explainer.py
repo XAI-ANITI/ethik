@@ -285,10 +285,7 @@ class Explainer:
 
         return self.info
 
-    def explain_bias(self, X_test, y_pred):
-        """Returns a DataFrame containing average predictions for each (column, tau) pair.
-
-        """
+    def _explain(self, X_test, y_pred, dest_col, key_cols, compute):
         # Coerce X_test and y_pred to DataFrames
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
@@ -297,49 +294,84 @@ class Explainer:
 
         X_test, _ = make_dataset_numeric(X_test)
         queried_features = X_test.columns.tolist()
-        to_explain = self.info["feature"][self.info["bias"].isnull()].unique()
+        to_explain = self.info["feature"][self.info[dest_col].isnull()].unique()
         X_test = X_test[X_test.columns.intersection(to_explain)]
-
-        # Discard the features that are not relevant
         relevant = self.info.query(f"feature in {X_test.columns.tolist()}")
-        if relevant.empty:
-            return self.info.query(f"feature in {queried_features}")
+        if not relevant.empty:
+            data = compute(X_test, y_pred, relevant)
+            data = pd.DataFrame(
+                [line for batch in data for line in batch],
+                columns=[*key_cols, "sample_index", dest_col],
+            )
+            data = data.groupby(key_cols)[dest_col].agg(
+                [
+                    (dest_col, "mean"),
+                    (
+                        f"{dest_col}_low",
+                        functools.partial(np.quantile, q=self.conf_level),
+                    ),
+                    (
+                        f"{dest_col}_high",
+                        functools.partial(np.quantile, q=1 - self.conf_level),
+                    ),
+                ]
+            )
 
-        # Compute the average predictions for each (column, tau) pair per label
-        biases = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
-            joblib.delayed(compute_bias)(
-                y_pred=y_pred[label][mask],
-                x=X_test[col][mask],
-                lambdas=part["lambda"].unique(),
-                sample_index=i,
-            )
-            for label in y_pred.columns
-            for col, part in relevant.groupby("feature")
-            for i, mask in enumerate(
-                yield_masks(self.n_samples, len(X_test), self.sample_frac)
-            )
-        )
-        biases = pd.DataFrame(
-            [t for b in biases for t in b],
-            columns=["feature", "label", "lambda", "sample_index", "bias"],
-        )
-        biases = biases.groupby(["feature", "label", "lambda"])["bias"].agg(
-            [
-                ("bias", "mean"),
-                ("bias_low", functools.partial(np.quantile, q=self.conf_level)),
-                ("bias_high", functools.partial(np.quantile, q=1 - self.conf_level)),
-            ]
-        )
-
-        #  TODO: merge all columns in a single operation?
-        for col in biases.columns:
-            self.info[col] = self.info.apply(
-                lambda r: biases[col].get(
-                    (r["feature"], r["label"], r["lambda"]), r[col]
-                ),
-                axis="columns",
-            )
+            #  TODO: merge all columns in a single operation?
+            for col in data.columns:
+                self.info[col] = self.info.apply(
+                    lambda r: data[col].get(tuple([r[k] for k in key_cols]), r[col]),
+                    axis="columns",
+                )
         return self.info.query(f"feature in {queried_features}")
+
+    def explain_bias(self, X_test, y_pred):
+        def compute(X_test, y_pred, relevant):
+            return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
+                joblib.delayed(compute_bias)(
+                    y_pred=y_pred[label][mask],
+                    x=X_test[col][mask],
+                    lambdas=part["lambda"].unique(),
+                    sample_index=i,
+                )
+                for label in y_pred.columns
+                for col, part in relevant.groupby("feature")
+                for i, mask in enumerate(
+                    yield_masks(self.n_samples, len(X_test), self.sample_frac)
+                )
+            )
+
+        return self._explain(
+            X_test, y_pred, "bias", ["feature", "label", "lambda"], compute
+        )
+
+    def explain_performance(self, X_test, y_test, y_pred, metric):
+        metric_col = metric_to_col(metric)
+        if metric_col not in self.info.columns:
+            self.info[metric_col] = None
+            self.info[f"{metric_col}_low"] = None
+            self.info[f"{metric_col}_high"] = None
+        self.metric_cols.add(metric_col)
+
+        y_test = np.asarray(y_test)
+
+        def compute(X_test, y_pred, relevant):
+            return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
+                joblib.delayed(compute_performance)(
+                    y_test=y_test[mask],
+                    y_pred=y_pred[mask],
+                    metric=metric,
+                    x=X_test[col][mask],
+                    lambdas=part["lambda"].unique(),
+                    sample_index=i,
+                )
+                for col, part in relevant.groupby("feature")
+                for i, mask in enumerate(
+                    yield_masks(self.n_samples, len(X_test), self.sample_frac)
+                )
+            )
+
+        return self._explain(X_test, y_pred, metric_col, ["feature", "lambda"], compute)
 
     def rank_by_bias(self, X_test, y_pred):
         """Returns a DataFrame containing the importance of each feature.
@@ -358,77 +390,6 @@ class Explainer:
             .to_frame("importance")
             .reset_index()
         )
-
-    def explain_performance(self, X_test, y_test, y_pred, metric):
-        """Returns a DataFrame with metric values for each (column, tau) pair.
-
-        Parameters:
-            metric (callable): A function that evaluates the quality of a set of predictions. Must
-                have the following signature: `metric(y_test, y_pred, sample_weights)`. Most
-                metrics from scikit-learn will work.
-
-        """
-        metric_col = metric_to_col(metric)
-        if metric_col not in self.info.columns:
-            self.info[metric_col] = None
-            self.info[f"{metric_col}_low"] = None
-            self.info[f"{metric_col}_high"] = None
-        self.metric_cols.add(metric_col)
-
-        X_test = pd.DataFrame(to_pandas(X_test))
-        y_pred = to_pandas(y_pred)
-        y_test = np.asarray(y_test)
-
-        self._fit(X_test, y_pred)
-
-        # Discard the features for which the score has already been computed
-        X_test, _ = make_dataset_numeric(X_test)
-        queried_features = X_test.columns.tolist()
-        to_explain = self.info["feature"][self.info[metric_col].isnull()].unique()
-        X_test = X_test[X_test.columns.intersection(to_explain)]
-        relevant = self.info.query(f"feature in {X_test.columns.tolist()}")
-        if relevant.empty:
-            return self.info.query(f"feature in {queried_features}")
-
-        # Compute the metric for each (feature, lambda) pair
-        scores = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
-            joblib.delayed(compute_performance)(
-                y_test=y_test[mask],
-                y_pred=y_pred[mask],
-                metric=metric,
-                x=X_test[col][mask],
-                lambdas=part["lambda"].unique(),
-                sample_index=i,
-            )
-            for col, part in relevant.groupby("feature")
-            for i, mask in enumerate(
-                yield_masks(self.n_samples, len(X_test), self.sample_frac)
-            )
-        )
-        scores = pd.DataFrame(
-            [t for s in scores for t in s],
-            columns=["feature", "lambda", "sample_index", metric_col],
-        )
-        scores = scores.groupby(["feature", "lambda"])[metric_col].agg(
-            [
-                (metric_col, "mean"),
-                (
-                    f"{metric_col}_low",
-                    functools.partial(np.quantile, q=self.conf_level),
-                ),
-                (
-                    f"{metric_col}_high",
-                    functools.partial(np.quantile, q=1 - self.conf_level),
-                ),
-            ]
-        )
-        #  TODO: merge all columns in a single operation?
-        for col in scores.columns:
-            self.info[col] = self.info.apply(
-                lambda r: scores[col].get((r["feature"], r["lambda"]), r[col]),
-                axis="columns",
-            )
-        return self.info.query(f"feature in {queried_features}")
 
     def rank_by_performance(self, X_test, y_test, y_pred, metric):
         metric_col = metric_to_col(metric)
