@@ -1,7 +1,6 @@
 import itertools
 import math
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -24,27 +23,36 @@ class ImageExplainer(explainer.Explainer):
 
     """
 
-    def __init__(self, alpha=0.05, max_iterations=5, n_jobs=-1, verbose=False):
+    def __init__(
+        self,
+        alpha=0.05,
+        max_iterations=5,
+        n_jobs=-1,
+        verbose=False,
+        n_samples=1,
+        sample_frac=0.8,
+        conf_level=0.05,
+    ):
         super().__init__(
             alpha=alpha,
             n_taus=2,
             max_iterations=max_iterations,
             n_jobs=n_jobs,
             verbose=verbose,
+            n_samples=n_samples,
+            sample_frac=sample_frac,
+            conf_level=conf_level
         )
 
-    def fit(self, images):
-        self.img_shape = images[0].shape
+    def explain_bias(self, X_test, y_pred):
+        self.img_shape = X_test[0].shape
         if self.img_shape[-1] == 1:
             self.img_shape = self.img_shape[:-1]
-        return super().fit(X=images_to_dataframe(images))
+        return super().explain_bias(X_test=images_to_dataframe(X_test), y_pred=y_pred)
 
-    def explain_predictions(self, images, y_pred):
-        return super().explain_predictions(X=images_to_dataframe(images), y_pred=y_pred)
+    def plot_bias(self, X_test, y_pred, n_cols=3, width=4):
 
-    def plot_predictions(self, images, y_pred, n_cols=3, width=4):
-
-        means = self.explain_predictions(images=images, y_pred=y_pred)
+        means = self.explain_bias(X_test=X_test, y_pred=y_pred)
 
         if isinstance(means.columns, pd.MultiIndex):
 
@@ -56,7 +64,7 @@ class ImageExplainer(explainer.Explainer):
             fig, axes = plt.subplots(
                 n_rows, n_cols, figsize=(n_cols * width, n_rows * width)
             )
-            for ax in axes.ravel()[len(labels) :]:
+            for ax in axes.ravel()[len(labels):]:
                 fig.delaxes(ax)
 
             v_min = math.inf

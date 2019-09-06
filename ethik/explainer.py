@@ -208,7 +208,7 @@ class Explainer:
     def features(self):
         return self.info["feature"].unique().tolist() + list(self.cat_features)
 
-    def _fit(self, X_test, y_pred):
+    def _find_lambdas(self, X_test, y_pred):
         """Fits the explainer to a tabular dataset.
 
         During a `fit` call, the following steps are taken:
@@ -243,17 +243,15 @@ class Explainer:
                     {
                         "tau": self.taus,
                         "value": [
-                            means[col]
-                            + tau
-                            * (
+                            means[col] + tau * (
                                 (means[col] - q_mins[col])
                                 if tau < 0
                                 else (q_maxs[col] - means[col])
                             )
                             for tau in self.taus
                         ],
-                        "feature": col,
-                        "label": y,
+                        "feature": [col] * len(self.taus),
+                        "label": [y] * len(self.taus),
                     }
                 )
                 for col in X_test_num.columns
@@ -278,6 +276,7 @@ class Explainer:
             lambda r: lambdas.get((r["feature"], r["value"]), r["lambda"]),
             axis="columns",
         )
+        self.info["lambda"] = self.info["lambda"].fillna(0.)
 
         return self.info
 
@@ -286,13 +285,14 @@ class Explainer:
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
-        self._fit(X_test, y_pred)
+        self._find_lambdas(X_test, y_pred)
 
         X_test, _ = make_dataset_numeric(X_test)
         queried_features = X_test.columns.tolist()
         to_explain = self.info["feature"][self.info[dest_col].isnull()].unique()
         X_test = X_test[X_test.columns.intersection(to_explain)]
-        relevant = self.info.query(f"feature in {X_test.columns.tolist()}")
+        relevant = self.info[self.info["feature"].isin(X_test.columns)]
+
         if not relevant.empty:
             data = compute(X_test, y_pred, relevant)
             data = pd.DataFrame(
@@ -319,9 +319,11 @@ class Explainer:
                     lambda r: data[col].get(tuple([r[k] for k in key_cols]), r[col]),
                     axis="columns",
                 )
-        return self.info.query(f"feature in {queried_features}")
+
+        return self.info[self.info["feature"].isin(queried_features)]
 
     def explain_bias(self, X_test, y_pred):
+
         def compute(X_test, y_pred, relevant):
             return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
                 joblib.delayed(compute_bias)(
@@ -338,7 +340,11 @@ class Explainer:
             )
 
         return self._explain(
-            X_test, y_pred, "bias", ["feature", "label", "lambda"], compute
+            X_test=X_test,
+            y_pred=y_pred,
+            dest_col="bias",
+            key_cols=["feature", "label", "lambda"],
+            compute=compute
         )
 
     def explain_performance(self, X_test, y_test, y_pred, metric):
