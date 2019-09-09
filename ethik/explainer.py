@@ -164,9 +164,7 @@ def metric_to_col(metric):
     Returns:
         str: The name of the column.
     """
-    # TODO: what about lambda metrics?
-    # TODO: use a prefix to avoid conflicts with other columns?
-    return metric.__name__
+    return metric.__name__ + "__score"
 
 
 def make_dataset_numeric(X):
@@ -252,7 +250,7 @@ class Explainer:
             higher this value is. However the computation time increases linearly with `n_taus`.
             The default is `41` and corresponds to each τ being separated by it's neighbors by
             `0.05`.
-        max_iterations (int): The maximum number of iterations used when applying the Newton step
+        lambda_iterations (int): The maximum number of iterations used when applying the Newton step
             of the optimization procedure.
 
     """
@@ -261,7 +259,7 @@ class Explainer:
         self,
         alpha=0.05,
         n_taus=41,
-        max_iterations=5,
+        lambda_iterations=5,
         n_jobs=-1,
         verbose=False,
         n_samples=1,
@@ -276,10 +274,10 @@ class Explainer:
                 "n_taus must be a strictly positive integer, got " f"{n_taus}"
             )
 
-        if not max_iterations > 0:
+        if not lambda_iterations > 0:
             raise ValueError(
-                "max_iterations must be a strictly positive "
-                f"integer, got {max_iterations}"
+                "lambda_iterations must be a strictly positive "
+                f"integer, got {lambda_iterations}"
             )
 
         if n_samples < 1:
@@ -294,7 +292,7 @@ class Explainer:
         #  TODO: one column per performance metric
         self.alpha = alpha
         self.n_taus = n_taus
-        self.max_iterations = max_iterations
+        self.lambda_iterations = lambda_iterations
         self.n_jobs = n_jobs
         self.verbose = verbose
         self.metric_cols = set()
@@ -359,7 +357,9 @@ class Explainer:
                     {
                         "tau": self.taus,
                         "value": [
-                            means[col] + tau * (
+                            means[col]
+                            + tau
+                            * (
                                 (means[col] - q_mins[col])
                                 if tau < 0
                                 else (q_maxs[col] - means[col])
@@ -382,7 +382,7 @@ class Explainer:
             joblib.delayed(compute_lambdas)(
                 x=X_test_num[col],
                 target_means=part["value"].unique(),
-                max_iterations=self.max_iterations,
+                iterations=self.lambda_iterations,
             )
             for col, part in self.info.groupby("feature")
             if col in X_test_num
@@ -392,7 +392,7 @@ class Explainer:
             lambda r: lambdas.get((r["feature"], r["value"]), r["lambda"]),
             axis="columns",
         )
-        self.info["lambda"] = self.info["lambda"].fillna(0.)
+        self.info["lambda"] = self.info["lambda"].fillna(0.0)
 
         return self.info
 
@@ -439,7 +439,6 @@ class Explainer:
         return self.info[self.info["feature"].isin(queried_features)]
 
     def explain_bias(self, X_test, y_pred):
-
         def compute(X_test, y_pred, relevant):
             return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
                 joblib.delayed(compute_bias)(
@@ -460,7 +459,7 @@ class Explainer:
             y_pred=y_pred,
             dest_col="bias",
             key_cols=["feature", "label", "lambda"],
-            compute=compute
+            compute=compute,
         )
 
     def explain_performance(self, X_test, y_test, y_pred, metric):
