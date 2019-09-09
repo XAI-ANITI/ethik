@@ -13,6 +13,13 @@ __all__ = ["Explainer"]
 
 
 def plot(fig, inline=False):
+    """Display a Plotly figure in a web page or a notebook.
+
+    Args:
+        fig (plotly.graph_objs.Figure): The Plotly figure to plot.
+        inline (bool): wether to plot in a notebook or not. Default is `False`.
+    """
+
     if inline:
         plotly.offline.init_notebook_mode(connected=True)
         return plotly.offline.iplot(fig)
@@ -50,8 +57,26 @@ def to_pandas(x):
     return to_pandas(np.asarray(x))
 
 
-def compute_lambdas(x, target_means, max_iterations=5):
-    """Finds a good lambda for a variable and a given epsilon value."""
+def compute_lambdas(x, target_means, iterations=5):
+    """Find good lambdas for a variable and given target means.
+    
+    Args:
+        x (pd.Series): The variable's values.
+        target_means (iterator of floats): The means to reach by weighting the
+            feature's values.
+        iterations (int): The number of iterations to compute the weights for a
+            given target mean. Default is `5`.
+
+    Returns:
+        dict: The keys are couples `(name of the variable, target mean)` and the
+            values are the lambdas. For instance:
+
+                {
+                    ("age", 20): 1.5,
+                    ("age", 21): 1.6,
+                    ...
+                }
+    """
 
     mean = x.mean()
     lambdas = {}
@@ -61,7 +86,7 @@ def compute_lambdas(x, target_means, max_iterations=5):
         λ = 0
         current_mean = mean
 
-        for _ in range(max_iterations):
+        for _ in range(iterations):
 
             # Update the sample weights and see where the mean is
             sample_weights = np.exp(λ * x)
@@ -81,6 +106,19 @@ def compute_lambdas(x, target_means, max_iterations=5):
 
 
 def compute_bias(y_pred, x, lambdas, sample_index):
+    """Compute the influence of the variable `x` on the predictions.
+    
+    Args:
+        y_pred (pd.Series): The predictions.
+        x (pd.Series): The variable's values.
+        lambdas (iterator of floats): The lambdas for each target mean of `x`.
+        sample_index (int): The index of the sample used to compute the confidence
+            interval. Only used to merge the data later.
+
+    Returns:
+        list of tuples: A list of `(x's name, y_pred's name, lambda, sample_index, bias)`
+            for each lambda.
+    """
     return [
         (
             x.name,
@@ -94,6 +132,22 @@ def compute_bias(y_pred, x, lambdas, sample_index):
 
 
 def compute_performance(y_test, y_pred, metric, x, lambdas, sample_index):
+    """Compute the influence of the variable `x` on the model's performance.
+    
+    Args:
+        y_test (pd.Series): The true predictions.
+        y_pred (pd.Series): The model's predictions.
+        metric (callable): A scikit-learn-like metric with such an interface:
+            `metric(y_test, y_pred, sample_weight=None)`.
+        x (pd.Series): The variable's values.
+        lambdas (iterator of floats): The lambdas for each target mean of `x`.
+        sample_index (int): The index of the sample used to compute the confidence
+            interval. Only used to merge the data later.
+
+    Returns:
+        list of tuples: A list of `(x's name, lambda, sample_index, performance)`
+            for each lambda.
+    """
     return [
         (x.name, λ, sample_index, metric(y_test, y_pred, sample_weight=np.exp(λ * x)))
         for λ in lambdas
@@ -101,12 +155,57 @@ def compute_performance(y_test, y_pred, metric, x, lambdas, sample_index):
 
 
 def metric_to_col(metric):
-    # TODO: what about lambda metrics?
-    # TODO: use a prefix to avoid conflicts with other columns?
-    return metric.__name__
+    """Get the name of the column in explainer's info dataframe to store the
+    performance with respect of the given metric.
+
+    Args:
+        metric (callable): The metric to compute the model's performance.
+    
+    Returns:
+        str: The name of the column.
+    """
+    return metric.__name__ + "__score"
 
 
 def make_dataset_numeric(X):
+    """Convert a dataset with both numerical and categorical features to a
+    dataset with numerical features only.
+
+    Args:
+        X (pd.DataFrame): The dataframe to convert. Categorical-feature columns
+            must have either the type `object` or `category`.
+
+    Returns:
+        (pd.DataFrame, dict): A tuple with the first item being the numeric dataset,
+            with the same columns for numerical features and one binary column per
+            value for each categorical feature (e.g. `gender` gives `gender__male`
+            and `gender_female`). The second item of the tuple is a dict mapping
+            categorical features to a list of binary numerical columns.
+
+            For instance, for `X` being:
+
+                age | gender
+                ----------
+                20 | male
+                23 | female
+                19 | female
+                30 | male
+
+            we get:
+    
+                age | gender__male | gender__female
+                ----------------------------------
+                20 | 1 | 0
+                23 | 0 | 1
+                19 | 0 | 1
+                30 | 1 | 0
+
+            and:
+                
+                {
+                    "gender": ["gender__male", "gender__female"]
+                }
+    """
     X_num = X.select_dtypes(exclude=["object", "category"])
     X_cat = X.select_dtypes(include=["object", "category"])
     cat_features = {}
@@ -120,6 +219,21 @@ def make_dataset_numeric(X):
 
 
 def yield_masks(n_masks, n, p):
+    """Generates a list of `n_masks` to keep a proportion `p` of `n` items.
+
+    Args:
+        n_masks (int): The number of masks to yield. It corresponds to the number
+            of samples we use to compute the confidence interval.
+        n (int): The number of items being filtered. It corresponds to the size
+            of the dataset.
+        p (float): The proportion of items to keep.
+
+    Returns:
+        generator: A generator of `n_masks` lists of `n` booleans being generated
+            with a binomial distribution. As it is a probabilistic approach,
+            we may get more or fewer than `p*n` items kept, but it is not a problem
+            with large datasets.
+    """
     for _ in range(n_masks):
         yield np.random.binomial(1, p, size=n).astype(bool)
 
@@ -136,7 +250,7 @@ class Explainer:
             higher this value is. However the computation time increases linearly with `n_taus`.
             The default is `41` and corresponds to each τ being separated by it's neighbors by
             `0.05`.
-        max_iterations (int): The maximum number of iterations used when applying the Newton step
+        lambda_iterations (int): The maximum number of iterations used when applying the Newton step
             of the optimization procedure.
 
     """
@@ -145,7 +259,7 @@ class Explainer:
         self,
         alpha=0.05,
         n_taus=41,
-        max_iterations=5,
+        lambda_iterations=5,
         n_jobs=-1,
         verbose=False,
         n_samples=1,
@@ -160,10 +274,10 @@ class Explainer:
                 "n_taus must be a strictly positive integer, got " f"{n_taus}"
             )
 
-        if not max_iterations > 0:
+        if not lambda_iterations > 0:
             raise ValueError(
-                "max_iterations must be a strictly positive "
-                f"integer, got {max_iterations}"
+                "lambda_iterations must be a strictly positive "
+                f"integer, got {lambda_iterations}"
             )
 
         if n_samples < 1:
@@ -178,7 +292,7 @@ class Explainer:
         #  TODO: one column per performance metric
         self.alpha = alpha
         self.n_taus = n_taus
-        self.max_iterations = max_iterations
+        self.lambda_iterations = lambda_iterations
         self.n_jobs = n_jobs
         self.verbose = verbose
         self.metric_cols = set()
@@ -243,7 +357,9 @@ class Explainer:
                     {
                         "tau": self.taus,
                         "value": [
-                            means[col] + tau * (
+                            means[col]
+                            + tau
+                            * (
                                 (means[col] - q_mins[col])
                                 if tau < 0
                                 else (q_maxs[col] - means[col])
@@ -266,7 +382,7 @@ class Explainer:
             joblib.delayed(compute_lambdas)(
                 x=X_test_num[col],
                 target_means=part["value"].unique(),
-                max_iterations=self.max_iterations,
+                iterations=self.lambda_iterations,
             )
             for col, part in self.info.groupby("feature")
             if col in X_test_num
@@ -276,7 +392,7 @@ class Explainer:
             lambda r: lambdas.get((r["feature"], r["value"]), r["lambda"]),
             axis="columns",
         )
-        self.info["lambda"] = self.info["lambda"].fillna(0.)
+        self.info["lambda"] = self.info["lambda"].fillna(0.0)
 
         return self.info
 
@@ -323,7 +439,6 @@ class Explainer:
         return self.info[self.info["feature"].isin(queried_features)]
 
     def explain_bias(self, X_test, y_pred):
-
         def compute(X_test, y_pred, relevant):
             return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
                 joblib.delayed(compute_bias)(
@@ -344,7 +459,7 @@ class Explainer:
             y_pred=y_pred,
             dest_col="bias",
             key_cols=["feature", "label", "lambda"],
-            compute=compute
+            compute=compute,
         )
 
     def explain_performance(self, X_test, y_test, y_pred, metric):
