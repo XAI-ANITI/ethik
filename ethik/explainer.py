@@ -612,13 +612,13 @@ class Explainer:
 
     def make_bias_fig(self, explanation, **fig_kwargs):
         labels = explanation["label"].unique()
-        y_label = f"Proportion of {labels[0]}"  #  Single class
+        y_label = f'Average "{labels[0]}"'  #  Single class
         return self._make_explanation_fig(explanation, "bias", y_label, **fig_kwargs)
 
     def make_performance_fig(self, explanation, metric, **fig_kwargs):
         metric_col = metric_to_col(metric)
         return self._make_explanation_fig(
-            explanation, metric_col, y_label=metric_col, **fig_kwargs
+            explanation, metric_col, y_label=f"Average {metric.__name__}", **fig_kwargs
         )
 
     def _make_ranking_fig(self, ranking, score_column, title, colors=None):
@@ -656,7 +656,7 @@ class Explainer:
 
     def make_performance_ranking_fig(self, ranking, metric, criterion, colors=None):
         return self._make_ranking_fig(
-            ranking, criterion, f"{criterion} {metric_to_col(metric)}", colors=colors
+            ranking, criterion, f"{criterion} {metric.__name__}", colors=colors
         )
 
     def _plot(self, explanation, make_fig, inline, **fig_kwargs):
