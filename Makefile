@@ -11,3 +11,6 @@ test_unit:
 	pytest tests	
 
 test: test_nb test_unit
+
+doc:
+	pdoc --html -f -o docs ethik
