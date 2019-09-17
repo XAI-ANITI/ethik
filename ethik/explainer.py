@@ -20,12 +20,13 @@ def plot(fig, inline=False):
 
 
 def decimal_range(start: float, stop: float, step: float):
-    """Like the `range` function but works for decimal values.
+    """Like the `range` function, but works for decimal values.
 
     This is more accurate than using `np.arange` because it doesn't introduce
     any round-off errors.
 
     """
+
     start = decimal.Decimal(str(start))
     stop = decimal.Decimal(str(stop))
     step = decimal.Decimal(str(step))
@@ -62,6 +63,10 @@ def compute_lambdas(x, target_means, max_iterations=5):
         current_mean = mean
 
         for _ in range(max_iterations):
+
+            # Stop if the goal is reached
+            if current_mean == target_mean:
+                break
 
             # Update the sample weights and see where the mean is
             sample_weights = np.exp(λ * x)
