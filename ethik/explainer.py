@@ -1,14 +1,44 @@
 import collections
+import decimal
 import functools
 
 import joblib
 import numpy as np
 import pandas as pd
-
-from .plot_mixin import PlotMixin
-from .utils import decimal_range, to_pandas, metric_to_col
+import plotly.graph_objs as go
 
 __all__ = ["Explainer"]
+
+
+def decimal_range(start: float, stop: float, step: float):
+    """Like the `range` function but works for decimal values.
+
+    This is more accurate than using `np.arange` because it doesn't introduce
+    any round-off errors.
+
+    """
+    start = decimal.Decimal(str(start))
+    stop = decimal.Decimal(str(stop))
+    step = decimal.Decimal(str(step))
+    while start <= stop:
+        yield float(start)
+        start += step
+
+
+def to_pandas(x):
+    """Converts an array-like to a Series or a DataFrame depending on the dimensionality."""
+
+    if isinstance(x, (pd.Series, pd.DataFrame)):
+        return x
+
+    if isinstance(x, np.ndarray):
+        if x.ndim > 2:
+            raise ValueError("x must have 1 or 2 dimensions")
+        if x.ndim == 2:
+            return pd.DataFrame(x)
+        return pd.Series(x)
+
+    return to_pandas(np.asarray(x))
 
 
 def compute_lambdas(x, target_means, iterations=5):
@@ -257,7 +287,7 @@ class Explainer:
         self.lambda_iterations = lambda_iterations
         self.n_jobs = n_jobs
         self.verbose = verbose
-        self.metric_cols = set()
+        self.metric_names = set()
         self.n_samples = n_samples
         self.sample_frac = sample_frac if n_samples > 1 else 1
         self.conf_level = conf_level
@@ -274,6 +304,21 @@ class Explainer:
             ]
         )
         self.cat_features = {}
+
+    def get_metric_name(self, metric):
+        """Get the name of the column in explainer's info dataframe to store the
+        performance with respect of the given metric.
+
+        Args:
+            metric (callable): The metric to compute the model's performance.
+        
+        Returns:
+            str: The name of the column.
+        """
+        name = metric.__name__
+        if name in self.info.columns and name not in self.metric_names:
+            raise ValueError(f"Cannot use {name} as a metric name")
+        return name
 
     @property
     def taus(self):
@@ -423,12 +468,12 @@ class Explainer:
         )
 
     def explain_performance(self, X_test, y_test, y_pred, metric):
-        metric_col = metric_to_col(metric)
-        if metric_col not in self.info.columns:
-            self.info[metric_col] = None
-            self.info[f"{metric_col}_low"] = None
-            self.info[f"{metric_col}_high"] = None
-        self.metric_cols.add(metric_col)
+        metric_name = self.get_metric_name(metric)
+        if metric_name not in self.info.columns:
+            self.info[metric_name] = None
+            self.info[f"{metric_name}_low"] = None
+            self.info[f"{metric_name}_high"] = None
+        self.metric_names.add(metric_name)
 
         y_test = np.asarray(y_test)
 
@@ -448,7 +493,9 @@ class Explainer:
                 )
             )
 
-        return self._explain(X_test, y_pred, metric_col, ["feature", "lambda"], compute)
+        return self._explain(
+            X_test, y_pred, metric_name, ["feature", "lambda"], compute
+        )
 
     def rank_by_bias(self, X_test, y_pred):
         """Returns a DataFrame containing the importance of each feature.
@@ -469,11 +516,11 @@ class Explainer:
         )
 
     def rank_by_performance(self, X_test, y_test, y_pred, metric):
-        metric_col = metric_to_col(metric)
+        metric_name = self.get_metric_name(metric)
 
         def get_aggregates(df):
             return pd.Series(
-                [df[metric_col].min(), df[metric_col].max()], index=["min", "max"]
+                [df[metric_name].min(), df[metric_name].max()], index=["min", "max"]
             )
 
         return (
@@ -483,30 +530,152 @@ class Explainer:
             .reset_index()
         )
 
+    def _plot_explanation(self, explanation, col, y_label, colors=None, yrange=None):
+        features = explanation["feature"].unique()
+
+        if colors is None:
+            colors = {}
+        elif type(colors) is str:
+            colors = {feat: colors for feat in features}
+
+        #  There are multiple features, we plot them together with taus
+        if len(features) > 1:
+            fig = go.Figure()
+            for feat in features:
+                x = explanation.query(f'feature == "{feat}"')["tau"]
+                y = explanation.query(f'feature == "{feat}"')[col]
+                fig.add_trace(
+                    go.Scatter(
+                        x=x,
+                        y=y,
+                        mode="lines+markers",
+                        hoverinfo="x+y+text",
+                        name=feat,
+                        text=[
+                            f"{feat} = {val}"
+                            for val in explanation.query(f'feature == "{feat}"')[
+                                "value"
+                            ]
+                        ],
+                        marker=dict(color=colors.get(feat)),
+                    )
+                )
+
+            fig.update_layout(
+                margin=dict(t=50, r=50),
+                xaxis=dict(title="tau", zeroline=False),
+                yaxis=dict(title=y_label, range=yrange, showline=True),
+                plot_bgcolor="white",
+            )
+            return fig
+
+        #  There is only one feature, we plot it with its nominal values.
+        feat = features[0]
+        fig = go.Figure()
+        x = explanation.query(f'feature == "{feat}"')["value"]
+        y = explanation.query(f'feature == "{feat}"')[col]
+        mean_row = explanation.query(f'feature == "{feat}" and tau == 0').iloc[0]
+
+        if self.n_samples > 1:
+            low = explanation.query(f'feature == "{feat}"')[f"{col}_low"]
+            high = explanation.query(f'feature == "{feat}"')[f"{col}_high"]
+            fig.add_trace(
+                go.Scatter(
+                    x=np.concatenate((x, x[::-1])),
+                    y=np.concatenate((low, high[::-1])),
+                    name=f"{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%",
+                    fill="toself",
+                    fillcolor="#eee",  # TODO: same color as mean line?
+                    line_color="rgba(0, 0, 0, 0)",
+                )
+            )
+
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=y,
+                mode="lines+markers",
+                hoverinfo="x+y",
+                showlegend=False,
+                marker=dict(color=colors.get(feat)),
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[mean_row["value"]],
+                y=[mean_row[col]],
+                mode="markers",
+                name="Original mean",
+                hoverinfo="skip",
+                marker=dict(symbol="x", size=9),
+            )
+        )
+        fig.update_layout(
+            margin=dict(t=50, r=50),
+            xaxis=dict(title=f"Mean {feat}", zeroline=False),
+            yaxis=dict(title=y_label, range=yrange, showline=True),
+            plot_bgcolor="white",
+        )
+        return fig
+
+    def _plot_ranking(self, ranking, score_column, title, colors=None):
+        ranking = ranking.sort_values(by=[score_column])
+
+        return go.Figure(
+            data=[
+                go.Bar(
+                    x=ranking[score_column],
+                    y=ranking["feature"],
+                    orientation="h",
+                    hoverinfo="x",
+                    marker=dict(color=colors),
+                )
+            ],
+            layout=go.Layout(
+                margin=dict(l=200, b=0, t=40),
+                xaxis=dict(
+                    title=title,
+                    range=[0, 1],
+                    showline=True,
+                    zeroline=False,
+                    side="top",
+                    fixedrange=True,
+                ),
+                yaxis=dict(showline=True, zeroline=False, fixedrange=True),
+                plot_bgcolor="white",
+            ),
+        )
+
     def plot_bias(self, X_test, y_pred, **fig_kwargs):
         explanation = self.explain_bias(X_test, y_pred)
-        # make_bias_fig() is inherited from PlotMixin
-        return self.make_bias_fig(explanation, **fig_kwargs)
+        labels = explanation["label"].unique()
+        y_label = f'Average "{labels[0]}"'  #  Single class
+        return self._plot_explanation(explanation, "bias", y_label, **fig_kwargs)
 
     def plot_bias_ranking(self, X_test, y_pred, **fig_kwargs):
         ranking = self.rank_by_bias(X_test=X_test, y_pred=y_pred)
-        # make_bias_ranking_fig() is inherited from PlotMixin
-        return self.make_bias_ranking_fig(ranking, **fig_kwargs)
+        return self._plot_ranking(ranking, "importance", "Importance", **fig_kwargs)
 
     def plot_performance(self, X_test, y_test, y_pred, metric, **fig_kwargs):
+        metric_name = self.get_metric_name(metric)
         explanation = self.explain_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
-        # make_performance_fig() is inherited from PlotMixin
-        return self.make_performance_fig(explanation, metric=metric, **fig_kwargs)
+        if fig_kwargs.get("yrange") is None:
+            if explanation[metric_name].between(0, 1).all():
+                fig_kwargs["yrange"] = [0, 1]
+
+        return self._plot_explanation(
+            explanation, metric_name, y_label=f"Average {metric_name}", **fig_kwargs
+        )
 
     def plot_performance_ranking(
         self, X_test, y_test, y_pred, metric, criterion, **fig_kwargs
     ):
+        metric_name = self.get_metric_name(metric)
         ranking = self.rank_by_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
-        # make_performance_ranking_fig() is inherited from PlotMixin
-        return self.make_performance_ranking_fig(
-            ranking, criterion=criterion, metric=metric, **fig_kwargs
+        return self._plot_ranking(
+            ranking, criterion, f"{criterion} {metric_name}", **fig_kwargs
         )

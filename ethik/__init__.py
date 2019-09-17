@@ -1,6 +1,12 @@
 from .__version__ import __version__
-from .explainer import Explainer
+from .classification_explainer import ClassificationExplainer
+from .regression_explainer import RegressionExplainer
 from .image_explainer import ImageExplainer
 
 
-__all__ = ["__version__", "Explainer", "ImageExplainer"]
+__all__ = [
+    "__version__",
+    "RegressionExplainer",
+    "ClassificationExplainer",
+    "ImageExplainer",
+]
