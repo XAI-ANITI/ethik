@@ -1,8 +1,8 @@
 import itertools
-import math
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 
 from . import explainer
 
@@ -52,57 +52,23 @@ class ImageExplainer(explainer.Explainer):
 
     def plot_bias(self, X_test, y_pred, n_cols=3, width=4):
 
-        means = self.explain_bias(X_test=X_test, y_pred=y_pred)
+        biases = self.explain_bias(X_test=X_test, y_pred=y_pred)
 
-        if isinstance(means.columns, pd.MultiIndex):
+        for label, group in biases.groupby('label'):
 
-            # Determine the number of rows from the number of columns and the number of labels
-            labels = means.columns.unique("labels")
-            n_rows = math.ceil(len(labels) / n_cols)
+            diffs = group.query('tau == 1')['bias'] - group.query('tau == -1')['bias'].values
+            diffs = diffs.to_numpy().reshape(self.img_shape)
 
-            # Make one plot per label
-            fig, axes = plt.subplots(
-                n_rows, n_cols, figsize=(n_cols * width, n_rows * width)
-            )
-            for ax in axes.ravel()[len(labels):]:
-                fig.delaxes(ax)
+            break
 
-            v_min = math.inf
-            v_max = -math.inf
+        return go.Figure(data=go.Heatmap(
+            z=diffs,
+            x=list(range(28)),
+            y=list(range(28)),
+            colorscale='Viridis'
+        ))
 
-            for label, ax in zip(labels, axes.flat):
-                label_means = means[label]
-                diffs = (label_means.iloc[-1] - label_means.iloc[0]).fillna(0.0)
-
-                v_min = min(v_min, diffs.min())
-                v_max = max(v_max, diffs.max())
-
-                ax.imshow(
-                    diffs.to_numpy().reshape(self.img_shape), interpolation="none"
-                )
-                ax.get_xaxis().set_visible(False)
-                ax.get_yaxis().set_visible(False)
-                ax.set_title(label, fontsize=20)
-
-            for img in plt.gca().get_images():
-                img.set_clim(v_min, v_max)
-
-            cbar = fig.colorbar(img, ax=axes.flat)
-            cbar.ax.tick_params(labelsize=20)
-
-            return fig, axes
-
-        fig, ax = plt.subplots()
-        diffs = (means.iloc[-1] - means.iloc[0]).fillna(0.0)
-        img = ax.imshow(diffs.to_numpy().reshape(self.img_shape))
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-
-        fig.colorbar(img, ax=ax)
-
-        return ax
-
-    def plot_metric(self, images, y, y_pred, metric):
+    def plot_metric(self, X_test, y_test, y_pred, metric):
 
         metrics = self.explain_metric(
             X=images_to_dataframe(images), y=y, y_pred=y_pred, metric=metric
