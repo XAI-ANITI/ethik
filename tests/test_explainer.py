@@ -1,19 +1,21 @@
-import unittest
+import pytest
 
 import ethik
 
 
-class TestExplainer(unittest.TestCase):
+def test_check_alpha():
+    for alpha in (-1, 0, 0.5, 1):
+        with pytest.raises(ValueError):
+            ethik.Explainer(alpha=alpha)
 
-    def test_check_alpha(self):
-        for alpha in (-1, 0, 0.5, 1):
-            self.assertRaises(ValueError, ethik.Explainer(alpha=alpha).check_parameters)
 
-    def test_check_n_taus(self):
-        for n_taus in (-1, 0):
-            self.assertRaises(ValueError, ethik.Explainer(n_taus=n_taus).check_parameters)
+def test_check_n_taus():
+    for n_taus in (-1, 0):
+        with pytest.raises(ValueError):
+            ethik.Explainer(n_taus=n_taus)
 
-    def test_check_max_iterations(self):
-        for max_iterations in (-1, 0):
-            check = ethik.Explainer(max_iterations=max_iterations).check_parameters
-            self.assertRaises(ValueError, check)
+
+def test_check_lambda_iterations():
+    for iterations in (-1, 0):
+        with pytest.raises(ValueError):
+            ethik.Explainer(lambda_iterations=iterations)
