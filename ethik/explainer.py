@@ -1,61 +1,14 @@
 import collections
-import decimal
 import functools
 
 import joblib
 import numpy as np
 import pandas as pd
-import plotly
-import plotly.graph_objs as go
 
+from .plot_mixin import PlotMixin
+from .utils import decimal_range, to_pandas, metric_to_col
 
 __all__ = ["Explainer"]
-
-
-def plot(fig, inline=False):
-    """Display a Plotly figure in a web page or a notebook.
-
-    Args:
-        fig (plotly.graph_objs.Figure): The Plotly figure to plot.
-        inline (bool): wether to plot in a notebook or not. Default is `False`.
-    """
-
-    if inline:
-        plotly.offline.init_notebook_mode(connected=True)
-        return plotly.offline.iplot(fig)
-    return plotly.offline.plot(fig, auto_open=True)
-
-
-def decimal_range(start: float, stop: float, step: float):
-    """Like the `range` function, but works for decimal values.
-
-    This is more accurate than using `np.arange` because it doesn't introduce
-    any round-off errors.
-
-    """
-
-    start = decimal.Decimal(str(start))
-    stop = decimal.Decimal(str(stop))
-    step = decimal.Decimal(str(step))
-    while start <= stop:
-        yield float(start)
-        start += step
-
-
-def to_pandas(x):
-    """Converts an array-like to a Series or a DataFrame depending on the dimensionality."""
-
-    if isinstance(x, (pd.Series, pd.DataFrame)):
-        return x
-
-    if isinstance(x, np.ndarray):
-        if x.ndim > 2:
-            raise ValueError("x must have 1 or 2 dimensions")
-        if x.ndim == 2:
-            return pd.DataFrame(x)
-        return pd.Series(x)
-
-    return to_pandas(np.asarray(x))
 
 
 def compute_lambdas(x, target_means, iterations=5):
@@ -530,183 +483,30 @@ class Explainer:
             .reset_index()
         )
 
-    def _make_explanation_fig(
-        self, explanation, col, y_label, with_taus=False, colors=None
-    ):
-        if colors is None:
-            colors = {}
-        features = explanation["feature"].unique()
+    def plot_bias(self, X_test, y_pred, **fig_kwargs):
+        explanation = self.explain_bias(X_test, y_pred)
+        # make_bias_fig() is inherited from PlotMixin
+        return self.make_bias_fig(explanation, **fig_kwargs)
 
-        if with_taus:
-            fig = go.Figure()
-            for feat in features:
-                x = explanation.query(f'feature == "{feat}"')["tau"]
-                y = explanation.query(f'feature == "{feat}"')[col]
-                fig.add_trace(
-                    go.Scatter(
-                        x=x,
-                        y=y,
-                        mode="lines+markers",
-                        hoverinfo="x+y+text",
-                        name=feat,
-                        text=[
-                            f"{feat} = {val}"
-                            for val in explanation.query(f'feature == "{feat}"')[
-                                "value"
-                            ]
-                        ],
-                        marker=dict(color=colors.get(feat)),
-                    )
-                )
-
-            fig.update_layout(
-                margin=dict(t=50, r=50),
-                xaxis=dict(title="tau", zeroline=False),
-                yaxis=dict(title=y_label, range=[0, 1], showline=True, tickformat="%"),
-                plot_bgcolor="white",
-            )
-            return fig
-
-        figures = {}
-        for feat in features:
-            fig = go.Figure()
-            x = explanation.query(f'feature == "{feat}"')["value"]
-            y = explanation.query(f'feature == "{feat}"')[col]
-            mean_row = explanation.query(f'feature == "{feat}" and tau == 0').iloc[0]
-
-            if self.n_samples > 1:
-                low = explanation.query(f'feature == "{feat}"')[f"{col}_low"]
-                high = explanation.query(f'feature == "{feat}"')[f"{col}_high"]
-                fig.add_trace(
-                    go.Scatter(
-                        x=np.concatenate((x, x[::-1])),
-                        y=np.concatenate((low, high[::-1])),
-                        name=f"{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%",
-                        fill="toself",
-                        fillcolor="#eee",  # TODO: same color as mean line?
-                        line_color="rgba(0, 0, 0, 0)",
-                    )
-                )
-
-            fig.add_trace(
-                go.Scatter(
-                    x=x,
-                    y=y,
-                    mode="lines+markers",
-                    hoverinfo="x+y",
-                    showlegend=False,
-                    marker=dict(color=colors.get(feat)),
-                )
-            )
-            fig.add_trace(
-                go.Scatter(
-                    x=[mean_row["value"]],
-                    y=[mean_row[col]],
-                    mode="markers",
-                    name="Original mean",
-                    hoverinfo="skip",
-                    marker=dict(symbol="x", size=9),
-                )
-            )
-            fig.update_layout(
-                margin=dict(t=50, r=50),
-                xaxis=dict(title=f"Mean {feat}", zeroline=False),
-                yaxis=dict(title=y_label, range=[0, 1], showline=True, tickformat="%"),
-                plot_bgcolor="white",
-            )
-            figures[feat] = fig
-        return figures
-
-    def make_bias_fig(self, explanation, **fig_kwargs):
-        labels = explanation["label"].unique()
-        y_label = f'Average "{labels[0]}"'  #  Single class
-        return self._make_explanation_fig(explanation, "bias", y_label, **fig_kwargs)
-
-    def make_performance_fig(self, explanation, metric, **fig_kwargs):
-        metric_col = metric_to_col(metric)
-        return self._make_explanation_fig(
-            explanation, metric_col, y_label=f"Average {metric.__name__}", **fig_kwargs
-        )
-
-    def _make_ranking_fig(self, ranking, score_column, title, colors=None):
-        ranking = ranking.sort_values(by=[score_column])
-
-        return go.Figure(
-            data=[
-                go.Bar(
-                    x=ranking[score_column],
-                    y=ranking["feature"],
-                    orientation="h",
-                    hoverinfo="x",
-                    marker=dict(color=colors),
-                )
-            ],
-            layout=go.Layout(
-                margin=dict(l=200, b=0, t=40),
-                xaxis=dict(
-                    title=title,
-                    range=[0, 1],
-                    showline=True,
-                    zeroline=False,
-                    side="top",
-                    fixedrange=True,
-                ),
-                yaxis=dict(showline=True, zeroline=False, fixedrange=True),
-                plot_bgcolor="white",
-            ),
-        )
-
-    def make_bias_ranking_fig(self, ranking, colors=None):
-        return self._make_ranking_fig(
-            ranking, "importance", "Importance", colors=colors
-        )
-
-    def make_performance_ranking_fig(self, ranking, metric, criterion, colors=None):
-        return self._make_ranking_fig(
-            ranking, criterion, f"{criterion} {metric.__name__}", colors=colors
-        )
-
-    def _plot(self, explanation, make_fig, inline, **fig_kwargs):
-        features = explanation["feature"].unique()
-        if len(features) > 1:
-            return plot(
-                make_fig(explanation, with_taus=True, **fig_kwargs), inline=inline
-            )
-        return plot(
-            make_fig(explanation, with_taus=False, **fig_kwargs)[features[0]],
-            inline=inline,
-        )
-
-    def plot_bias(self, X_test, y_pred, inline=False, **fig_kwargs):
-        explanation = self.explain_bias(X_test=X_test, y_pred=y_pred)
-        return self._plot(explanation, self.make_bias_fig, inline=inline, **fig_kwargs)
-
-    def plot_bias_ranking(self, X_test, y_pred, inline=False, **fig_kwargs):
+    def plot_bias_ranking(self, X_test, y_pred, **fig_kwargs):
         ranking = self.rank_by_bias(X_test=X_test, y_pred=y_pred)
-        return plot(self.make_bias_ranking_fig(ranking, **fig_kwargs), inline=inline)
+        # make_bias_ranking_fig() is inherited from PlotMixin
+        return self.make_bias_ranking_fig(ranking, **fig_kwargs)
 
-    def plot_performance(
-        self, X_test, y_test, y_pred, metric, inline=False, **fig_kwargs
-    ):
+    def plot_performance(self, X_test, y_test, y_pred, metric, **fig_kwargs):
         explanation = self.explain_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
-        return self._plot(
-            explanation,
-            functools.partial(self.make_performance_fig, metric=metric),
-            inline=inline,
-            **fig_kwargs,
-        )
+        # make_performance_fig() is inherited from PlotMixin
+        return self.make_performance_fig(explanation, metric=metric, **fig_kwargs)
 
     def plot_performance_ranking(
-        self, X_test, y_test, y_pred, metric, criterion, inline=False, **fig_kwargs
+        self, X_test, y_test, y_pred, metric, criterion, **fig_kwargs
     ):
         ranking = self.rank_by_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
-        return plot(
-            self.make_performance_ranking_fig(
-                ranking, criterion=criterion, metric=metric, **fig_kwargs
-            ),
-            inline=inline,
+        # make_performance_ranking_fig() is inherited from PlotMixin
+        return self.make_performance_ranking_fig(
+            ranking, criterion=criterion, metric=metric, **fig_kwargs
         )
