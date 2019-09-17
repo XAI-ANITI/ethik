@@ -416,9 +416,6 @@ class Explainer:
         X_test = X_test[X_test.columns.intersection(to_explain)]
         relevant = self.info[self.info["feature"].isin(X_test.columns)]
 
-        print(queried_features)
-        print(to_explain)
-
         if not relevant.empty:
             data = compute(X_test, y_pred, relevant)
             data = pd.DataFrame(
