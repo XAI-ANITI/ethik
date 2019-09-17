@@ -60,7 +60,7 @@ def to_pandas(x):
 
 def compute_lambdas(x, target_means, iterations=5):
     """Find good lambdas for a variable and given target means.
-    
+
     Args:
         x (pd.Series): The variable's values.
         target_means (iterator of floats): The means to reach by weighting the
@@ -89,10 +89,6 @@ def compute_lambdas(x, target_means, iterations=5):
 
         for _ in range(iterations):
 
-            # Stop if the goal is reached
-            if current_mean == target_mean:
-                break
-
             # Update the sample weights and see where the mean is
             sample_weights = np.exp(λ * x)
             sample_weights = sample_weights / sum(sample_weights)
@@ -112,7 +108,7 @@ def compute_lambdas(x, target_means, iterations=5):
 
 def compute_bias(y_pred, x, lambdas, sample_index):
     """Compute the influence of the variable `x` on the predictions.
-    
+
     Args:
         y_pred (pd.Series): The predictions.
         x (pd.Series): The variable's values.
@@ -138,7 +134,7 @@ def compute_bias(y_pred, x, lambdas, sample_index):
 
 def compute_performance(y_test, y_pred, metric, x, lambdas, sample_index):
     """Compute the influence of the variable `x` on the model's performance.
-    
+
     Args:
         y_test (pd.Series): The true predictions.
         y_pred (pd.Series): The model's predictions.
@@ -165,7 +161,7 @@ def metric_to_col(metric):
 
     Args:
         metric (callable): The metric to compute the model's performance.
-    
+
     Returns:
         str: The name of the column.
     """
@@ -197,7 +193,7 @@ def make_dataset_numeric(X):
                 30 | male
 
             we get:
-    
+
                 age | gender__male | gender__female
                 ----------------------------------
                 20 | 1 | 0
@@ -206,7 +202,7 @@ def make_dataset_numeric(X):
                 30 | 1 | 0
 
             and:
-                
+
                 {
                     "gender": ["gender__male", "gender__female"]
                 }
@@ -239,8 +235,16 @@ def yield_masks(n_masks, n, p):
             we may get more or fewer than `p*n` items kept, but it is not a problem
             with large datasets.
     """
-    for _ in range(n_masks):
-        yield np.random.binomial(1, p, size=n).astype(bool)
+
+    if p < 0 or p > 1:
+        raise ValueError(f'p must be between 0 and 1, got {p}')
+
+    if p < 1:
+        for _ in range(n_masks):
+            yield np.random.binomial(1, p, size=n).astype(bool)
+    else:
+        for _ in range(n_masks):
+            yield np.full(shape=n, fill_value=True)
 
 
 class Explainer:
@@ -362,9 +366,7 @@ class Explainer:
                     {
                         "tau": self.taus,
                         "value": [
-                            means[col]
-                            + tau
-                            * (
+                            means[col] + tau * (
                                 (means[col] - q_mins[col])
                                 if tau < 0
                                 else (q_maxs[col] - means[col])
@@ -413,6 +415,9 @@ class Explainer:
         to_explain = self.info["feature"][self.info[dest_col].isnull()].unique()
         X_test = X_test[X_test.columns.intersection(to_explain)]
         relevant = self.info[self.info["feature"].isin(X_test.columns)]
+
+        print(queried_features)
+        print(to_explain)
 
         if not relevant.empty:
             data = compute(X_test, y_pred, relevant)
