@@ -1,6 +1,7 @@
 import collections
 import decimal
 import functools
+import itertools
 
 import joblib
 import numpy as np
@@ -8,6 +9,9 @@ import pandas as pd
 import plotly.graph_objs as go
 
 __all__ = ["Explainer"]
+
+
+CAT_COL_SEP = ' = '
 
 
 def decimal_range(start: float, stop: float, step: float):
@@ -151,57 +155,6 @@ def metric_to_col(metric):
     return metric.__name__ + "__score"
 
 
-def make_dataset_numeric(X):
-    """Convert a dataset with both numerical and categorical features to a
-    dataset with numerical features only.
-
-    Args:
-        X (pd.DataFrame): The dataframe to convert. Categorical-feature columns
-            must have either the type `object` or `category`.
-
-    Returns:
-        (pd.DataFrame, dict): A tuple with the first item being the numeric dataset,
-            with the same columns for numerical features and one binary column per
-            value for each categorical feature (e.g. `gender` gives `gender__male`
-            and `gender_female`). The second item of the tuple is a dict mapping
-            categorical features to a list of binary numerical columns.
-
-            For instance, for `X` being:
-
-                age | gender
-                ----------
-                20 | male
-                23 | female
-                19 | female
-                30 | male
-
-            we get:
-
-                age | gender__male | gender__female
-                ----------------------------------
-                20 | 1 | 0
-                23 | 0 | 1
-                19 | 0 | 1
-                30 | 1 | 0
-
-            and:
-
-                {
-                    "gender": ["gender__male", "gender__female"]
-                }
-    """
-    X_num = X.select_dtypes(exclude=["object", "category"])
-    X_cat = X.select_dtypes(include=["object", "category"])
-    cat_features = {}
-    for cat_feat in X_cat:
-        values = X_cat[cat_feat].unique()
-        new_num_cols = [f"{cat_feat}__{v}" for v in values]
-        cat_features[cat_feat] = new_num_cols
-        for v, new_col in zip(values, new_num_cols):
-            X_num[new_col] = (X_cat[cat_feat] == v).astype(int)
-    return X_num, cat_features
-
-
 def yield_masks(n_masks, n, p):
     """Generates a list of `n_masks` to keep a proportion `p` of `n` items.
 
@@ -311,7 +264,7 @@ class Explainer:
 
         Args:
             metric (callable): The metric to compute the model's performance.
-        
+
         Returns:
             str: The name of the column.
         """
@@ -330,9 +283,7 @@ class Explainer:
         return self.info["feature"].unique().tolist() + list(self.cat_features)
 
     def _find_lambdas(self, X_test, y_pred):
-        """Fits the explainer to a tabular dataset.
-
-        During a `fit` call, the following steps are taken:
+        """Finds lambda values for each (feature, tau, label) triplet.
 
         1. A list of $\tau$ values is generated using `n_taus`. The $\tau$ values range from -1 to 1.
         2. A grid of $\eps$ values is generated for each $\tau$ and for each variable. Each $\eps$ represents a shift from a variable's mean towards a particular quantile.
@@ -347,50 +298,58 @@ class Explainer:
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
-        X_test = X_test[X_test.columns.difference(self.features)]
+        # Check which (feature, label) pairs have to be done
+        to_do_pairs = (
+            set(itertools.product(X_test.columns, y_pred.columns)) -
+            set(self.info.groupby(["feature", "label"]).groups.keys())
+        )
+        to_do_features = set(pair[0] for pair in to_do_pairs)
+        X_test = X_test[to_do_features]
+
         if X_test.empty:
             return self
 
-        X_test_num, cat_features = make_dataset_numeric(X_test)
+        # One-hot encode the categorical features
+        cat_features = X_test.select_dtypes(include=["object", "category"])
+        X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
         self.cat_features = {**self.cat_features, **cat_features}
 
-        # Make the epsilons
-        q_mins = X_test_num.quantile(q=self.alpha).to_dict()
-        q_maxs = X_test_num.quantile(q=1 - self.alpha).to_dict()
-        means = X_test_num.mean().to_dict()
+        # Make the epsilons for each (feature, label, tau) triplet
+        q_mins = X_test.quantile(q=self.alpha).to_dict()
+        q_maxs = X_test.quantile(q=1 - self.alpha).to_dict()
+        means = X_test.mean().to_dict()
         additional_info = pd.concat(
             [
                 pd.DataFrame(
                     {
                         "tau": self.taus,
                         "value": [
-                            means[col] + tau * (
-                                (means[col] - q_mins[col])
+                            means[feature] + tau * (
+                                (means[feature] - q_mins[feature])
                                 if tau < 0
-                                else (q_maxs[col] - means[col])
+                                else (q_maxs[feature] - means[feature])
                             )
                             for tau in self.taus
                         ],
-                        "feature": [col] * len(self.taus),
-                        "label": [y] * len(self.taus),
+                        "feature": [feature] * len(self.taus),
+                        "label": [label] * len(self.taus),
                     }
                 )
-                for col in X_test_num.columns
-                for y in y_pred.columns
+                for feature, label in to_do_pairs
             ],
             ignore_index=True,
         )
         self.info = self.info.append(additional_info, ignore_index=True, sort=False)
 
-        # Find a lambda for each (column, espilon) pair
+        # Find a lambda for each (feature, espilon) pair
         lambdas = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
             joblib.delayed(compute_lambdas)(
-                x=X_test_num[col],
+                x=X_test[feature],
                 target_means=part["value"].unique(),
                 iterations=self.lambda_iterations,
             )
-            for col, part in self.info.groupby("feature")
-            if col in X_test_num
+            for feature, part in self.info.groupby("feature")
+            if feature in X_test
         )
         lambdas = dict(collections.ChainMap(*lambdas))
         self.info["lambda"] = self.info.apply(
@@ -399,23 +358,31 @@ class Explainer:
         )
         self.info["lambda"] = self.info["lambda"].fillna(0.0)
 
-        return self.info
+        return self
 
     def _explain(self, X_test, y_pred, dest_col, key_cols, compute):
+
         # Coerce X_test and y_pred to DataFrames
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
+        # Find the lambda values for each (feature, tau, label) triplet
         self._find_lambdas(X_test, y_pred)
 
-        X_test, _ = make_dataset_numeric(X_test)
+        # One-hot encode the categorical variables
+        X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
+
+        # List the features that have been asked to explain
         queried_features = X_test.columns.tolist()
+
+        # Determine which features are missing explanations; that is they have null biases for at
+        # least one lambda value
         to_explain = self.info["feature"][self.info[dest_col].isnull()].unique()
         X_test = X_test[X_test.columns.intersection(to_explain)]
         relevant = self.info[self.info["feature"].isin(X_test.columns)]
 
         if not relevant.empty:
-            data = compute(X_test, y_pred, relevant)
+            data = compute(X_test=X_test, y_pred=y_pred, relevant=relevant)
             data = pd.DataFrame(
                 [line for batch in data for line in batch],
                 columns=[*key_cols, "sample_index", dest_col],
@@ -444,6 +411,7 @@ class Explainer:
         return self.info[self.info["feature"].isin(queried_features)]
 
     def explain_bias(self, X_test, y_pred):
+
         def compute(X_test, y_pred, relevant):
             return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
                 joblib.delayed(compute_bias)(
@@ -612,7 +580,7 @@ class Explainer:
         )
         fig.update_layout(
             margin=dict(t=50, r=50),
-            xaxis=dict(title=f"Mean {feat}", zeroline=False),
+            xaxis=dict(title=f"Average {feat}", zeroline=False),
             yaxis=dict(title=y_label, range=yrange, showline=True),
             plot_bgcolor="white",
         )
