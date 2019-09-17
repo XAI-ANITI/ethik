@@ -12,11 +12,17 @@
 
 ## Introduction
 
-Ethik is a Python package for performing [fair](https://www.microsoft.com/en-us/research/blog/machine-learning-for-fair-decisions/) and [explainable](https://www.wikiwand.com/en/Explainable_artificial_intelligence) machine learning.
+`ethik` is a Python package for performing [fair](https://www.microsoft.com/en-us/research/blog/machine-learning-for-fair-decisions/) and [explainable](https://www.wikiwand.com/en/Explainable_artificial_intelligence) machine learning.
 
 <div align="center">
   <img src="figures/overview.svg" width="660px" alt="overview"/>
 </div>
+
+`ethik` can be used to:
+
+1. Determine if a predictive model is biased with respect to one or more features.
+2. Understand how the performance of the model varies with respect to one or more features.
+3. Visualize which parts of an image influence a model's predictions.
 
 ## Installation
 
@@ -38,7 +44,7 @@ Ethik is a Python package for performing [fair](https://www.microsoft.com/en-us/
 >>> pip install git+ssh://git@github.com/MaxHalford/ethik.git
 ```
 
-### Development
+**Development installation**
 
 ```shell
 >>> git clone https://github.com/MaxHalford/ethik
@@ -50,10 +56,9 @@ Ethik is a Python package for performing [fair](https://www.microsoft.com/en-us/
 
 ## User guide
 
-:point-up: For more detailed code please see [this notebook](notebooks/Adult.ipynb).
-Plots do not appear on GitHub as they are interactive Plotly plots using JS.
+:point_up: Please check out [this notebook](notebooks/Adult.ipynb) for more detailed code.
 
-In the following example we'll be using the ["Adult" dataset](https://archive.ics.uci.edu/ml/datasets/adult). This dataset contains a binary label indicating if a person's annual income is larger than $50k per year. `ethik` analyzes a model based on the predictions it makes on a test set. Consequently you first have to split your dataset in two.
+In the following example we'll be using the ["Adult" dataset](https://archive.ics.uci.edu/ml/datasets/adult). This dataset contains a binary label indicating if a person's annual income is larger than $50k. `ethik` can diagnose a model by looking at the predictions the model makes on a test set. Consequently, you first have to split your dataset in two (train and test).
 
 ```python
 from sklearn import model_selection
@@ -61,7 +66,7 @@ from sklearn import model_selection
 X_train, X_test, y_train, y_test = model_selection.train_test_split(X, y, shuffle=True, random_state=42)
 ```
 
-You then want to train your model on the training set and make predictions on the test set. For this example we'll train a gradient boosting classifier from the [LightGBM library](https://lightgbm.readthedocs.io/en/latest/). We'll use a variable named `y_pred` to store the predicted probabilities associated with the `True` label.
+You then want to train your model on the training set and make predictions on the test set. In this example we'll train a gradient boosting classifier from the [LightGBM library](https://lightgbm.readthedocs.io/en/latest/). We'll use a variable named `y_pred` to store the predicted probabilities associated with the `True` label.
 
 ```python
 import lightgbm as lgb
@@ -69,20 +74,21 @@ import lightgbm as lgb
 model = lgb.LGBMClassifier(random_state=42).fit(X_train, y_train)
 
 # We use a named pandas series to make plot labels more explicit
-y_pred = pd.Series(model.predict_proba(X_test)[:, 1], name='>$50k')
+y_pred = model.predict_proba(X_test)[:, 1]
+y_pred = pd.Series(y_pred, name='>$50k')
 ```
 
-We can now initialize an `Explainer` using the default parameters.
+We can now initialize an `ClassificationExplainer` using the default parameters.
 
 ```python
 import ethik
 
-explainer = ethik.Explainer()
+explainer = ethik.ClassificationExplainer()
 ```
 
 ### Measuring model bias
 
-`ethik` can be used to understand how model predictions vary as a function of one or more features. For example we may want the model predicts with respect to the `age` feature.
+`ethik` can be used to understand how the model predictions vary as a function of one or more features. For example we can look at how the model behaves with respect to the `age` feature.
 
 ```python
 explainer.plot_bias(X_test=X_test['age'], y_pred=y_pred)
@@ -92,7 +98,7 @@ explainer.plot_bias(X_test=X_test['age'], y_pred=y_pred)
     <img src="figures/age_bias.png" alt="Age bias" />
 </div>
 
-Recall that the target indicates if a person's salary is above $50k. **We can see that the model predicts higher probabilities for older people**. This isn't a surprising result, and could have just as well been observed during exploratory data analysis. However, we can see that the predictions plateau at around 50 years old. Indeed, although salary is correlated with age, some people may retire early or lose their job. Furthermore we can see that the model understands the fact that salaries shrink once people get in age of retiring. This up-and-down relationship is in nature non-linear, and isn't picked up by summary statistics such as correlation coefficients, [odds ratios](https://www.wikiwand.com/en/Odds_ratio), and feature importances in general. Although the observations we made are quite obvious and rather intuitive, it's always good to confirm what the model is thinking. The point is that the curves produced by `plot_predictions` represent the relationship between a variable and the target according to the model, rather than the data.
+Recall that the target indicates if a person's annual salary is above $50k. **We can see that the model predicts higher probabilities for older people**. This isn't a surprising result, and could have just as well been observed by looking at the data. However, we can see that the predictions plateau at around 50 years old. Indeed, although salary is correlated with age, some people may retire early or lose their job. Furthermore we can see that the model understands the fact that salaries shrink once people get in age of retiring. This up-and-down relationship is in nature non-linear, and isn't picked up by summary statistics such as correlation coefficients, [odds ratios](https://www.wikiwand.com/en/Odds_ratio), and feature importances in general. Although the observations we made are quite obvious and rather intuitive, it's always good to confirm what the model is thinking. The point is that the curves produced by `plot_predictions` represent the relationship between a variable and the target according to the model, rather than the data.
 
 We can also plot the distribution of predictions for more than one variable. However, because different variables have different scales we have to use a common measure to display them together. For this purpose we plot the τ ("tau") values. These values are contained between -1 and 1 and simply reflect by how much the variable is shifted from it's mean towards it's lower and upper quantiles. In the following figure a tau value of -1 corresponds to just under 20 years old whereas a tau value of 1 refers to being slightly over 60 years old.
 
@@ -108,13 +114,13 @@ We can observe that the model assigns higher probabilities to people with higher
 
 ### Evaluating model reliability
 
-Our methodology can also be used to evaluate the reliability of a model under different scenarios. What you have to understand is that evaluation metrics commonly used in machine learning only tell you part of the story. Indeed they tell you the performance of a model *on average*. A more interesting approach is to visualize how accurate the model is with respect to the distribution of a variable.
+Our methodology can also be used to evaluate the reliability of a model under different scenarios. Evaluation metrics that are commonly used in machine learning only tell you part of the story. Indeed they tell you the performance of a model *on average*. A more interesting approach is to visualize how accurate the model is with respect to the distribution of a variable.
 
 ```python
 explainer.plot_performance(
     X_test=X_test['age'],
     y_test=y_test,
-    y_pred=y_pred > 0.5,
+    y_pred=y_pred > 0.5,  # metrics.accuracy_score requires y_pred to be binary
     metric=metrics.accuracy_score
 )
 ```
@@ -179,6 +185,8 @@ This work is led by members of the [Toulouse Institute of Mathematics](https://w
 - [Vincent Lefoulon](https://vayel.github.io/)
 - [Jean-Michel Loubes](https://perso.math.univ-toulouse.fr/loubes/)
 - [Laurent Risser](http://laurent.risser.free.fr/menuEng.html)
+
+This work is financed by the [Centre National de la Recherche Scientifique (CNRS)](http://www.cnrs.fr/) and is done in the context of the [Artificial and Natural Intelligence Toulouse Institute (ANITI)](https://en.univ-toulouse.fr/aniti) project.
 
 ## License
 
