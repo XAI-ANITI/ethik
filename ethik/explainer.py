@@ -1,5 +1,4 @@
 import collections
-import decimal
 import functools
 import itertools
 
@@ -8,41 +7,12 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
 
+from .utils import decimal_range, to_pandas
+
 __all__ = ["Explainer"]
 
 
-CAT_COL_SEP = ' = '
-
-
-def decimal_range(start: float, stop: float, step: float):
-    """Like the `range` function but works for decimal values.
-
-    This is more accurate than using `np.arange` because it doesn't introduce
-    any round-off errors.
-
-    """
-    start = decimal.Decimal(str(start))
-    stop = decimal.Decimal(str(stop))
-    step = decimal.Decimal(str(step))
-    while start <= stop:
-        yield float(start)
-        start += step
-
-
-def to_pandas(x):
-    """Converts an array-like to a Series or a DataFrame depending on the dimensionality."""
-
-    if isinstance(x, (pd.Series, pd.DataFrame)):
-        return x
-
-    if isinstance(x, np.ndarray):
-        if x.ndim > 2:
-            raise ValueError("x must have 1 or 2 dimensions")
-        if x.ndim == 2:
-            return pd.DataFrame(x)
-        return pd.Series(x)
-
-    return to_pandas(np.asarray(x))
+CAT_COL_SEP = " = "
 
 
 def compute_lambdas(x, target_means, iterations=5):
@@ -173,7 +143,7 @@ def yield_masks(n_masks, n, p):
     """
 
     if p < 0 or p > 1:
-        raise ValueError(f'p must be between 0 and 1, got {p}')
+        raise ValueError(f"p must be between 0 and 1, got {p}")
 
     if p < 1:
         for _ in range(n_masks):
@@ -195,9 +165,22 @@ class Explainer:
             higher this value is. However the computation time increases linearly with `n_taus`.
             The default is `41` and corresponds to each τ being separated by it's neighbors by
             `0.05`.
-        lambda_iterations (int): The maximum number of iterations used when applying the Newton step
-            of the optimization procedure.
-
+        lambda_iterations (int): The number of iterations used when applying the Newton step
+            of the optimization procedure. Default is `5`.
+        n_jobs (int): The number of jobs to use for parallel computations. See
+            `joblib.Parallel()`. Default is `-1`.
+        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
+            Default is `False`.
+        n_samples (int): The number of samples to use for the confidence interval.
+            If `1`, the default, no confidence interval is computed.
+        sample_frac (float): The proportion of lines in the dataset sampled to
+            generate the samples for the confidence interval. If `n_samples` is
+            `1`, no confidence interval is computed and the whole dataset is used.
+            Default is `0.8`.
+        conf_level (float): A `float` between `0` and `0.5` which indicates the
+            quantile used for the confidence interval. Default is `0.05`, which
+            means that the confidence interval contains the data between the 5th
+            and 95th quantiles.
     """
 
     def __init__(
@@ -299,9 +282,8 @@ class Explainer:
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
         # Check which (feature, label) pairs have to be done
-        to_do_pairs = (
-            set(itertools.product(X_test.columns, y_pred.columns)) -
-            set(self.info.groupby(["feature", "label"]).groups.keys())
+        to_do_pairs = set(itertools.product(X_test.columns, y_pred.columns)) - set(
+            self.info.groupby(["feature", "label"]).groups.keys()
         )
         to_do_features = set(pair[0] for pair in to_do_pairs)
         X_test = X_test[to_do_features]
@@ -324,7 +306,9 @@ class Explainer:
                     {
                         "tau": self.taus,
                         "value": [
-                            means[feature] + tau * (
+                            means[feature]
+                            + tau
+                            * (
                                 (means[feature] - q_mins[feature])
                                 if tau < 0
                                 else (q_maxs[feature] - means[feature])
@@ -377,16 +361,29 @@ class Explainer:
 
         # Determine which features are missing explanations; that is they have null biases for at
         # least one lambda value
-        to_explain = self.info["feature"][self.info[dest_col].isnull()].unique()
-        X_test = X_test[X_test.columns.intersection(to_explain)]
-        relevant = self.info[self.info["feature"].isin(X_test.columns)]
+        relevant = self.info[
+            self.info["feature"].isin(X_test.columns)
+            & self.info["label"].isin(y_pred.columns)
+            & self.info[dest_col].isnull()
+        ]
 
         if not relevant.empty:
+            # `compute()` will return something like:
+            # [
+            #   [ # First batch
+            #     (*key_cols1, sample_index1, computed_value1),
+            #     (*key_cols2, sample_index2, computed_value2),
+            #     ...
+            #   ],
+            #   ...
+            # ]
             data = compute(X_test=X_test, y_pred=y_pred, relevant=relevant)
             data = pd.DataFrame(
                 [line for batch in data for line in batch],
                 columns=[*key_cols, "sample_index", dest_col],
             )
+            # We group by the key to gather the samples and compute the confidence
+            #  interval
             data = data.groupby(key_cols)[dest_col].agg(
                 [
                     (dest_col, "mean"),
@@ -408,10 +405,12 @@ class Explainer:
                     axis="columns",
                 )
 
-        return self.info[self.info["feature"].isin(queried_features)]
+        return self.info[
+            self.info["feature"].isin(X_test.columns)
+            & self.info["label"].isin(y_pred.columns)
+        ]
 
     def explain_bias(self, X_test, y_pred):
-
         def compute(X_test, y_pred, relevant):
             return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
                 joblib.delayed(compute_bias)(
@@ -575,7 +574,7 @@ class Explainer:
                 mode="markers",
                 name="Original mean",
                 hoverinfo="skip",
-                marker=dict(symbol="x", size=9),
+                marker=dict(symbol="x", size=9, color="black"),
             )
         )
         fig.update_layout(
@@ -617,7 +616,9 @@ class Explainer:
     def plot_bias(self, X_test, y_pred, **fig_kwargs):
         explanation = self.explain_bias(X_test, y_pred)
         labels = explanation["label"].unique()
-        y_label = f'Average "{labels[0]}"'  #  Single class
+        if len(labels) > 1:
+            raise ValueError("Cannot plot multiple labels")
+        y_label = f'Average "{labels[0]}"'
         return self._plot_explanation(explanation, "bias", y_label, **fig_kwargs)
 
     def plot_bias_ranking(self, X_test, y_pred, **fig_kwargs):
