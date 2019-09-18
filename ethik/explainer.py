@@ -46,9 +46,6 @@ def compute_lambdas(x, target_means, iterations=5, use_previous_lambda=False):
 
         current_mean = mean
 
-        if not use_previous_lambda:
-            λ = 0
-
         for _ in range(iterations):
 
             # Update the sample weights and see where the mean is
@@ -61,7 +58,7 @@ def compute_lambdas(x, target_means, iterations=5, use_previous_lambda=False):
             hess = np.average((x - current_mean) ** 2, weights=sample_weights)
 
             if hess == 0:
-                λ -= 0.01 * grad
+                λ -= 1e-5 * grad
                 break
 
             step = grad / hess
@@ -202,7 +199,7 @@ class Explainer:
         conf_level=0.05,
         memoize=False,
     ):
-        if not 0 < alpha < 0.5:
+        if not 0 <= alpha < 0.5:
             raise ValueError("alpha must be between 0 and 0.5, got " f"{alpha}")
 
         if not n_taus > 0:
@@ -305,7 +302,6 @@ class Explainer:
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
         # One-hot encode the categorical features
-        cat_features = X_test.select_dtypes(include=["object", "category"]).columns
         X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
 
         # Check which (feature, label) pairs have to be done
@@ -330,9 +326,9 @@ class Explainer:
                             means[feature]
                             + tau
                             * (
-                                (means[feature] - q_mins[feature])
-                                if tau < 0
-                                else (q_maxs[feature] - means[feature])
+                                max(means[feature] - q_mins[feature], 0)
+                                if tau < 0 else
+                                max(q_maxs[feature] - means[feature], 0)
                             )
                             for tau in self.taus
                         ],
@@ -353,10 +349,7 @@ class Explainer:
             joblib.delayed(compute_lambdas)(
                 x=X_test[feature],
                 target_means=part["value"].unique(),
-                iterations=self.lambda_iterations,
-                use_previous_lambda=all(
-                    not feature.startswith(cat) for cat in cat_features
-                ),
+                iterations=self.lambda_iterations
             )
             for feature, part in self.info.groupby("feature")
             if feature in X_test
