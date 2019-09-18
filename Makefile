@@ -10,7 +10,10 @@ test_nb:
 test_unit:
 	pytest tests	
 
-test: test_nb test_unit
+test_syntax:
+	black --check ethik tests
+
+test: test_nb test_unit test_syntax
 
 doc:
 	pdoc --html -f -o docs ethik
