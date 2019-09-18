@@ -165,9 +165,22 @@ class Explainer:
             higher this value is. However the computation time increases linearly with `n_taus`.
             The default is `41` and corresponds to each τ being separated by it's neighbors by
             `0.05`.
-        lambda_iterations (int): The maximum number of iterations used when applying the Newton step
-            of the optimization procedure.
-
+        lambda_iterations (int): The number of iterations used when applying the Newton step
+            of the optimization procedure. Default is `5`.
+        n_jobs (int): The number of jobs to use for parallel computations. See
+            `joblib.Parallel()`. Default is `-1`.
+        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
+            Default is `False`.
+        n_samples (int): The number of samples to use for the confidence interval.
+            If `1`, the default, no confidence interval is computed.
+        sample_frac (float): The proportion of lines in the dataset sampled to
+            generate the samples for the confidence interval. If `n_samples` is
+            `1`, no confidence interval is computed and the whole dataset is used.
+            Default is `0.8`.
+        conf_level (float): A `float` between `0` and `0.5` which indicates the
+            quantile used for the confidence interval. Default is `0.05`, which
+            means that the confidence interval contains the data between the 5th
+            and 95th quantiles.
     """
 
     def __init__(
