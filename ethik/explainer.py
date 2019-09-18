@@ -7,6 +7,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
+from scipy import special
 
 __all__ = ["Explainer"]
 
@@ -45,7 +46,7 @@ def to_pandas(x):
     return to_pandas(np.asarray(x))
 
 
-def compute_lambdas(x, target_means, iterations=5):
+def compute_lambdas(x, target_means, iterations=5, use_previous_lambda=False):
     """Find good lambdas for a variable and given target means.
 
     Args:
@@ -69,22 +70,30 @@ def compute_lambdas(x, target_means, iterations=5):
     mean = x.mean()
     lambdas = {}
 
+    λ = 0
+
     for target_mean in target_means:
 
-        λ = 0
         current_mean = mean
 
-        for _ in range(iterations):
+        if not use_previous_lambda:
+            λ = 0
+
+        for i in range(iterations):
 
             # Update the sample weights and see where the mean is
-            sample_weights = np.exp(λ * x)
-            sample_weights = sample_weights / sum(sample_weights)
+            sample_weights = special.softmax(λ * x)
             current_mean = np.average(x, weights=sample_weights)
 
             # Do a Newton step using the difference between the mean and the
             # target mean
             grad = current_mean - target_mean
             hess = np.average((x - current_mean) ** 2, weights=sample_weights)
+
+            if hess == 0:
+                λ -= 0.01 * grad
+                break
+
             step = grad / hess
             λ -= step
 
@@ -113,7 +122,7 @@ def compute_bias(y_pred, x, lambdas, sample_index):
             y_pred.name,
             λ,
             sample_index,
-            np.average(y_pred, weights=np.exp(λ * x)),
+            np.average(y_pred, weights=special.softmax(λ * x)),
         )
         for λ in lambdas
     ]
@@ -137,7 +146,12 @@ def compute_performance(y_test, y_pred, metric, x, lambdas, sample_index):
             for each lambda.
     """
     return [
-        (x.name, λ, sample_index, metric(y_test, y_pred, sample_weight=np.exp(λ * x)))
+        (
+            x.name,
+            λ,
+            sample_index,
+            metric(y_test, y_pred, sample_weight=special.softmax(λ * x))
+        )
         for λ in lambdas
     ]
 
@@ -298,6 +312,11 @@ class Explainer:
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
+        # One-hot encode the categorical features
+        cat_features = X_test.select_dtypes(include=["object", "category"])
+        X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
+        self.cat_features = {**self.cat_features, **cat_features}
+
         # Check which (feature, label) pairs have to be done
         to_do_pairs = (
             set(itertools.product(X_test.columns, y_pred.columns)) -
@@ -308,11 +327,6 @@ class Explainer:
 
         if X_test.empty:
             return self
-
-        # One-hot encode the categorical features
-        cat_features = X_test.select_dtypes(include=["object", "category"])
-        X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
-        self.cat_features = {**self.cat_features, **cat_features}
 
         # Make the epsilons for each (feature, label, tau) triplet
         q_mins = X_test.quantile(q=self.alpha).to_dict()
@@ -347,6 +361,7 @@ class Explainer:
                 x=X_test[feature],
                 target_means=part["value"].unique(),
                 iterations=self.lambda_iterations,
+                use_previous_lambda=all(not feature.startswith(cat) for cat in cat_features)
             )
             for feature, part in self.info.groupby("feature")
             if feature in X_test
@@ -389,15 +404,12 @@ class Explainer:
             )
             data = data.groupby(key_cols)[dest_col].agg(
                 [
+                    # Mean bias
                     (dest_col, "mean"),
-                    (
-                        f"{dest_col}_low",
-                        functools.partial(np.quantile, q=self.conf_level),
-                    ),
-                    (
-                        f"{dest_col}_high",
-                        functools.partial(np.quantile, q=1 - self.conf_level),
-                    ),
+                    # Lower bound on the mean bias
+                    (f"{dest_col}_low", functools.partial(np.quantile, q=self.conf_level)),
+                    # Upper bound on the mean bias
+                    (f"{dest_col}_high", functools.partial(np.quantile, q=1 - self.conf_level)),
                 ]
             )
 
