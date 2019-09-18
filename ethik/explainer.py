@@ -49,7 +49,7 @@ def compute_lambdas(x, target_means, iterations=5, use_previous_lambda=False):
         if not use_previous_lambda:
             λ = 0
 
-        for i in range(iterations):
+        for _ in range(iterations):
 
             # Update the sample weights and see where the mean is
             sample_weights = special.softmax(λ * x)
@@ -253,7 +253,6 @@ class Explainer:
                 "bias_high",
             ]
         )
-        self.cat_features = {}
 
     def get_metric_name(self, metric):
         """Get the name of the column in explainer's info dataframe to store the
@@ -277,7 +276,7 @@ class Explainer:
 
     @property
     def features(self):
-        return self.info["feature"].unique().tolist() + list(self.cat_features)
+        return self.info["feature"].unique().tolist()
 
     def _find_lambdas(self, X_test, y_pred):
         """Finds lambda values for each (feature, tau, label) triplet.
@@ -296,9 +295,8 @@ class Explainer:
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
         # One-hot encode the categorical features
-        cat_features = X_test.select_dtypes(include=["object", "category"])
+        cat_features = X_test.select_dtypes(include=["object", "category"]).columns
         X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
-        self.cat_features = {**self.cat_features, **cat_features}
 
         # Check which (feature, label) pairs have to be done
         to_do_pairs = set(itertools.product(X_test.columns, y_pred.columns)) - set(
@@ -370,9 +368,6 @@ class Explainer:
 
         # One-hot encode the categorical variables
         X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
-
-        # List the features that have been asked to explain
-        queried_features = X_test.columns.tolist()
 
         # Determine which features are missing explanations; that is they have null biases for at
         # least one lambda value
