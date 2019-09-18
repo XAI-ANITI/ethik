@@ -24,13 +24,14 @@ class ImageClassificationExplainer(explainer.Explainer):
 
     """
 
-    def __init__(self, alpha=0.05, lambda_iterations=5, n_jobs=-1, verbose=False):
+    def __init__(self, alpha=0.05, lambda_iterations=5, n_jobs=-1, verbose=False, memoize=True):
         super().__init__(
             alpha=alpha,
             n_taus=2,
             lambda_iterations=lambda_iterations,
             n_jobs=n_jobs,
             verbose=verbose,
+            memoize=memoize
         )
 
     def explain_bias(self, X_test, y_pred):
@@ -53,8 +54,12 @@ class ImageClassificationExplainer(explainer.Explainer):
             vertical_spacing=0.2 / n_rows,
         )
 
+        # We want all the heatmaps to share the same scale
         zmin = min(np.min(z) for z in z_values.values())
         zmax = max(np.max(z) for z in z_values.values())
+
+        # We want to make sure that 0 is at the center of the scale
+        zmin, zmax = min(zmin, -zmax), max(zmax, -zmin)
 
         for i, label in enumerate(labels):
             fig.add_trace(
@@ -64,10 +69,12 @@ class ImageClassificationExplainer(explainer.Explainer):
                     y=list(range(self.img_shape[0])),
                     zmin=zmin,
                     zmax=zmax,
-                    colorscale="Viridis",
+                    colorscale="RdYlBu",
+                    zsmooth="best",
                     showscale=i == 0,
                     name=label,
                     hoverinfo="x+y+z",
+                    reversescale=True
                 ),
                 row=i // n_cols + 1,
                 col=i % n_cols + 1,
