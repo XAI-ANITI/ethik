@@ -120,7 +120,7 @@ def compute_performance(y_test, y_pred, metric, x, lambdas, sample_index):
             x.name,
             λ,
             sample_index,
-            metric(y_test, y_pred, sample_weight=special.softmax(λ * x))
+            metric(y_test, y_pred, sample_weight=special.softmax(λ * x)),
         )
         for λ in lambdas
     ]
@@ -302,7 +302,11 @@ class Explainer:
         to_do_pairs = set(itertools.product(X_test.columns, y_pred.columns)) - set(
             self.info.groupby(["feature", "label"]).groups.keys()
         )
-        to_do_features = set(pair[0] for pair in to_do_pairs)
+        to_do_map = collections.defaultdict(list)
+        for feat, label in to_do_pairs:
+            to_do_map[feat].append(label)
+        #  We need a list to keep the order of X_test
+        to_do_features = list(feat for feat in X_test.columns if feat in to_do_map)
         X_test = X_test[to_do_features]
 
         if X_test.empty:
@@ -331,7 +335,9 @@ class Explainer:
                         "label": [label] * len(self.taus),
                     }
                 )
-                for feature, label in to_do_pairs
+                # We need to iterate over `to_do_features` to keep the order of X_test
+                for feature in to_do_features
+                for label in to_do_map[feature]
             ],
             ignore_index=True,
         )
@@ -343,7 +349,9 @@ class Explainer:
                 x=X_test[feature],
                 target_means=part["value"].unique(),
                 iterations=self.lambda_iterations,
-                use_previous_lambda=all(not feature.startswith(cat) for cat in cat_features)
+                use_previous_lambda=all(
+                    not feature.startswith(cat) for cat in cat_features
+                ),
             )
             for feature, part in self.info.groupby("feature")
             if feature in X_test
@@ -399,9 +407,15 @@ class Explainer:
                     # Mean bias
                     (dest_col, "mean"),
                     # Lower bound on the mean bias
-                    (f"{dest_col}_low", functools.partial(np.quantile, q=self.conf_level)),
+                    (
+                        f"{dest_col}_low",
+                        functools.partial(np.quantile, q=self.conf_level),
+                    ),
                     # Upper bound on the mean bias
-                    (f"{dest_col}_high", functools.partial(np.quantile, q=1 - self.conf_level)),
+                    (
+                        f"{dest_col}_high",
+                        functools.partial(np.quantile, q=1 - self.conf_level),
+                    ),
                 ]
             )
 
