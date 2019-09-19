@@ -58,6 +58,8 @@ def compute_lambdas(x, target_means, iterations=5, use_previous_lambda=False):
             hess = np.average((x - current_mean) ** 2, weights=sample_weights)
 
             if hess == 0:
+                # We use a magic number based on experience for the step size, this is subject
+                # to change
                 λ -= 1e-5 * grad
                 break
 
@@ -181,7 +183,7 @@ class Explainer:
             and 95th quantiles.
         memoize (bool): Indicates whether or not memoization should be used or not. If `True`, then
             intermediate results will be stored in order to avoid recomputing results that can be
-            reused by successivly called methods. For example, if you call `plot_bias` followed by
+            reused by successively called methods. For example, if you call `plot_bias` followed by
             `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
             `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned off by
             default because it can lead to unexpected behavior depending on your usage.
@@ -281,8 +283,6 @@ class Explainer:
         to_do_map = collections.defaultdict(list)
         for feat, label in to_do_pairs:
             to_do_map[feat].append(label)
-        for feat in to_do_map:
-            to_do_map[feat] = list(sorted(to_do_map[feat]))
         return {feat: list(sorted(labels)) for feat, labels in to_do_map.items()}
 
     def _find_lambdas(self, X_test, y_pred):
