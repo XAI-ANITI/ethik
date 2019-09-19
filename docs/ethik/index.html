@@ -133,7 +133,9 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
         if len(y_pred.columns) == 1:
-            return super().plot_bias(X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange)
+            return super().plot_bias(
+                X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange
+            )
 
         if colors is None:
             features = X_test.columns
@@ -144,7 +146,9 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
         labels = y_pred.columns
         plots = []
         for label in labels:
-            plots.append(super().plot_bias(X_test, y_pred[label], colors=colors, yrange=yrange))
+            plots.append(
+                super().plot_bias(X_test, y_pred[label], colors=colors, yrange=yrange)
+            )
 
         fig = make_subplots(rows=len(labels), cols=1, shared_xaxes=True)
         for ilabel, (label, plot) in enumerate(zip(labels, plots)):
@@ -194,7 +198,9 @@ or a numpy 2d-array of shape <code>(n_samples, n_features)</code>.</dd>
     y_pred = pd.DataFrame(to_pandas(y_pred))
 
     if len(y_pred.columns) == 1:
-        return super().plot_bias(X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange)
+        return super().plot_bias(
+            X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange
+        )
 
     if colors is None:
         features = X_test.columns
@@ -205,7 +211,9 @@ or a numpy 2d-array of shape <code>(n_samples, n_features)</code>.</dd>
     labels = y_pred.columns
     plots = []
     for label in labels:
-        plots.append(super().plot_bias(X_test, y_pred[label], colors=colors, yrange=yrange))
+        plots.append(
+            super().plot_bias(X_test, y_pred[label], colors=colors, yrange=yrange)
+        )
 
     fig = make_subplots(rows=len(labels), cols=1, shared_xaxes=True)
     for ilabel, (label, plot) in enumerate(zip(labels, plots)):
@@ -228,6 +236,7 @@ or a numpy 2d-array of shape <code>(n_samples, n_features)</code>.</dd>
 <li><code><b><a title="ethik.explainer.Explainer" href="explainer.html#ethik.explainer.Explainer">Explainer</a></b></code>:
 <ul class="hlist">
 <li><code><a title="ethik.explainer.Explainer.explain_bias" href="explainer.html#ethik.explainer.Explainer.explain_bias">explain_bias</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.explain_performance" href="explainer.html#ethik.explainer.Explainer.explain_performance">explain_performance</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.get_metric_name" href="explainer.html#ethik.explainer.Explainer.get_metric_name">get_metric_name</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.rank_by_bias" href="explainer.html#ethik.explainer.Explainer.rank_by_bias">rank_by_bias</a></code></li>
 </ul>
@@ -412,6 +421,7 @@ images instead of a tabular dataset.</p></section>
 <li><code><b><a title="ethik.explainer.Explainer" href="explainer.html#ethik.explainer.Explainer">Explainer</a></b></code>:
 <ul class="hlist">
 <li><code><a title="ethik.explainer.Explainer.explain_bias" href="explainer.html#ethik.explainer.Explainer.explain_bias">explain_bias</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.explain_performance" href="explainer.html#ethik.explainer.Explainer.explain_performance">explain_performance</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.get_metric_name" href="explainer.html#ethik.explainer.Explainer.get_metric_name">get_metric_name</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.rank_by_bias" href="explainer.html#ethik.explainer.Explainer.rank_by_bias">rank_by_bias</a></code></li>
 </ul>
@@ -480,6 +490,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
 <li><code><b><a title="ethik.explainer.Explainer" href="explainer.html#ethik.explainer.Explainer">Explainer</a></b></code>:
 <ul class="hlist">
 <li><code><a title="ethik.explainer.Explainer.explain_bias" href="explainer.html#ethik.explainer.Explainer.explain_bias">explain_bias</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.explain_performance" href="explainer.html#ethik.explainer.Explainer.explain_performance">explain_performance</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.get_metric_name" href="explainer.html#ethik.explainer.Explainer.get_metric_name">get_metric_name</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.rank_by_bias" href="explainer.html#ethik.explainer.Explainer.rank_by_bias">rank_by_bias</a></code></li>
 </ul>

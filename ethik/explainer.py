@@ -292,8 +292,8 @@ class Explainer:
         3. A grid of $\lambda$ values is generated for each $\eps$. Each $\lambda$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\eps$ shift.
 
         Args:
-            X_test (`pandas.DataFrame` or `numpy.ndarray`):
-            y_pred (`pandas.DataFrame` or `numpy.ndarray`):
+            X_test (pandas.DataFrame or numpy.ndarray): a
+            y_pred (pandas.DataFrame or numpy.ndarray): a
         """
 
         X_test = pd.DataFrame(to_pandas(X_test))
@@ -449,19 +449,19 @@ class Explainer:
         Args:
             X_test (pd.DataFrame or np.array): The dataset as a pandas dataframe
                 or a 2d numpy array of shape `(n_samples, n_features)`.
-            y_pred (pd.DataFrame or list-like object): The model predictions
+            y_pred (pd.DataFrame or pd.Series): The model predictions
                 for the samples in `X_test`. For binary classification and regression,
-                a list-like object (`list`, `np.array`, `pd.Series`...) is expected.
-                For multi-label classification, a dataframe or a 2d numpy array with
-                one column per label is expected. The values can either be
-                probabilities or `0/1` (for a one-hot-encoded output).
+                `pd.Series` is expected. For multi-label classification, a
+                dataframe or a 2d numpy array with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
 
         Returns:
-            pd.DataFrame: A dataframe with columns
-                `(feature, tau, value, lambda, label, bias, bias_low, bias_high)`.
-                If `explainer.n_samples` is `1`, no confidence interval is computed
-                and `bias = bias_low = bias_high`. The value of `label` is not
-                important for regression.
+            pd.DataFrame:
+                A dataframe with columns `(feature, tau, value, lambda, label,
+                bias, bias_low, bias_high)`. If `explainer.n_samples` is `1`,
+                no confidence interval is computed and `bias = bias_low = bias_high`.
+                The value of `label` is not important for regression.
 
         Examples:
             See more examples in `notebooks`.
@@ -533,6 +533,36 @@ class Explainer:
         )
 
     def explain_performance(self, X_test, y_test, y_pred, metric):
+        """Compute the change in model's performance for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): The dataset as a pandas dataframe
+                or a 2d numpy array of shape `(n_samples, n_features)`.
+            y_test (pd.DataFrame or pd.Series): The true values
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series`... is expected. For multi-label classification,
+                a dataframe or a 2d numpy array with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. The format is the same as `y_test`.
+            metric (callable): A scikit-learn-like metric
+                `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+                to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+                "the set of labels predicted for a sample must exactly match the
+                corresponding set of labels in `y_true`".
+
+        Returns:
+            pd.DataFrame:
+                A dataframe with columns `(feature, tau, value, lambda, label,
+                bias, bias_low, bias_high, <metric_name>, <metric_name_low>, <metric_name_high>)`.
+                If `explainer.n_samples` is `1`, no confidence interval is computed
+                and `<metric_name> = <metric_name_low> = <metric_name_high>`.
+                The value of `label` is not important for regression.
+
+        Examples:
+            See examples in `notebooks`.
+        """
         metric_name = self.get_metric_name(metric)
         if metric_name not in self.info.columns:
             self.info[metric_name] = None

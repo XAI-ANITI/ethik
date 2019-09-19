@@ -300,9 +300,8 @@ class Explainer:
         return self.info[&#34;feature&#34;].unique().tolist()
 
     def _determine_pairs_to_do(self, features, labels):
-        to_do_pairs = (
-            set(itertools.product(features, labels)) -
-            set(self.info.groupby([&#34;feature&#34;, &#34;label&#34;]).groups.keys())
+        to_do_pairs = set(itertools.product(features, labels)) - set(
+            self.info.groupby([&#34;feature&#34;, &#34;label&#34;]).groups.keys()
         )
         to_do_map = collections.defaultdict(list)
         for feat, label in to_do_pairs:
@@ -317,8 +316,8 @@ class Explainer:
         3. A grid of $\lambda$ values is generated for each $\eps$. Each $\lambda$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\eps$ shift.
 
         Args:
-            X_test (`pandas.DataFrame` or `numpy.ndarray`):
-            y_pred (`pandas.DataFrame` or `numpy.ndarray`):
+            X_test (pandas.DataFrame or numpy.ndarray): a
+            y_pred (pandas.DataFrame or numpy.ndarray): a
         &#34;&#34;&#34;
 
         X_test = pd.DataFrame(to_pandas(X_test))
@@ -328,7 +327,9 @@ class Explainer:
         X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
 
         # Check which (feature, label) pairs have to be done
-        to_do_map = self._determine_pairs_to_do(features=X_test.columns, labels=y_pred.columns)
+        to_do_map = self._determine_pairs_to_do(
+            features=X_test.columns, labels=y_pred.columns
+        )
         # We need a list to keep the order of X_test
         to_do_features = list(feat for feat in X_test.columns if feat in to_do_map)
         X_test = X_test[to_do_features]
@@ -350,8 +351,8 @@ class Explainer:
                             + tau
                             * (
                                 max(means[feature] - q_mins[feature], 0)
-                                if tau &lt; 0 else
-                                max(q_maxs[feature] - means[feature], 0)
+                                if tau &lt; 0
+                                else max(q_maxs[feature] - means[feature], 0)
                             )
                             for tau in self.taus
                         ],
@@ -372,7 +373,7 @@ class Explainer:
             joblib.delayed(compute_lambdas)(
                 x=X_test[feature],
                 target_means=part[&#34;value&#34;].unique(),
-                iterations=self.lambda_iterations
+                iterations=self.lambda_iterations,
             )
             for feature, part in self.info.groupby(&#34;feature&#34;)
             if feature in X_test
@@ -402,7 +403,7 @@ class Explainer:
 
         # Check X_test and y_pred okay
         if len(X_test) != len(y_pred):
-            raise ValueError(&#39;X_test and y_pred are not of the same length&#39;)
+            raise ValueError(&#34;X_test and y_pred are not of the same length&#34;)
 
         # Find the lambda values for each (feature, tau, label) triplet
         self._find_lambdas(X_test, y_pred)
@@ -455,7 +456,9 @@ class Explainer:
             #  TODO: merge all columns in a single operation?
             for col in data.columns:
                 self.info[col] = self.info.apply(
-                    lambda r: data[col].get(tuple([r[k] for k in key_cols]), r.get(col)),
+                    lambda r: data[col].get(
+                        tuple([r[k] for k in key_cols]), r.get(col)
+                    ),
                     axis=&#34;columns&#34;,
                 )
 
@@ -470,22 +473,24 @@ class Explainer:
         Args:
             X_test (pd.DataFrame or np.array): The dataset as a pandas dataframe
                 or a 2d numpy array of shape `(n_samples, n_features)`.
-            y_pred (pd.DataFrame or list-like object): The model predictions
+            y_pred (pd.DataFrame or pd.Series): The model predictions
                 for the samples in `X_test`. For binary classification and regression,
-                a list-like object (`list`, `np.array`, `pd.Series`...) is expected.
-                For multi-label classification, a dataframe or a 2d numpy array with
-                one column per label is expected. The values can either be
-                probabilities or `0/1` (for a one-hot-encoded output).
+                `pd.Series` is expected. For multi-label classification, a
+                dataframe or a 2d numpy array with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
 
         Returns:
-            (pd.DataFrame): A dataframe with columns
-                `(feature, tau, value, lambda, label, bias, bias_low, bias_high)`.
-                If `explainer.n_samples` is `1`, no confidence interval is computed
-                and `bias = bias_low = bias_high`. The value of `label` is not
-                important for regression.
+            pd.DataFrame:
+                A dataframe with columns `(feature, tau, value, lambda, label,
+                bias, bias_low, bias_high)`. If `explainer.n_samples` is `1`,
+                no confidence interval is computed and `bias = bias_low = bias_high`.
+                The value of `label` is not important for regression.
 
         Examples:
-            Binary classification (see `notebooks/Adult.ipynb`):
+            See more examples in `notebooks`.
+
+            Binary classification:
 
             &gt;&gt;&gt; X_test = pd.DataFrame([
             ...     [1, 2],
@@ -499,7 +504,7 @@ class Explainer:
             &gt;&gt;&gt; y_pred = pd.Series(y_pred, name=&#34;is_reliable&#34;)
             &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
 
-            Regression is similar to binary classification (see `notebooks/Boston.ipynb`):
+            Regression is similar to binary classification:
             
             &gt;&gt;&gt; X_test = pd.DataFrame([
             ...     [1, 2],
@@ -513,8 +518,7 @@ class Explainer:
             &gt;&gt;&gt; y_pred = pd.Series(y_pred, name=&#34;price&#34;)
             &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
 
-            For multi-label classification, we need a dataframe to store predictions
-            (see `notebooks/Iris.ipynb`):
+            For multi-label classification, we need a dataframe to store predictions:
             
             &gt;&gt;&gt; X_test = pd.DataFrame([
             ...     [1, 2],
@@ -528,6 +532,7 @@ class Explainer:
             [0, 1, 0] # One-hot encoded, or probabilities: [0.15, 0.6, 0.25]
             &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
         &#34;&#34;&#34;
+
         def compute(X_test, y_pred, relevant):
             return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
                 joblib.delayed(compute_bias)(
@@ -552,6 +557,36 @@ class Explainer:
         )
 
     def explain_performance(self, X_test, y_test, y_pred, metric):
+        &#34;&#34;&#34;Compute the change in model&#39;s performance for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): The dataset as a pandas dataframe
+                or a 2d numpy array of shape `(n_samples, n_features)`.
+            y_test (pd.DataFrame or pd.Series): The true values
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series`... is expected. For multi-label classification,
+                a dataframe or a 2d numpy array with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. The format is the same as `y_test`.
+            metric (callable): A scikit-learn-like metric
+                `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+                to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+                &#34;the set of labels predicted for a sample must exactly match the
+                corresponding set of labels in `y_true`&#34;.
+
+        Returns:
+            pd.DataFrame:
+                A dataframe with columns `(feature, tau, value, lambda, label,
+                bias, bias_low, bias_high, &lt;metric_name&gt;, &lt;metric_name_low&gt;, &lt;metric_name_high&gt;)`.
+                If `explainer.n_samples` is `1`, no confidence interval is computed
+                and `&lt;metric_name&gt; = &lt;metric_name_low&gt; = &lt;metric_name_high&gt;`.
+                The value of `label` is not important for regression.
+
+        Examples:
+            See examples in `notebooks`.
+        &#34;&#34;&#34;
         metric_name = self.get_metric_name(metric)
         if metric_name not in self.info.columns:
             self.info[metric_name] = None
@@ -582,7 +617,7 @@ class Explainer:
             y_pred=y_pred,
             dest_col=metric_name,
             key_cols=[&#34;feature&#34;, &#34;lambda&#34;],
-            compute=compute
+            compute=compute,
         )
 
     def rank_by_bias(self, X_test, y_pred):
@@ -957,9 +992,8 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
         return self.info[&#34;feature&#34;].unique().tolist()
 
     def _determine_pairs_to_do(self, features, labels):
-        to_do_pairs = (
-            set(itertools.product(features, labels)) -
-            set(self.info.groupby([&#34;feature&#34;, &#34;label&#34;]).groups.keys())
+        to_do_pairs = set(itertools.product(features, labels)) - set(
+            self.info.groupby([&#34;feature&#34;, &#34;label&#34;]).groups.keys()
         )
         to_do_map = collections.defaultdict(list)
         for feat, label in to_do_pairs:
@@ -974,8 +1008,8 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
         3. A grid of $\lambda$ values is generated for each $\eps$. Each $\lambda$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\eps$ shift.
 
         Args:
-            X_test (`pandas.DataFrame` or `numpy.ndarray`):
-            y_pred (`pandas.DataFrame` or `numpy.ndarray`):
+            X_test (pandas.DataFrame or numpy.ndarray): a
+            y_pred (pandas.DataFrame or numpy.ndarray): a
         &#34;&#34;&#34;
 
         X_test = pd.DataFrame(to_pandas(X_test))
@@ -985,7 +1019,9 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
         X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
 
         # Check which (feature, label) pairs have to be done
-        to_do_map = self._determine_pairs_to_do(features=X_test.columns, labels=y_pred.columns)
+        to_do_map = self._determine_pairs_to_do(
+            features=X_test.columns, labels=y_pred.columns
+        )
         # We need a list to keep the order of X_test
         to_do_features = list(feat for feat in X_test.columns if feat in to_do_map)
         X_test = X_test[to_do_features]
@@ -1007,8 +1043,8 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
                             + tau
                             * (
                                 max(means[feature] - q_mins[feature], 0)
-                                if tau &lt; 0 else
-                                max(q_maxs[feature] - means[feature], 0)
+                                if tau &lt; 0
+                                else max(q_maxs[feature] - means[feature], 0)
                             )
                             for tau in self.taus
                         ],
@@ -1029,7 +1065,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
             joblib.delayed(compute_lambdas)(
                 x=X_test[feature],
                 target_means=part[&#34;value&#34;].unique(),
-                iterations=self.lambda_iterations
+                iterations=self.lambda_iterations,
             )
             for feature, part in self.info.groupby(&#34;feature&#34;)
             if feature in X_test
@@ -1059,7 +1095,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
 
         # Check X_test and y_pred okay
         if len(X_test) != len(y_pred):
-            raise ValueError(&#39;X_test and y_pred are not of the same length&#39;)
+            raise ValueError(&#34;X_test and y_pred are not of the same length&#34;)
 
         # Find the lambda values for each (feature, tau, label) triplet
         self._find_lambdas(X_test, y_pred)
@@ -1112,7 +1148,9 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
             #  TODO: merge all columns in a single operation?
             for col in data.columns:
                 self.info[col] = self.info.apply(
-                    lambda r: data[col].get(tuple([r[k] for k in key_cols]), r.get(col)),
+                    lambda r: data[col].get(
+                        tuple([r[k] for k in key_cols]), r.get(col)
+                    ),
                     axis=&#34;columns&#34;,
                 )
 
@@ -1127,22 +1165,24 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
         Args:
             X_test (pd.DataFrame or np.array): The dataset as a pandas dataframe
                 or a 2d numpy array of shape `(n_samples, n_features)`.
-            y_pred (pd.DataFrame or list-like object): The model predictions
+            y_pred (pd.DataFrame or pd.Series): The model predictions
                 for the samples in `X_test`. For binary classification and regression,
-                a list-like object (`list`, `np.array`, `pd.Series`...) is expected.
-                For multi-label classification, a dataframe or a 2d numpy array with
-                one column per label is expected. The values can either be
-                probabilities or `0/1` (for a one-hot-encoded output).
+                `pd.Series` is expected. For multi-label classification, a
+                dataframe or a 2d numpy array with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
 
         Returns:
-            (pd.DataFrame): A dataframe with columns
-                `(feature, tau, value, lambda, label, bias, bias_low, bias_high)`.
-                If `explainer.n_samples` is `1`, no confidence interval is computed
-                and `bias = bias_low = bias_high`. The value of `label` is not
-                important for regression.
+            pd.DataFrame:
+                A dataframe with columns `(feature, tau, value, lambda, label,
+                bias, bias_low, bias_high)`. If `explainer.n_samples` is `1`,
+                no confidence interval is computed and `bias = bias_low = bias_high`.
+                The value of `label` is not important for regression.
 
         Examples:
-            Binary classification (see `notebooks/Adult.ipynb`):
+            See more examples in `notebooks`.
+
+            Binary classification:
 
             &gt;&gt;&gt; X_test = pd.DataFrame([
             ...     [1, 2],
@@ -1156,7 +1196,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
             &gt;&gt;&gt; y_pred = pd.Series(y_pred, name=&#34;is_reliable&#34;)
             &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
 
-            Regression is similar to binary classification (see `notebooks/Boston.ipynb`):
+            Regression is similar to binary classification:
             
             &gt;&gt;&gt; X_test = pd.DataFrame([
             ...     [1, 2],
@@ -1170,8 +1210,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
             &gt;&gt;&gt; y_pred = pd.Series(y_pred, name=&#34;price&#34;)
             &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
 
-            For multi-label classification, we need a dataframe to store predictions
-            (see `notebooks/Iris.ipynb`):
+            For multi-label classification, we need a dataframe to store predictions:
             
             &gt;&gt;&gt; X_test = pd.DataFrame([
             ...     [1, 2],
@@ -1185,6 +1224,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
             [0, 1, 0] # One-hot encoded, or probabilities: [0.15, 0.6, 0.25]
             &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
         &#34;&#34;&#34;
+
         def compute(X_test, y_pred, relevant):
             return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
                 joblib.delayed(compute_bias)(
@@ -1209,6 +1249,36 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
         )
 
     def explain_performance(self, X_test, y_test, y_pred, metric):
+        &#34;&#34;&#34;Compute the change in model&#39;s performance for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): The dataset as a pandas dataframe
+                or a 2d numpy array of shape `(n_samples, n_features)`.
+            y_test (pd.DataFrame or pd.Series): The true values
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series`... is expected. For multi-label classification,
+                a dataframe or a 2d numpy array with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. The format is the same as `y_test`.
+            metric (callable): A scikit-learn-like metric
+                `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+                to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+                &#34;the set of labels predicted for a sample must exactly match the
+                corresponding set of labels in `y_true`&#34;.
+
+        Returns:
+            pd.DataFrame:
+                A dataframe with columns `(feature, tau, value, lambda, label,
+                bias, bias_low, bias_high, &lt;metric_name&gt;, &lt;metric_name_low&gt;, &lt;metric_name_high&gt;)`.
+                If `explainer.n_samples` is `1`, no confidence interval is computed
+                and `&lt;metric_name&gt; = &lt;metric_name_low&gt; = &lt;metric_name_high&gt;`.
+                The value of `label` is not important for regression.
+
+        Examples:
+            See examples in `notebooks`.
+        &#34;&#34;&#34;
         metric_name = self.get_metric_name(metric)
         if metric_name not in self.info.columns:
             self.info[metric_name] = None
@@ -1239,7 +1309,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
             y_pred=y_pred,
             dest_col=metric_name,
             key_cols=[&#34;feature&#34;, &#34;lambda&#34;],
-            compute=compute
+            compute=compute,
         )
 
     def rank_by_bias(self, X_test, y_pred):
@@ -1473,21 +1543,25 @@ def taus(self):
 <dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>np.array</code></dt>
 <dd>The dataset as a pandas dataframe
 or a 2d numpy array of shape <code>(n_samples, n_features)</code>.</dd>
-</dl>
-<p>y_pred (pd.DataFrame or list-like object): The model predictions
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The model predictions
 for the samples in <code>X_test</code>. For binary classification and regression,
-a list-like object (<code>list</code>, <code>np.array</code>, <code>pd.Series</code>&hellip;) is expected.
-For multi-label classification, a dataframe or a 2d numpy array with
-one column per label is expected. The values can either be
-probabilities or <code>0/1</code> (for a one-hot-encoded output).</p>
+<code>pd.Series</code> is expected. For multi-label classification, a
+dataframe or a 2d numpy array with one column per label is
+expected. The values can either be probabilities or <code>0/1</code>
+(for a one-hot-encoded output).</dd>
+</dl>
 <h2 id="returns">Returns</h2>
-<p>(pd.DataFrame): A dataframe with columns
-<code>(feature, tau, value, lambda, label, bias, bias_low, bias_high)</code>.
-If <code>explainer.n_samples</code> is <code>1</code>, no confidence interval is computed
-and <code>bias = bias_low = bias_high</code>. The value of <code>label</code> is not
-important for regression.</p>
+<dl>
+<dt><code>pd.DataFrame</code>:</dt>
+<dd>A dataframe with columns <code>(feature, tau, value, lambda, label,
+bias, bias_low, bias_high)</code>. If <code>explainer.n_samples</code> is <code>1</code>,
+no confidence interval is computed and <code>bias = bias_low = bias_high</code>.
+The value of <code>label</code> is not important for regression.</dd>
+</dl>
 <h2 id="examples">Examples</h2>
-<p>Binary classification (see <code>notebooks/Adult.ipynb</code>):</p>
+<p>See more examples in <code>notebooks</code>.</p>
+<p>Binary classification:</p>
 <pre><code>&gt;&gt;&gt; X_test = pd.DataFrame([
 ...     [1, 2],
 ...     [1.1, 2.2],
@@ -1500,7 +1574,7 @@ important for regression.</p>
 &gt;&gt;&gt; y_pred = pd.Series(y_pred, name="is_reliable")
 &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
 </code></pre>
-<p>Regression is similar to binary classification (see <code>notebooks/Boston.ipynb</code>):</p>
+<p>Regression is similar to binary classification:</p>
 <pre><code>&gt;&gt;&gt; X_test = pd.DataFrame([
 ...     [1, 2],
 ...     [1.1, 2.2],
@@ -1513,8 +1587,7 @@ important for regression.</p>
 &gt;&gt;&gt; y_pred = pd.Series(y_pred, name="price")
 &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
 </code></pre>
-<p>For multi-label classification, we need a dataframe to store predictions
-(see <code>notebooks/Iris.ipynb</code>):</p>
+<p>For multi-label classification, we need a dataframe to store predictions:</p>
 <pre><code>&gt;&gt;&gt; X_test = pd.DataFrame([
 ...     [1, 2],
 ...     [1.1, 2.2],
@@ -1535,22 +1608,24 @@ important for regression.</p>
     Args:
         X_test (pd.DataFrame or np.array): The dataset as a pandas dataframe
             or a 2d numpy array of shape `(n_samples, n_features)`.
-        y_pred (pd.DataFrame or list-like object): The model predictions
+        y_pred (pd.DataFrame or pd.Series): The model predictions
             for the samples in `X_test`. For binary classification and regression,
-            a list-like object (`list`, `np.array`, `pd.Series`...) is expected.
-            For multi-label classification, a dataframe or a 2d numpy array with
-            one column per label is expected. The values can either be
-            probabilities or `0/1` (for a one-hot-encoded output).
+            `pd.Series` is expected. For multi-label classification, a
+            dataframe or a 2d numpy array with one column per label is
+            expected. The values can either be probabilities or `0/1`
+            (for a one-hot-encoded output).
 
     Returns:
-        (pd.DataFrame): A dataframe with columns
-            `(feature, tau, value, lambda, label, bias, bias_low, bias_high)`.
-            If `explainer.n_samples` is `1`, no confidence interval is computed
-            and `bias = bias_low = bias_high`. The value of `label` is not
-            important for regression.
+        pd.DataFrame:
+            A dataframe with columns `(feature, tau, value, lambda, label,
+            bias, bias_low, bias_high)`. If `explainer.n_samples` is `1`,
+            no confidence interval is computed and `bias = bias_low = bias_high`.
+            The value of `label` is not important for regression.
 
     Examples:
-        Binary classification (see `notebooks/Adult.ipynb`):
+        See more examples in `notebooks`.
+
+        Binary classification:
 
         &gt;&gt;&gt; X_test = pd.DataFrame([
         ...     [1, 2],
@@ -1564,7 +1639,7 @@ important for regression.</p>
         &gt;&gt;&gt; y_pred = pd.Series(y_pred, name=&#34;is_reliable&#34;)
         &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
 
-        Regression is similar to binary classification (see `notebooks/Boston.ipynb`):
+        Regression is similar to binary classification:
         
         &gt;&gt;&gt; X_test = pd.DataFrame([
         ...     [1, 2],
@@ -1578,8 +1653,7 @@ important for regression.</p>
         &gt;&gt;&gt; y_pred = pd.Series(y_pred, name=&#34;price&#34;)
         &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
 
-        For multi-label classification, we need a dataframe to store predictions
-        (see `notebooks/Iris.ipynb`):
+        For multi-label classification, we need a dataframe to store predictions:
         
         &gt;&gt;&gt; X_test = pd.DataFrame([
         ...     [1, 2],
@@ -1593,6 +1667,7 @@ important for regression.</p>
         [0, 1, 0] # One-hot encoded, or probabilities: [0.15, 0.6, 0.25]
         &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
     &#34;&#34;&#34;
+
     def compute(X_test, y_pred, relevant):
         return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
             joblib.delayed(compute_bias)(
@@ -1621,10 +1696,73 @@ important for regression.</p>
 <span>def <span class="ident">explain_performance</span></span>(<span>self, X_test, y_test, y_pred, metric)</span>
 </code></dt>
 <dd>
-<section class="desc"></section>
+<section class="desc"><p>Compute the change in model's performance for the features in <code>X_test</code>.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>np.array</code></dt>
+<dd>The dataset as a pandas dataframe
+or a 2d numpy array of shape <code>(n_samples, n_features)</code>.</dd>
+<dt><strong><code>y_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The true values
+for the samples in <code>X_test</code>. For binary classification and regression,
+a <code>pd.Series</code>&hellip; is expected. For multi-label classification,
+a dataframe or a 2d numpy array with one column per label is
+expected. The values can either be probabilities or <code>0/1</code>
+(for a one-hot-encoded output).</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The model predictions
+for the samples in <code>X_test</code>. The format is the same as <code>y_test</code>.</dd>
+<dt><strong><code>metric</code></strong> :&ensp;<code>callable</code></dt>
+<dd>A scikit-learn-like metric
+<code>f(y_true, y_pred, sample_weight=None)</code>. The metric must be able
+to handle the <code>y</code> data. For instance, for <code>sklearn.metrics.accuracy_score()</code>,
+"the set of labels predicted for a sample must exactly match the
+corresponding set of labels in <code>y_true</code>".</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.DataFrame</code>:</dt>
+<dd>A dataframe with columns <code>(feature, tau, value, lambda, label,
+bias, bias_low, bias_high, &lt;metric_name&gt;, &lt;metric_name_low&gt;, &lt;metric_name_high&gt;)</code>.
+If <code>explainer.n_samples</code> is <code>1</code>, no confidence interval is computed
+and <code>&lt;metric_name&gt; = &lt;metric_name_low&gt; = &lt;metric_name_high&gt;</code>.
+The value of <code>label</code> is not important for regression.</dd>
+</dl>
+<h2 id="examples">Examples</h2>
+<p>See examples in <code>notebooks</code>.</p></section>
 <details class="source">
 <summary>Source code</summary>
 <pre><code class="python">def explain_performance(self, X_test, y_test, y_pred, metric):
+    &#34;&#34;&#34;Compute the change in model&#39;s performance for the features in `X_test`.
+
+    Args:
+        X_test (pd.DataFrame or np.array): The dataset as a pandas dataframe
+            or a 2d numpy array of shape `(n_samples, n_features)`.
+        y_test (pd.DataFrame or pd.Series): The true values
+            for the samples in `X_test`. For binary classification and regression,
+            a `pd.Series`... is expected. For multi-label classification,
+            a dataframe or a 2d numpy array with one column per label is
+            expected. The values can either be probabilities or `0/1`
+            (for a one-hot-encoded output).
+        y_pred (pd.DataFrame or pd.Series): The model predictions
+            for the samples in `X_test`. The format is the same as `y_test`.
+        metric (callable): A scikit-learn-like metric
+            `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+            to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+            &#34;the set of labels predicted for a sample must exactly match the
+            corresponding set of labels in `y_true`&#34;.
+
+    Returns:
+        pd.DataFrame:
+            A dataframe with columns `(feature, tau, value, lambda, label,
+            bias, bias_low, bias_high, &lt;metric_name&gt;, &lt;metric_name_low&gt;, &lt;metric_name_high&gt;)`.
+            If `explainer.n_samples` is `1`, no confidence interval is computed
+            and `&lt;metric_name&gt; = &lt;metric_name_low&gt; = &lt;metric_name_high&gt;`.
+            The value of `label` is not important for regression.
+
+    Examples:
+        See examples in `notebooks`.
+    &#34;&#34;&#34;
     metric_name = self.get_metric_name(metric)
     if metric_name not in self.info.columns:
         self.info[metric_name] = None
@@ -1655,7 +1793,7 @@ important for regression.</p>
         y_pred=y_pred,
         dest_col=metric_name,
         key_cols=[&#34;feature&#34;, &#34;lambda&#34;],
-        compute=compute
+        compute=compute,
     )</code></pre>
 </details>
 </dd>
