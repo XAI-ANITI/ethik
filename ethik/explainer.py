@@ -194,7 +194,7 @@ class Explainer:
         alpha=0.05,
         n_taus=41,
         lambda_iterations=5,
-        n_jobs=1,
+        n_jobs=1,  # Parallelism is only worth it if the dataset is "large"
         verbose=False,
         n_samples=1,
         sample_frac=0.8,
