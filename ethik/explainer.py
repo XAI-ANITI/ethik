@@ -365,6 +365,14 @@ class Explainer:
 
     def _explain(self, X_test, y_pred, dest_col, key_cols, compute):
 
+        # Reset info if memoization is turned off
+        if not self.memoize:
+            self._reset_info()
+        if dest_col not in self.info.columns:
+            self.info[dest_col] = None
+            self.info[f"{dest_col}_low"] = None
+            self.info[f"{dest_col}_high"] = None
+
         # Coerce X_test and y_pred to DataFrames
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
@@ -434,11 +442,6 @@ class Explainer:
         ]
 
     def explain_bias(self, X_test, y_pred):
-
-        # Reset info if memoization is turned off
-        if not self.memoize:
-            self._reset_info()
-
         def compute(X_test, y_pred, relevant):
             return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
                 joblib.delayed(compute_bias)(
@@ -463,11 +466,6 @@ class Explainer:
         )
 
     def explain_performance(self, X_test, y_test, y_pred, metric):
-
-        # Reset info if memoization is turned off
-        if not self.memoize:
-            self._reset_info()
-
         metric_name = self.get_metric_name(metric)
         if metric_name not in self.info.columns:
             self.info[metric_name] = None
