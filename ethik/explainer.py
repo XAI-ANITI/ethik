@@ -381,14 +381,11 @@ class Explainer:
 
         # Determine which features are missing explanations; that is they have null biases for at
         # least one lambda value
-        if dest_col in self.info:
-            relevant = self.info[
-                self.info["feature"].isin(X_test.columns)
-                & self.info["label"].isin(y_pred.columns)
-                & self.info[dest_col].isnull()
-            ]
-        else:
-            relevant = self.info
+        relevant = self.info[
+            self.info["feature"].isin(X_test.columns)
+            & self.info["label"].isin(y_pred.columns)
+            & self.info[dest_col].isnull()
+        ]
 
         if not relevant.empty:
             # `compute()` will return something like:
