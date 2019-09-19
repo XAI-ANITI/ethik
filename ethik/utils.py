@@ -3,7 +3,7 @@ import decimal
 import numpy as np
 import pandas as pd
 
-__all__ = ["decimal_range", "to_pandas"]
+__all__ = ["decimal_range", "join_with_overlap", "to_pandas"]
 
 
 def decimal_range(start: float, stop: float, step: float):
@@ -35,3 +35,17 @@ def to_pandas(x):
         return pd.Series(x)
 
     return to_pandas(np.asarray(x))
+
+
+def join_with_overlap(left, right, on):
+    """Joins left with right while handling overlapping columns.
+
+    Currently, pandas raises an error if left and right have overlapping columns. This function
+    takes care of preserving the values from the columns of left that exist in right.
+
+    """
+    overlap = left[left.columns.intersection(right.columns)]
+    left = left.drop(columns=overlap.columns).join(right, on=on)
+    for col in overlap:
+        left[col] = left[col].fillna(overlap[col])
+    return left
