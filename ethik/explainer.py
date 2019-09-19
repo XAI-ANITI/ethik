@@ -373,10 +373,6 @@ class Explainer:
         if len(X_test) != len(y_pred):
             raise ValueError('X_test and y_pred are not of the same length')
 
-        # Reset info if memoization is turned off
-        if not self.memoize:
-            self._reset_info()
-
         # Find the lambda values for each (feature, tau, label) triplet
         self._find_lambdas(X_test, y_pred)
 
@@ -441,6 +437,11 @@ class Explainer:
         ]
 
     def explain_bias(self, X_test, y_pred):
+
+        # Reset info if memoization is turned off
+        if not self.memoize:
+            self._reset_info()
+
         def compute(X_test, y_pred, relevant):
             return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
                 joblib.delayed(compute_bias)(
@@ -465,6 +466,11 @@ class Explainer:
         )
 
     def explain_performance(self, X_test, y_test, y_pred, metric):
+
+        # Reset info if memoization is turned off
+        if not self.memoize:
+            self._reset_info()
+
         metric_name = self.get_metric_name(metric)
         if metric_name not in self.info.columns:
             self.info[metric_name] = None

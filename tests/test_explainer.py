@@ -24,7 +24,7 @@ def load_iris():
 
 
 def test_check_alpha():
-    for alpha in (-1, 0, 0.5, 1):
+    for alpha in (-1, -0.1, 0.5, 1):
         with pytest.raises(ValueError):
             ethik.ClassificationExplainer(alpha=alpha)
 
