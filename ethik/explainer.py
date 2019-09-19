@@ -506,6 +506,10 @@ class Explainer:
 
         def get_importance(group):
             """Computes the average absolute difference in bias changes per tau increase."""
+            #  Normalize bias to get an importance between 0 and 1
+            # bias can be outside [0, 1] for regression
+            bias = group["bias"]
+            group["bias"] = (bias - bias.min()) / (bias.max() - bias.min())
             baseline = group.query("tau == 0").iloc[0]["bias"]
             return (group["bias"] - baseline).abs().mean()
 
