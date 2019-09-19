@@ -190,4 +190,4 @@ This work is financed by the [Centre National de la Recherche Scientifique (CNRS
 
 ## License
 
-[MIT license](LICENSE)
+This software is released under the [GPL license](LICENSE).

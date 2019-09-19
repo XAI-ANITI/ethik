@@ -46,9 +46,6 @@ def compute_lambdas(x, target_means, iterations=5, use_previous_lambda=False):
 
         current_mean = mean
 
-        if not use_previous_lambda:
-            λ = 0
-
         for _ in range(iterations):
 
             # Update the sample weights and see where the mean is
@@ -61,7 +58,9 @@ def compute_lambdas(x, target_means, iterations=5, use_previous_lambda=False):
             hess = np.average((x - current_mean) ** 2, weights=sample_weights)
 
             if hess == 0:
-                λ -= 0.01 * grad
+                # We use a magic number based on experience for the step size, this is subject
+                # to change
+                λ -= 1e-5 * grad
                 break
 
             step = grad / hess
@@ -126,19 +125,6 @@ def compute_performance(y_test, y_pred, metric, x, lambdas, sample_index):
     ]
 
 
-def metric_to_col(metric):
-    """Get the name of the column in explainer's info dataframe to store the
-    performance with respect of the given metric.
-
-    Args:
-        metric (callable): The metric to compute the model's performance.
-
-    Returns:
-        str: The name of the column.
-    """
-    return metric.__name__ + "__score"
-
-
 def yield_masks(n_masks, n, p):
     """Generates a list of `n_masks` to keep a proportion `p` of `n` items.
 
@@ -195,6 +181,12 @@ class Explainer:
             quantile used for the confidence interval. Default is `0.05`, which
             means that the confidence interval contains the data between the 5th
             and 95th quantiles.
+        memoize (bool): Indicates whether or not memoization should be used or not. If `True`, then
+            intermediate results will be stored in order to avoid recomputing results that can be
+            reused by successively called methods. For example, if you call `plot_bias` followed by
+            `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
+            `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned off by
+            default because it can lead to unexpected behavior depending on your usage.
     """
 
     def __init__(
@@ -202,13 +194,14 @@ class Explainer:
         alpha=0.05,
         n_taus=41,
         lambda_iterations=5,
-        n_jobs=-1,
+        n_jobs=1,  # Parallelism is only worth it if the dataset is "large"
         verbose=False,
         n_samples=1,
         sample_frac=0.8,
         conf_level=0.05,
+        memoize=False,
     ):
-        if not 0 < alpha < 0.5:
+        if not 0 <= alpha < 0.5:
             raise ValueError("alpha must be between 0 and 0.5, got " f"{alpha}")
 
         if not n_taus > 0:
@@ -231,7 +224,6 @@ class Explainer:
         if not 0 < conf_level < 0.5:
             raise ValueError(f"conf_level must be between 0 and 0.5, got {conf_level}")
 
-        #  TODO: one column per performance metric
         self.alpha = alpha
         self.n_taus = n_taus
         self.lambda_iterations = lambda_iterations
@@ -241,6 +233,11 @@ class Explainer:
         self.n_samples = n_samples
         self.sample_frac = sample_frac if n_samples > 1 else 1
         self.conf_level = conf_level
+        self.memoize = memoize
+        self._reset_info()
+
+    def _reset_info(self):
+        """Resets the info dataframe (for when memoization is turned off)."""
         self.info = pd.DataFrame(
             columns=[
                 "feature",
@@ -278,6 +275,16 @@ class Explainer:
     def features(self):
         return self.info["feature"].unique().tolist()
 
+    def _determine_pairs_to_do(self, features, labels):
+        to_do_pairs = (
+            set(itertools.product(features, labels)) -
+            set(self.info.groupby(["feature", "label"]).groups.keys())
+        )
+        to_do_map = collections.defaultdict(list)
+        for feat, label in to_do_pairs:
+            to_do_map[feat].append(label)
+        return {feat: list(sorted(labels)) for feat, labels in to_do_map.items()}
+
     def _find_lambdas(self, X_test, y_pred):
         """Finds lambda values for each (feature, tau, label) triplet.
 
@@ -295,17 +302,11 @@ class Explainer:
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
         # One-hot encode the categorical features
-        cat_features = X_test.select_dtypes(include=["object", "category"]).columns
         X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
 
         # Check which (feature, label) pairs have to be done
-        to_do_pairs = set(itertools.product(X_test.columns, y_pred.columns)) - set(
-            self.info.groupby(["feature", "label"]).groups.keys()
-        )
-        to_do_map = collections.defaultdict(list)
-        for feat, label in to_do_pairs:
-            to_do_map[feat].append(label)
-        #  We need a list to keep the order of X_test
+        to_do_map = self._determine_pairs_to_do(features=X_test.columns, labels=y_pred.columns)
+        # We need a list to keep the order of X_test
         to_do_features = list(feat for feat in X_test.columns if feat in to_do_map)
         X_test = X_test[to_do_features]
 
@@ -325,9 +326,9 @@ class Explainer:
                             means[feature]
                             + tau
                             * (
-                                (means[feature] - q_mins[feature])
-                                if tau < 0
-                                else (q_maxs[feature] - means[feature])
+                                max(means[feature] - q_mins[feature], 0)
+                                if tau < 0 else
+                                max(q_maxs[feature] - means[feature], 0)
                             )
                             for tau in self.taus
                         ],
@@ -348,10 +349,7 @@ class Explainer:
             joblib.delayed(compute_lambdas)(
                 x=X_test[feature],
                 target_means=part["value"].unique(),
-                iterations=self.lambda_iterations,
-                use_previous_lambda=all(
-                    not feature.startswith(cat) for cat in cat_features
-                ),
+                iterations=self.lambda_iterations
             )
             for feature, part in self.info.groupby("feature")
             if feature in X_test
@@ -367,9 +365,21 @@ class Explainer:
 
     def _explain(self, X_test, y_pred, dest_col, key_cols, compute):
 
+        # Reset info if memoization is turned off
+        if not self.memoize:
+            self._reset_info()
+        if dest_col not in self.info.columns:
+            self.info[dest_col] = None
+            self.info[f"{dest_col}_low"] = None
+            self.info[f"{dest_col}_high"] = None
+
         # Coerce X_test and y_pred to DataFrames
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
+
+        # Check X_test and y_pred okay
+        if len(X_test) != len(y_pred):
+            raise ValueError('X_test and y_pred are not of the same length')
 
         # Find the lambda values for each (feature, tau, label) triplet
         self._find_lambdas(X_test, y_pred)
@@ -422,7 +432,7 @@ class Explainer:
             #  TODO: merge all columns in a single operation?
             for col in data.columns:
                 self.info[col] = self.info.apply(
-                    lambda r: data[col].get(tuple([r[k] for k in key_cols]), r[col]),
+                    lambda r: data[col].get(tuple([r[k] for k in key_cols]), r.get(col)),
                     axis="columns",
                 )
 
@@ -482,7 +492,11 @@ class Explainer:
             )
 
         return self._explain(
-            X_test, y_pred, metric_name, ["feature", "lambda"], compute
+            X_test=X_test,
+            y_pred=y_pred,
+            dest_col=metric_name,
+            key_cols=["feature", "lambda"],
+            compute=compute
         )
 
     def rank_by_bias(self, X_test, y_pred):
