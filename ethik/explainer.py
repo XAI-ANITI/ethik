@@ -276,9 +276,8 @@ class Explainer:
         return self.info["feature"].unique().tolist()
 
     def _determine_pairs_to_do(self, features, labels):
-        to_do_pairs = (
-            set(itertools.product(features, labels)) -
-            set(self.info.groupby(["feature", "label"]).groups.keys())
+        to_do_pairs = set(itertools.product(features, labels)) - set(
+            self.info.groupby(["feature", "label"]).groups.keys()
         )
         to_do_map = collections.defaultdict(list)
         for feat, label in to_do_pairs:
@@ -292,10 +291,9 @@ class Explainer:
         2. A grid of $\eps$ values is generated for each $\tau$ and for each variable. Each $\eps$ represents a shift from a variable's mean towards a particular quantile.
         3. A grid of $\lambda$ values is generated for each $\eps$. Each $\lambda$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\eps$ shift.
 
-        Parameters:
-            X_test (`pandas.DataFrame` or `numpy.ndarray`)
-            y_pred (`pandas.DataFrame` or `numpy.ndarray`)
-
+        Args:
+            X_test (`pandas.DataFrame` or `numpy.ndarray`):
+            y_pred (`pandas.DataFrame` or `numpy.ndarray`):
         """
 
         X_test = pd.DataFrame(to_pandas(X_test))
@@ -305,7 +303,9 @@ class Explainer:
         X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
 
         # Check which (feature, label) pairs have to be done
-        to_do_map = self._determine_pairs_to_do(features=X_test.columns, labels=y_pred.columns)
+        to_do_map = self._determine_pairs_to_do(
+            features=X_test.columns, labels=y_pred.columns
+        )
         # We need a list to keep the order of X_test
         to_do_features = list(feat for feat in X_test.columns if feat in to_do_map)
         X_test = X_test[to_do_features]
@@ -327,8 +327,8 @@ class Explainer:
                             + tau
                             * (
                                 max(means[feature] - q_mins[feature], 0)
-                                if tau < 0 else
-                                max(q_maxs[feature] - means[feature], 0)
+                                if tau < 0
+                                else max(q_maxs[feature] - means[feature], 0)
                             )
                             for tau in self.taus
                         ],
@@ -349,7 +349,7 @@ class Explainer:
             joblib.delayed(compute_lambdas)(
                 x=X_test[feature],
                 target_means=part["value"].unique(),
-                iterations=self.lambda_iterations
+                iterations=self.lambda_iterations,
             )
             for feature, part in self.info.groupby("feature")
             if feature in X_test
@@ -379,7 +379,7 @@ class Explainer:
 
         # Check X_test and y_pred okay
         if len(X_test) != len(y_pred):
-            raise ValueError('X_test and y_pred are not of the same length')
+            raise ValueError("X_test and y_pred are not of the same length")
 
         # Find the lambda values for each (feature, tau, label) triplet
         self._find_lambdas(X_test, y_pred)
@@ -432,7 +432,9 @@ class Explainer:
             #  TODO: merge all columns in a single operation?
             for col in data.columns:
                 self.info[col] = self.info.apply(
-                    lambda r: data[col].get(tuple([r[k] for k in key_cols]), r.get(col)),
+                    lambda r: data[col].get(
+                        tuple([r[k] for k in key_cols]), r.get(col)
+                    ),
                     axis="columns",
                 )
 
@@ -442,6 +444,71 @@ class Explainer:
         ]
 
     def explain_bias(self, X_test, y_pred):
+        """Compute the bias of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): The dataset as a pandas dataframe
+                or a 2d numpy array of shape `(n_samples, n_features)`.
+            y_pred (pd.DataFrame or list-like object): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                a list-like object (`list`, `np.array`, `pd.Series`...) is expected.
+                For multi-label classification, a dataframe or a 2d numpy array with
+                one column per label is expected. The values can either be
+                probabilities or `0/1` (for a one-hot-encoded output).
+
+        Returns:
+            pd.DataFrame: A dataframe with columns
+                `(feature, tau, value, lambda, label, bias, bias_low, bias_high)`.
+                If `explainer.n_samples` is `1`, no confidence interval is computed
+                and `bias = bias_low = bias_high`. The value of `label` is not
+                important for regression.
+
+        Examples:
+            See more examples in `notebooks`.
+
+            Binary classification:
+
+            >>> X_test = pd.DataFrame([
+            ...     [1, 2],
+            ...     [1.1, 2.2],
+            ...     [1.3, 2.3],
+            ... ], columns=["x0", "x1"])
+            >>> y_pred = model(X_test)
+            >>> y_pred
+            [0, 1, 1]  # Can also be probabilities: [0.3, 0.65, 0.8]
+            >>> # For readibility reasons, we give a name to the predictions
+            >>> y_pred = pd.Series(y_pred, name="is_reliable")
+            >>> explainer.explain_bias(X_test, y_pred)
+
+            Regression is similar to binary classification:
+            
+            >>> X_test = pd.DataFrame([
+            ...     [1, 2],
+            ...     [1.1, 2.2],
+            ...     [1.3, 2.3],
+            ... ], columns=["x0", "x1"])
+            >>> y_pred = model(X_test)
+            >>> y_pred
+            [22, 24, 19]
+            >>> # For readibility reasons, we give a name to the predictions
+            >>> y_pred = pd.Series(y_pred, name="price")
+            >>> explainer.explain_bias(X_test, y_pred)
+
+            For multi-label classification, we need a dataframe to store predictions:
+            
+            >>> X_test = pd.DataFrame([
+            ...     [1, 2],
+            ...     [1.1, 2.2],
+            ...     [1.3, 2.3],
+            ... ], columns=["x0", "x1"])
+            >>> y_pred = model(X_test)
+            >>> y_pred.columns
+            ["class0", "class1", "class2"]
+            >>> y_pred.iloc[0]
+            [0, 1, 0] # One-hot encoded, or probabilities: [0.15, 0.6, 0.25]
+            >>> explainer.explain_bias(X_test, y_pred)
+        """
+
         def compute(X_test, y_pred, relevant):
             return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
                 joblib.delayed(compute_bias)(
@@ -496,7 +563,7 @@ class Explainer:
             y_pred=y_pred,
             dest_col=metric_name,
             key_cols=["feature", "lambda"],
-            compute=compute
+            compute=compute,
         )
 
     def rank_by_bias(self, X_test, y_pred):
