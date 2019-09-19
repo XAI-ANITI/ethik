@@ -8,7 +8,7 @@ test_nb:
 	pytest --nbval-lax notebooks
 
 test_unit:
-	pytest tests	
+	pytest --doctest-modules
 
 test_syntax:
 	black --check ethik tests

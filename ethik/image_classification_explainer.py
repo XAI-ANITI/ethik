@@ -40,6 +40,17 @@ class ImageClassificationExplainer(explainer.Explainer):
             self.img_shape = self.img_shape[:-1]
         return super().explain_bias(X_test=images_to_dataframe(X_test), y_pred=y_pred)
 
+    def explain_performance(self, X_test, y_test, y_pred, metric):
+        self.img_shape = X_test[0].shape
+        if self.img_shape[-1] == 1:
+            self.img_shape = self.img_shape[:-1]
+        return super().explain_performance(
+            X_test=images_to_dataframe(X_test),
+            y_test=y_test,
+            y_pred=y_pred,
+            metric=metric,
+        )
+
     def _plot(self, z_values, n_cols):
         n_plots = len(z_values)
         labels = sorted(z_values)
