@@ -540,7 +540,7 @@ class Explainer:
                 or a 2d numpy array of shape `(n_samples, n_features)`.
             y_test (pd.DataFrame or pd.Series): The true values
                 for the samples in `X_test`. For binary classification and regression,
-                a `pd.Series`... is expected. For multi-label classification,
+                a `pd.Series` is expected. For multi-label classification,
                 a dataframe or a 2d numpy array with one column per label is
                 expected. The values can either be probabilities or `0/1`
                 (for a one-hot-encoded output).
@@ -749,19 +749,81 @@ class Explainer:
             ),
         )
 
-    def plot_bias(self, X_test, y_pred, **fig_kwargs):
+    def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+        """Plot the bias of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_bias()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_bias()`.
+            colors (dict, optional): A dictionary that maps features to colors.
+                Default is `None` and the colors are choosen automatically.
+            yrange (list, optional): A two-item list `[low, high]`. Default is
+                `None` and the range is based on the data.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+
+        Examples:
+            >>> explainer.plot_bias(X_test, y_pred)
+            >>> explainer.plot_bias(X_test, y_pred, colors=dict(
+            ...     x0="blue",
+            ...     x1="red",
+            ... ))
+            >>> explainer.plot_bias(X_test, y_pred, yrange=[0.5, 1])
+        """
         explanation = self.explain_bias(X_test, y_pred)
         labels = explanation["label"].unique()
         if len(labels) > 1:
             raise ValueError("Cannot plot multiple labels")
         y_label = f'Average "{labels[0]}"'
-        return self._plot_explanation(explanation, "bias", y_label, **fig_kwargs)
+        return self._plot_explanation(
+            explanation, "bias", y_label, colors=colors, yrange=yrange
+        )
 
-    def plot_bias_ranking(self, X_test, y_pred, **fig_kwargs):
+    def plot_bias_ranking(self, X_test, y_pred, colors=None):
+        """Plot the ranking of the features based on their bias.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_bias()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_bias()`.
+            colors (dict, optional): See `Explainer.plot_bias()`.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        """
         ranking = self.rank_by_bias(X_test=X_test, y_pred=y_pred)
-        return self._plot_ranking(ranking, "importance", "Importance", **fig_kwargs)
+        return self._plot_ranking(
+            ranking=ranking,
+            score_column="importance",
+            title="Importance",
+            colors=colors,
+        )
 
-    def plot_performance(self, X_test, y_test, y_pred, metric, **fig_kwargs):
+    def plot_performance(
+        self, X_test, y_test, y_pred, metric, colors=None, yrange=None
+    ):
+        """Plot the performance of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_performance()`.
+            y_test (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+            metric (callable): See `Explainer.explain_performance()`.
+            colors (dict, optional): See `Explainer.plot_bias()`.
+            yrange (list, optional): See `Explainer.plot_bias()`.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        """
         metric_name = self.get_metric_name(metric)
         explanation = self.explain_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
@@ -775,12 +837,33 @@ class Explainer:
         )
 
     def plot_performance_ranking(
-        self, X_test, y_test, y_pred, metric, criterion, **fig_kwargs
+        self, X_test, y_test, y_pred, metric, criterion, colors
     ):
+        """Plot the performance of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_performance()`.
+            y_test (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+            metric (callable): See `Explainer.explain_performance()`.
+            criterion (str): Either "min" or "max" to determine whether, for a
+                given feature, we keep the worst or the best performance for all
+                the values taken by the mean.
+            colors (dict, optional): See `Explainer.plot_bias_ranking()`.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        """
         metric_name = self.get_metric_name(metric)
         ranking = self.rank_by_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
         return self._plot_ranking(
-            ranking, criterion, f"{criterion} {metric_name}", **fig_kwargs
+            ranking=ranking,
+            score_column=criterion,
+            title=f"{criterion} {metric_name}",
+            colors=colors,
         )
