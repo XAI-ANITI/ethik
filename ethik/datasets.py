@@ -23,20 +23,30 @@ def load_law_school():
 
         >>> X, y = ethik.datasets.load_law_school()
 
-        >>> X.head()
-               race     sex  LSAT  UGPA region_first  ZFYA  sander_index
-        0     White  Female  39.0   3.1           GL -0.98      0.782738
-        1     White  Female  36.0   3.0           GL  0.09      0.735714
-        2     White    Male  30.0   3.1           MS -0.35      0.670238
-        5  Hispanic    Male  39.0   2.2           NE  0.58      0.697024
-        6     White  Female  37.0   3.4           GL -1.26      0.786310
+        >>> X.head(10)
+                race     sex  LSAT  UGPA region_first  ZFYA  sander_index
+        0      White  Female  39.0   3.1           GL -0.98      0.782738
+        1      White  Female  36.0   3.0           GL  0.09      0.735714
+        2      White    Male  30.0   3.1           MS -0.35      0.670238
+        5   Hispanic    Male  39.0   2.2           NE  0.58      0.697024
+        6      White  Female  37.0   3.4           GL -1.26      0.786310
+        7      White  Female  30.5   3.6           GL  0.30      0.724107
+        8      White    Male  36.0   3.6           GL -0.10      0.792857
+        9      White    Male  37.0   2.7           NE -0.12      0.719643
+        13     White  Female  37.0   2.6           GL  1.53      0.710119
+        14     White    Male  31.0   3.6           GL  0.34      0.730357
 
-        >>> y.head()
-        0    True
-        1    True
-        2    True
-        5    True
-        6    True
+        >>> y.head(10)
+        0      True
+        1      True
+        2      True
+        5      True
+        6      True
+        7      True
+        8      True
+        9     False
+        13     True
+        14     True
         Name: first_pf, dtype: bool
 
     References:
@@ -46,9 +56,9 @@ def load_law_school():
     """
     X = pd.read_csv(
         os.path.join(os.path.dirname(__file__), "data", "law_data.csv"),
-        dtype={"first_pf": bool, "race": "category", "region_first": "category"},
+        dtype={"race": "category", "region_first": "category"},
         index_col=0
     )
     X["sex"] = X["sex"].map({1: "Female", 2: "Male"}).astype("category")
-    y = X.pop("first_pf")
+    y = X.pop("first_pf").apply(int).astype(bool)
     return X, y
