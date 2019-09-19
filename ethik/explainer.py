@@ -8,7 +8,7 @@ import pandas as pd
 import plotly.graph_objs as go
 from scipy import special
 
-from .utils import decimal_range, to_pandas
+from .utils import decimal_range, join_with_overlap, to_pandas
 
 __all__ = ["Explainer"]
 
@@ -48,6 +48,10 @@ def compute_lambdas(x, target_means, iterations=5, use_previous_lambda=False):
 
         for _ in range(iterations):
 
+            # Stop if the target mean has been reached
+            if current_mean == target_mean:
+                break
+
             # Update the sample weights and see where the mean is
             sample_weights = special.softmax(λ * x)
             current_mean = np.average(x, weights=sample_weights)
@@ -69,60 +73,6 @@ def compute_lambdas(x, target_means, iterations=5, use_previous_lambda=False):
         lambdas[(x.name, target_mean)] = λ
 
     return lambdas
-
-
-def compute_bias(y_pred, x, lambdas, sample_index):
-    """Compute the influence of the variable `x` on the predictions.
-
-    Args:
-        y_pred (pd.Series): The predictions.
-        x (pd.Series): The variable's values.
-        lambdas (iterator of floats): The lambdas for each target mean of `x`.
-        sample_index (int): The index of the sample used to compute the confidence
-            interval. Only used to merge the data later.
-
-    Returns:
-        list of tuples: A list of `(x's name, y_pred's name, lambda, sample_index, bias)`
-            for each lambda.
-    """
-    return [
-        (
-            x.name,
-            y_pred.name,
-            λ,
-            sample_index,
-            np.average(y_pred, weights=special.softmax(λ * x)),
-        )
-        for λ in lambdas
-    ]
-
-
-def compute_performance(y_test, y_pred, metric, x, lambdas, sample_index):
-    """Compute the influence of the variable `x` on the model's performance.
-
-    Args:
-        y_test (pd.Series): The true predictions.
-        y_pred (pd.Series): The model's predictions.
-        metric (callable): A scikit-learn-like metric with such an interface:
-            `metric(y_test, y_pred, sample_weight=None)`.
-        x (pd.Series): The variable's values.
-        lambdas (iterator of floats): The lambdas for each target mean of `x`.
-        sample_index (int): The index of the sample used to compute the confidence
-            interval. Only used to merge the data later.
-
-    Returns:
-        list of tuples: A list of `(x's name, lambda, sample_index, performance)`
-            for each lambda.
-    """
-    return [
-        (
-            x.name,
-            λ,
-            sample_index,
-            metric(y_test, y_pred, sample_weight=special.softmax(λ * x)),
-        )
-        for λ in lambdas
-    ]
 
 
 def yield_masks(n_masks, n, p):
@@ -314,8 +264,9 @@ class Explainer:
             return self
 
         # Make the epsilons for each (feature, label, tau) triplet
-        q_mins = X_test.quantile(q=self.alpha).to_dict()
-        q_maxs = X_test.quantile(q=1 - self.alpha).to_dict()
+        quantiles = X_test.quantile(q=[self.alpha, 1. - self.alpha])
+        q_mins = quantiles.loc[self.alpha].to_dict()
+        q_maxs = quantiles.loc[1. - self.alpha].to_dict()
         means = X_test.mean().to_dict()
         additional_info = pd.concat(
             [
@@ -345,14 +296,13 @@ class Explainer:
         self.info = self.info.append(additional_info, ignore_index=True, sort=False)
 
         # Find a lambda for each (feature, espilon) pair
-        lambdas = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
+        lambdas = joblib.Parallel(n_jobs=self.n_jobs, verbose=10 if self.verbose else 0)(
             joblib.delayed(compute_lambdas)(
                 x=X_test[feature],
                 target_means=part["value"].unique(),
                 iterations=self.lambda_iterations
             )
             for feature, part in self.info.groupby("feature")
-            if feature in X_test
         )
         lambdas = dict(collections.ChainMap(*lambdas))
         self.info["lambda"] = self.info.apply(
@@ -406,10 +356,6 @@ class Explainer:
             #   ...
             # ]
             data = compute(X_test=X_test, y_pred=y_pred, relevant=relevant)
-            data = pd.DataFrame(
-                [line for batch in data for line in batch],
-                columns=[*key_cols, "sample_index", dest_col],
-            )
             # We group by the key to gather the samples and compute the confidence
             #  interval
             data = data.groupby(key_cols)[dest_col].agg(
@@ -428,13 +374,8 @@ class Explainer:
                     ),
                 ]
             )
-
-            #  TODO: merge all columns in a single operation?
-            for col in data.columns:
-                self.info[col] = self.info.apply(
-                    lambda r: data[col].get(tuple([r[k] for k in key_cols]), r.get(col)),
-                    axis="columns",
-                )
+            # Merge the new information with the current information
+            self.info = join_with_overlap(left=self.info, right=data, on=key_cols)
 
         return self.info[
             self.info["feature"].isin(X_test.columns)
@@ -443,18 +384,28 @@ class Explainer:
 
     def explain_bias(self, X_test, y_pred):
         def compute(X_test, y_pred, relevant):
-            return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
-                joblib.delayed(compute_bias)(
-                    y_pred=y_pred[label][mask],
-                    x=X_test[col][mask],
-                    lambdas=part["lambda"].unique(),
-                    sample_index=i,
-                )
-                for label in y_pred.columns
-                for col, part in relevant.groupby("feature")
-                for i, mask in enumerate(
-                    yield_masks(self.n_samples, len(X_test), self.sample_frac)
-                )
+            return pd.DataFrame(
+                [
+                    (
+                        feature,
+                        label,
+                        λ,
+                        sample_index,
+                        np.average(
+                            y_pred[label][mask],
+                            weights=special.softmax(λ * X_test[feature][mask])
+                        ),
+                    )
+                    for (sample_index, mask), (feature, label, λ) in itertools.product(
+                        enumerate(yield_masks(
+                            n_masks=self.n_samples,
+                            n=len(X_test),
+                            p=self.sample_frac
+                        )),
+                        relevant.groupby(["feature", "label", "lambda"]).groups.keys()
+                    )
+                ],
+                columns=["feature", "label", "lambda", "sample_index", "bias"]
             )
 
         return self._explain(
@@ -476,19 +427,28 @@ class Explainer:
         y_test = np.asarray(y_test)
 
         def compute(X_test, y_pred, relevant):
-            return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
-                joblib.delayed(compute_performance)(
-                    y_test=y_test[mask],
-                    y_pred=y_pred[mask],
-                    metric=metric,
-                    x=X_test[col][mask],
-                    lambdas=part["lambda"].unique(),
-                    sample_index=i,
-                )
-                for col, part in relevant.groupby("feature")
-                for i, mask in enumerate(
-                    yield_masks(self.n_samples, len(X_test), self.sample_frac)
-                )
+            return pd.DataFrame(
+                [
+                    (
+                        feature,
+                        λ,
+                        sample_index,
+                        metric(
+                            y_test[mask],
+                            y_pred[mask],
+                            sample_weight=special.softmax(λ * X_test[feature][mask])
+                        ),
+                    )
+                    for (sample_index, mask), (feature, λ) in itertools.product(
+                        enumerate(yield_masks(
+                            n_masks=self.n_samples,
+                            n=len(X_test),
+                            p=self.sample_frac
+                        )),
+                        relevant.groupby(["feature", "lambda"]).groups.keys()
+                    )
+                ],
+                columns=["feature", "lambda", "sample_index", metric_name]
             )
 
         return self._explain(
