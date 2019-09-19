@@ -34,16 +34,17 @@ class ImageClassificationExplainer(explainer.Explainer):
             memoize=memoize
         )
 
-    def explain_bias(self, X_test, y_pred):
-        self.img_shape = X_test[0].shape
+    def _set_image_shape(self, images):
+        self.img_shape = images[0].shape
         if self.img_shape[-1] == 1:
             self.img_shape = self.img_shape[:-1]
+
+    def explain_bias(self, X_test, y_pred):
+        self._set_image_shape(images=X_test)
         return super().explain_bias(X_test=images_to_dataframe(X_test), y_pred=y_pred)
 
     def explain_performance(self, X_test, y_test, y_pred, metric):
-        self.img_shape = X_test[0].shape
-        if self.img_shape[-1] == 1:
-            self.img_shape = self.img_shape[:-1]
+        self._set_image_shape(images=X_test)
         return super().explain_performance(
             X_test=images_to_dataframe(X_test),
             y_test=y_test,
