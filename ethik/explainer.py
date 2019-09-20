@@ -40,10 +40,9 @@ def compute_lambdas(x, target_means, iterations=5, use_previous_lambda=False):
     mean = x.mean()
     lambdas = {}
 
-    λ = 0
-
     for target_mean in target_means:
 
+        λ = 0
         current_mean = mean
 
         for _ in range(iterations):
