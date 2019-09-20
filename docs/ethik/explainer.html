@@ -23,67 +23,26 @@
 <details class="source">
 <summary>Source code</summary>
 <pre><code class="python">import collections
-import decimal
 import functools
+import itertools
 
 import joblib
 import numpy as np
 import pandas as pd
-import plotly
 import plotly.graph_objs as go
+from scipy import special
 
+from .utils import decimal_range, join_with_overlap, to_pandas
 
 __all__ = [&#34;Explainer&#34;]
 
 
-def plot(fig, inline=False):
-    &#34;&#34;&#34;Display a Plotly figure in a web page or a notebook.
-
-    Args:
-        fig (plotly.graph_objs.Figure): The Plotly figure to plot.
-        inline (bool): wether to plot in a notebook or not. Default is `False`.
-    &#34;&#34;&#34;
-
-    if inline:
-        plotly.offline.init_notebook_mode(connected=True)
-        return plotly.offline.iplot(fig)
-    return plotly.offline.plot(fig, auto_open=True)
+CAT_COL_SEP = &#34; = &#34;
 
 
-def decimal_range(start: float, stop: float, step: float):
-    &#34;&#34;&#34;Like the `range` function but works for decimal values.
-
-    This is more accurate than using `np.arange` because it doesn&#39;t introduce
-    any round-off errors.
-
-    &#34;&#34;&#34;
-    start = decimal.Decimal(str(start))
-    stop = decimal.Decimal(str(stop))
-    step = decimal.Decimal(str(step))
-    while start &lt;= stop:
-        yield float(start)
-        start += step
-
-
-def to_pandas(x):
-    &#34;&#34;&#34;Converts an array-like to a Series or a DataFrame depending on the dimensionality.&#34;&#34;&#34;
-
-    if isinstance(x, (pd.Series, pd.DataFrame)):
-        return x
-
-    if isinstance(x, np.ndarray):
-        if x.ndim &gt; 2:
-            raise ValueError(&#34;x must have 1 or 2 dimensions&#34;)
-        if x.ndim == 2:
-            return pd.DataFrame(x)
-        return pd.Series(x)
-
-    return to_pandas(np.asarray(x))
-
-
-def compute_lambdas(x, target_means, iterations=5):
+def compute_lambdas(x, target_means, iterations=5, use_previous_lambda=False):
     &#34;&#34;&#34;Find good lambdas for a variable and given target means.
-    
+
     Args:
         x (pd.Series): The variable&#39;s values.
         target_means (iterator of floats): The means to reach by weighting the
@@ -112,134 +71,31 @@ def compute_lambdas(x, target_means, iterations=5):
 
         for _ in range(iterations):
 
+            # Stop if the target mean has been reached
+            if current_mean == target_mean:
+                break
+
             # Update the sample weights and see where the mean is
-            sample_weights = np.exp(λ * x)
-            sample_weights = sample_weights / sum(sample_weights)
+            sample_weights = special.softmax(λ * x)
             current_mean = np.average(x, weights=sample_weights)
 
             # Do a Newton step using the difference between the mean and the
             # target mean
             grad = current_mean - target_mean
             hess = np.average((x - current_mean) ** 2, weights=sample_weights)
+
+            if hess == 0:
+                # We use a magic number based on experience for the step size, this is subject
+                # to change
+                λ -= 1e-5 * grad
+                break
+
             step = grad / hess
             λ -= step
 
         lambdas[(x.name, target_mean)] = λ
 
     return lambdas
-
-
-def compute_bias(y_pred, x, lambdas, sample_index):
-    &#34;&#34;&#34;Compute the influence of the variable `x` on the predictions.
-    
-    Args:
-        y_pred (pd.Series): The predictions.
-        x (pd.Series): The variable&#39;s values.
-        lambdas (iterator of floats): The lambdas for each target mean of `x`.
-        sample_index (int): The index of the sample used to compute the confidence
-            interval. Only used to merge the data later.
-
-    Returns:
-        list of tuples: A list of `(x&#39;s name, y_pred&#39;s name, lambda, sample_index, bias)`
-            for each lambda.
-    &#34;&#34;&#34;
-    return [
-        (
-            x.name,
-            y_pred.name,
-            λ,
-            sample_index,
-            np.average(y_pred, weights=np.exp(λ * x)),
-        )
-        for λ in lambdas
-    ]
-
-
-def compute_performance(y_test, y_pred, metric, x, lambdas, sample_index):
-    &#34;&#34;&#34;Compute the influence of the variable `x` on the model&#39;s performance.
-    
-    Args:
-        y_test (pd.Series): The true predictions.
-        y_pred (pd.Series): The model&#39;s predictions.
-        metric (callable): A scikit-learn-like metric with such an interface:
-            `metric(y_test, y_pred, sample_weight=None)`.
-        x (pd.Series): The variable&#39;s values.
-        lambdas (iterator of floats): The lambdas for each target mean of `x`.
-        sample_index (int): The index of the sample used to compute the confidence
-            interval. Only used to merge the data later.
-
-    Returns:
-        list of tuples: A list of `(x&#39;s name, lambda, sample_index, performance)`
-            for each lambda.
-    &#34;&#34;&#34;
-    return [
-        (x.name, λ, sample_index, metric(y_test, y_pred, sample_weight=np.exp(λ * x)))
-        for λ in lambdas
-    ]
-
-
-def metric_to_col(metric):
-    &#34;&#34;&#34;Get the name of the column in explainer&#39;s info dataframe to store the
-    performance with respect of the given metric.
-
-    Args:
-        metric (callable): The metric to compute the model&#39;s performance.
-    
-    Returns:
-        str: The name of the column.
-    &#34;&#34;&#34;
-    return metric.__name__ + &#34;__score&#34;
-
-
-def make_dataset_numeric(X):
-    &#34;&#34;&#34;Convert a dataset with both numerical and categorical features to a
-    dataset with numerical features only.
-
-    Args:
-        X (pd.DataFrame): The dataframe to convert. Categorical-feature columns
-            must have either the type `object` or `category`.
-
-    Returns:
-        (pd.DataFrame, dict): A tuple with the first item being the numeric dataset,
-            with the same columns for numerical features and one binary column per
-            value for each categorical feature (e.g. `gender` gives `gender__male`
-            and `gender_female`). The second item of the tuple is a dict mapping
-            categorical features to a list of binary numerical columns.
-
-            For instance, for `X` being:
-
-                age | gender
-                ----------
-                20 | male
-                23 | female
-                19 | female
-                30 | male
-
-            we get:
-    
-                age | gender__male | gender__female
-                ----------------------------------
-                20 | 1 | 0
-                23 | 0 | 1
-                19 | 0 | 1
-                30 | 1 | 0
-
-            and:
-                
-                {
-                    &#34;gender&#34;: [&#34;gender__male&#34;, &#34;gender__female&#34;]
-                }
-    &#34;&#34;&#34;
-    X_num = X.select_dtypes(exclude=[&#34;object&#34;, &#34;category&#34;])
-    X_cat = X.select_dtypes(include=[&#34;object&#34;, &#34;category&#34;])
-    cat_features = {}
-    for cat_feat in X_cat:
-        values = X_cat[cat_feat].unique()
-        new_num_cols = [f&#34;{cat_feat}__{v}&#34; for v in values]
-        cat_features[cat_feat] = new_num_cols
-        for v, new_col in zip(values, new_num_cols):
-            X_num[new_col] = (X_cat[cat_feat] == v).astype(int)
-    return X_num, cat_features
 
 
 def yield_masks(n_masks, n, p):
@@ -258,8 +114,16 @@ def yield_masks(n_masks, n, p):
             we may get more or fewer than `p*n` items kept, but it is not a problem
             with large datasets.
     &#34;&#34;&#34;
-    for _ in range(n_masks):
-        yield np.random.binomial(1, p, size=n).astype(bool)
+
+    if p &lt; 0 or p &gt; 1:
+        raise ValueError(f&#34;p must be between 0 and 1, got {p}&#34;)
+
+    if p &lt; 1:
+        for _ in range(n_masks):
+            yield np.random.binomial(1, p, size=n).astype(bool)
+    else:
+        for _ in range(n_masks):
+            yield np.full(shape=n, fill_value=True)
 
 
 class Explainer:
@@ -274,9 +138,28 @@ class Explainer:
             higher this value is. However the computation time increases linearly with `n_taus`.
             The default is `41` and corresponds to each τ being separated by it&#39;s neighbors by
             `0.05`.
-        lambda_iterations (int): The maximum number of iterations used when applying the Newton step
-            of the optimization procedure.
-
+        lambda_iterations (int): The number of iterations used when applying the Newton step
+            of the optimization procedure. Default is `5`.
+        n_jobs (int): The number of jobs to use for parallel computations. See
+            `joblib.Parallel()`. Default is `-1`.
+        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
+            Default is `False`.
+        n_samples (int): The number of samples to use for the confidence interval.
+            If `1`, the default, no confidence interval is computed.
+        sample_frac (float): The proportion of lines in the dataset sampled to
+            generate the samples for the confidence interval. If `n_samples` is
+            `1`, no confidence interval is computed and the whole dataset is used.
+            Default is `0.8`.
+        conf_level (float): A `float` between `0` and `0.5` which indicates the
+            quantile used for the confidence interval. Default is `0.05`, which
+            means that the confidence interval contains the data between the 5th
+            and 95th quantiles.
+        memoize (bool): Indicates whether or not memoization should be used or not. If `True`, then
+            intermediate results will be stored in order to avoid recomputing results that can be
+            reused by successively called methods. For example, if you call `plot_bias` followed by
+            `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
+            `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned off by
+            default because it can lead to unexpected behavior depending on your usage.
     &#34;&#34;&#34;
 
     def __init__(
@@ -284,13 +167,14 @@ class Explainer:
         alpha=0.05,
         n_taus=41,
         lambda_iterations=5,
-        n_jobs=-1,
+        n_jobs=1,  # Parallelism is only worth it if the dataset is &#34;large&#34;
         verbose=False,
         n_samples=1,
         sample_frac=0.8,
         conf_level=0.05,
+        memoize=False,
     ):
-        if not 0 &lt; alpha &lt; 0.5:
+        if not 0 &lt;= alpha &lt; 0.5:
             raise ValueError(&#34;alpha must be between 0 and 0.5, got &#34; f&#34;{alpha}&#34;)
 
         if not n_taus &gt; 0:
@@ -313,16 +197,20 @@ class Explainer:
         if not 0 &lt; conf_level &lt; 0.5:
             raise ValueError(f&#34;conf_level must be between 0 and 0.5, got {conf_level}&#34;)
 
-        #  TODO: one column per performance metric
         self.alpha = alpha
         self.n_taus = n_taus
         self.lambda_iterations = lambda_iterations
         self.n_jobs = n_jobs
         self.verbose = verbose
-        self.metric_cols = set()
+        self.metric_names = set()
         self.n_samples = n_samples
         self.sample_frac = sample_frac if n_samples &gt; 1 else 1
         self.conf_level = conf_level
+        self.memoize = memoize
+        self._reset_info()
+
+    def _reset_info(self):
+        &#34;&#34;&#34;Resets the info dataframe (for when memoization is turned off).&#34;&#34;&#34;
         self.info = pd.DataFrame(
             columns=[
                 &#34;feature&#34;,
@@ -335,7 +223,21 @@ class Explainer:
                 &#34;bias_high&#34;,
             ]
         )
-        self.cat_features = {}
+
+    def get_metric_name(self, metric):
+        &#34;&#34;&#34;Get the name of the column in explainer&#39;s info dataframe to store the
+        performance with respect of the given metric.
+
+        Args:
+            metric (callable): The metric to compute the model&#39;s performance.
+
+        Returns:
+            str: The name of the column.
+        &#34;&#34;&#34;
+        name = metric.__name__
+        if name in self.info.columns and name not in self.metric_names:
+            raise ValueError(f&#34;Cannot use {name} as a metric name&#34;)
+        return name
 
     @property
     def taus(self):
@@ -344,72 +246,88 @@ class Explainer:
 
     @property
     def features(self):
-        return self.info[&#34;feature&#34;].unique().tolist() + list(self.cat_features)
+        return self.info[&#34;feature&#34;].unique().tolist()
+
+    def _determine_pairs_to_do(self, features, labels):
+        to_do_pairs = set(itertools.product(features, labels)) - set(
+            self.info.groupby([&#34;feature&#34;, &#34;label&#34;]).groups.keys()
+        )
+        to_do_map = collections.defaultdict(list)
+        for feat, label in to_do_pairs:
+            to_do_map[feat].append(label)
+        return {feat: list(sorted(labels)) for feat, labels in to_do_map.items()}
 
     def _find_lambdas(self, X_test, y_pred):
-        &#34;&#34;&#34;Fits the explainer to a tabular dataset.
-
-        During a `fit` call, the following steps are taken:
+        &#34;&#34;&#34;Finds lambda values for each (feature, tau, label) triplet.
 
         1. A list of $\tau$ values is generated using `n_taus`. The $\tau$ values range from -1 to 1.
         2. A grid of $\eps$ values is generated for each $\tau$ and for each variable. Each $\eps$ represents a shift from a variable&#39;s mean towards a particular quantile.
         3. A grid of $\lambda$ values is generated for each $\eps$. Each $\lambda$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\eps$ shift.
 
-        Parameters:
-            X_test (`pandas.DataFrame` or `numpy.ndarray`)
-            y_pred (`pandas.DataFrame` or `numpy.ndarray`)
-
+        Args:
+            X_test (pandas.DataFrame or numpy.ndarray): a
+            y_pred (pandas.DataFrame or numpy.ndarray): a
         &#34;&#34;&#34;
 
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
-        X_test = X_test[X_test.columns.difference(self.features)]
+        # One-hot encode the categorical features
+        X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
+
+        # Check which (feature, label) pairs have to be done
+        to_do_map = self._determine_pairs_to_do(
+            features=X_test.columns, labels=y_pred.columns
+        )
+        # We need a list to keep the order of X_test
+        to_do_features = list(feat for feat in X_test.columns if feat in to_do_map)
+        X_test = X_test[to_do_features]
+
         if X_test.empty:
             return self
 
-        X_test_num, cat_features = make_dataset_numeric(X_test)
-        self.cat_features = {**self.cat_features, **cat_features}
-
-        # Make the epsilons
-        q_mins = X_test_num.quantile(q=self.alpha).to_dict()
-        q_maxs = X_test_num.quantile(q=1 - self.alpha).to_dict()
-        means = X_test_num.mean().to_dict()
+        # Make the epsilons for each (feature, label, tau) triplet
+        quantiles = X_test.quantile(q=[self.alpha, 1.0 - self.alpha])
+        q_mins = quantiles.loc[self.alpha].to_dict()
+        q_maxs = quantiles.loc[1.0 - self.alpha].to_dict()
+        means = X_test.mean().to_dict()
         additional_info = pd.concat(
             [
                 pd.DataFrame(
                     {
                         &#34;tau&#34;: self.taus,
                         &#34;value&#34;: [
-                            means[col]
+                            means[feature]
                             + tau
                             * (
-                                (means[col] - q_mins[col])
+                                max(means[feature] - q_mins[feature], 0)
                                 if tau &lt; 0
-                                else (q_maxs[col] - means[col])
+                                else max(q_maxs[feature] - means[feature], 0)
                             )
                             for tau in self.taus
                         ],
-                        &#34;feature&#34;: [col] * len(self.taus),
-                        &#34;label&#34;: [y] * len(self.taus),
+                        &#34;feature&#34;: [feature] * len(self.taus),
+                        &#34;label&#34;: [label] * len(self.taus),
                     }
                 )
-                for col in X_test_num.columns
-                for y in y_pred.columns
+                # We need to iterate over `to_do_features` to keep the order of X_test
+                for feature in to_do_features
+                for label in to_do_map[feature]
             ],
             ignore_index=True,
         )
         self.info = self.info.append(additional_info, ignore_index=True, sort=False)
 
-        # Find a lambda for each (column, espilon) pair
-        lambdas = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
+        # Find a lambda for each (feature, espilon) pair
+        lambdas = joblib.Parallel(
+            n_jobs=self.n_jobs, verbose=10 if self.verbose else 0
+        )(
             joblib.delayed(compute_lambdas)(
-                x=X_test_num[col],
+                x=X_test[feature],
                 target_means=part[&#34;value&#34;].unique(),
                 iterations=self.lambda_iterations,
             )
-            for col, part in self.info.groupby(&#34;feature&#34;)
-            if col in X_test_num
+            for feature, part in self.info.groupby(&#34;feature&#34;)
         )
         lambdas = dict(collections.ChainMap(*lambdas))
         self.info[&#34;lambda&#34;] = self.info.apply(
@@ -418,34 +336,63 @@ class Explainer:
         )
         self.info[&#34;lambda&#34;] = self.info[&#34;lambda&#34;].fillna(0.0)
 
-        return self.info
+        return self
 
     def _explain(self, X_test, y_pred, dest_col, key_cols, compute):
+
+        # Reset info if memoization is turned off
+        if not self.memoize:
+            self._reset_info()
+        if dest_col not in self.info.columns:
+            self.info[dest_col] = None
+            self.info[f&#34;{dest_col}_low&#34;] = None
+            self.info[f&#34;{dest_col}_high&#34;] = None
+
         # Coerce X_test and y_pred to DataFrames
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
+        # Check X_test and y_pred okay
+        if len(X_test) != len(y_pred):
+            raise ValueError(&#34;X_test and y_pred are not of the same length&#34;)
+
+        # Find the lambda values for each (feature, tau, label) triplet
         self._find_lambdas(X_test, y_pred)
 
-        X_test, _ = make_dataset_numeric(X_test)
-        queried_features = X_test.columns.tolist()
-        to_explain = self.info[&#34;feature&#34;][self.info[dest_col].isnull()].unique()
-        X_test = X_test[X_test.columns.intersection(to_explain)]
-        relevant = self.info[self.info[&#34;feature&#34;].isin(X_test.columns)]
+        # One-hot encode the categorical variables
+        X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
+
+        # Determine which features are missing explanations; that is they have null biases for at
+        # least one lambda value
+        relevant = self.info[
+            self.info[&#34;feature&#34;].isin(X_test.columns)
+            &amp; self.info[&#34;label&#34;].isin(y_pred.columns)
+            &amp; self.info[dest_col].isnull()
+        ]
 
         if not relevant.empty:
-            data = compute(X_test, y_pred, relevant)
-            data = pd.DataFrame(
-                [line for batch in data for line in batch],
-                columns=[*key_cols, &#34;sample_index&#34;, dest_col],
-            )
+            # `compute()` will return something like:
+            # [
+            #   [ # First batch
+            #     (*key_cols1, sample_index1, computed_value1),
+            #     (*key_cols2, sample_index2, computed_value2),
+            #     ...
+            #   ],
+            #   ...
+            # ]
+            data = compute(X_test=X_test, y_pred=y_pred, relevant=relevant)
+            # We group by the key to gather the samples and compute the confidence
+            #  interval
             data = data.groupby(key_cols)[dest_col].agg(
                 [
+                    # Mean bias
                     (dest_col, &#34;mean&#34;),
+                    # Lower bound on the mean bias
                     (
                         f&#34;{dest_col}_low&#34;,
                         functools.partial(np.quantile, q=self.conf_level),
                     ),
+                    # Upper bound on the mean bias
                     (
                         f&#34;{dest_col}_high&#34;,
                         functools.partial(np.quantile, q=1 - self.conf_level),
@@ -453,29 +400,105 @@ class Explainer:
                 ]
             )
 
-            #  TODO: merge all columns in a single operation?
-            for col in data.columns:
-                self.info[col] = self.info.apply(
-                    lambda r: data[col].get(tuple([r[k] for k in key_cols]), r[col]),
-                    axis=&#34;columns&#34;,
-                )
+            # Merge the new information with the current information
+            self.info = join_with_overlap(left=self.info, right=data, on=key_cols)
 
-        return self.info[self.info[&#34;feature&#34;].isin(queried_features)]
+        return self.info[
+            self.info[&#34;feature&#34;].isin(X_test.columns)
+            &amp; self.info[&#34;label&#34;].isin(y_pred.columns)
+        ]
 
     def explain_bias(self, X_test, y_pred):
+        &#34;&#34;&#34;Compute the bias of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                `pd.Series` is expected. For multi-label classification, a
+                pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+
+        Returns:
+            pd.DataFrame:
+                A dataframe with columns `(feature, tau, value, lambda, label,
+                bias, bias_low, bias_high)`. If `explainer.n_samples` is `1`,
+                no confidence interval is computed and `bias = bias_low = bias_high`.
+                The value of `label` is not important for regression.
+
+        Examples:
+            See more examples in `notebooks`.
+
+            Binary classification:
+
+            &gt;&gt;&gt; X_test = pd.DataFrame([
+            ...     [1, 2],
+            ...     [1.1, 2.2],
+            ...     [1.3, 2.3],
+            ... ], columns=[&#34;x0&#34;, &#34;x1&#34;])
+            &gt;&gt;&gt; y_pred = model(X_test)
+            &gt;&gt;&gt; y_pred
+            [0, 1, 1]  # Can also be probabilities: [0.3, 0.65, 0.8]
+            &gt;&gt;&gt; # For readibility reasons, we give a name to the predictions
+            &gt;&gt;&gt; y_pred = pd.Series(y_pred, name=&#34;is_reliable&#34;)
+            &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
+
+            Regression is similar to binary classification:
+            
+            &gt;&gt;&gt; X_test = pd.DataFrame([
+            ...     [1, 2],
+            ...     [1.1, 2.2],
+            ...     [1.3, 2.3],
+            ... ], columns=[&#34;x0&#34;, &#34;x1&#34;])
+            &gt;&gt;&gt; y_pred = model(X_test)
+            &gt;&gt;&gt; y_pred
+            [22, 24, 19]
+            &gt;&gt;&gt; # For readibility reasons, we give a name to the predictions
+            &gt;&gt;&gt; y_pred = pd.Series(y_pred, name=&#34;price&#34;)
+            &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
+
+            For multi-label classification, we need a dataframe to store predictions:
+            
+            &gt;&gt;&gt; X_test = pd.DataFrame([
+            ...     [1, 2],
+            ...     [1.1, 2.2],
+            ...     [1.3, 2.3],
+            ... ], columns=[&#34;x0&#34;, &#34;x1&#34;])
+            &gt;&gt;&gt; y_pred = model(X_test)
+            &gt;&gt;&gt; y_pred.columns
+            [&#34;class0&#34;, &#34;class1&#34;, &#34;class2&#34;]
+            &gt;&gt;&gt; y_pred.iloc[0]
+            [0, 1, 0] # One-hot encoded, or probabilities: [0.15, 0.6, 0.25]
+            &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
+        &#34;&#34;&#34;
+
         def compute(X_test, y_pred, relevant):
-            return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
-                joblib.delayed(compute_bias)(
-                    y_pred=y_pred[label][mask],
-                    x=X_test[col][mask],
-                    lambdas=part[&#34;lambda&#34;].unique(),
-                    sample_index=i,
-                )
-                for label in y_pred.columns
-                for col, part in relevant.groupby(&#34;feature&#34;)
-                for i, mask in enumerate(
-                    yield_masks(self.n_samples, len(X_test), self.sample_frac)
-                )
+            return pd.DataFrame(
+                [
+                    (
+                        feature,
+                        label,
+                        λ,
+                        sample_index,
+                        np.average(
+                            y_pred[label][mask],
+                            weights=special.softmax(λ * X_test[feature][mask]),
+                        ),
+                    )
+                    for (sample_index, mask), (feature, label, λ) in itertools.product(
+                        enumerate(
+                            yield_masks(
+                                n_masks=self.n_samples,
+                                n=len(X_test),
+                                p=self.sample_frac,
+                            )
+                        ),
+                        relevant.groupby([&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;]).groups.keys(),
+                    )
+                ],
+                columns=[&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, &#34;bias&#34;],
             )
 
         return self._explain(
@@ -487,32 +510,79 @@ class Explainer:
         )
 
     def explain_performance(self, X_test, y_test, y_pred, metric):
-        metric_col = metric_to_col(metric)
-        if metric_col not in self.info.columns:
-            self.info[metric_col] = None
-            self.info[f&#34;{metric_col}_low&#34;] = None
-            self.info[f&#34;{metric_col}_high&#34;] = None
-        self.metric_cols.add(metric_col)
+        &#34;&#34;&#34;Compute the change in model&#39;s performance for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_test (pd.DataFrame or pd.Series): The true values
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series` is expected. For multi-label classification,
+                a pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. The format is the same as `y_test`.
+            metric (callable): A scikit-learn-like metric
+                `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+                to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+                &#34;the set of labels predicted for a sample must exactly match the
+                corresponding set of labels in `y_true`&#34;.
+
+        Returns:
+            pd.DataFrame:
+                A dataframe with columns `(feature, tau, value, lambda, label,
+                bias, bias_low, bias_high, &lt;metric_name&gt;, &lt;metric_name_low&gt;, &lt;metric_name_high&gt;)`.
+                If `explainer.n_samples` is `1`, no confidence interval is computed
+                and `&lt;metric_name&gt; = &lt;metric_name_low&gt; = &lt;metric_name_high&gt;`.
+                The value of `label` is not important for regression.
+
+        Examples:
+            See examples in `notebooks`.
+        &#34;&#34;&#34;
+        metric_name = self.get_metric_name(metric)
+        if metric_name not in self.info.columns:
+            self.info[metric_name] = None
+            self.info[f&#34;{metric_name}_low&#34;] = None
+            self.info[f&#34;{metric_name}_high&#34;] = None
+        self.metric_names.add(metric_name)
 
         y_test = np.asarray(y_test)
 
         def compute(X_test, y_pred, relevant):
-            return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
-                joblib.delayed(compute_performance)(
-                    y_test=y_test[mask],
-                    y_pred=y_pred[mask],
-                    metric=metric,
-                    x=X_test[col][mask],
-                    lambdas=part[&#34;lambda&#34;].unique(),
-                    sample_index=i,
-                )
-                for col, part in relevant.groupby(&#34;feature&#34;)
-                for i, mask in enumerate(
-                    yield_masks(self.n_samples, len(X_test), self.sample_frac)
-                )
+            return pd.DataFrame(
+                [
+                    (
+                        feature,
+                        λ,
+                        sample_index,
+                        metric(
+                            y_test[mask],
+                            y_pred[mask],
+                            sample_weight=special.softmax(λ * X_test[feature][mask]),
+                        ),
+                    )
+                    for (sample_index, mask), (feature, λ) in itertools.product(
+                        enumerate(
+                            yield_masks(
+                                n_masks=self.n_samples,
+                                n=len(X_test),
+                                p=self.sample_frac,
+                            )
+                        ),
+                        relevant.groupby([&#34;feature&#34;, &#34;lambda&#34;]).groups.keys(),
+                    )
+                ],
+                columns=[&#34;feature&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, metric_name],
             )
 
-        return self._explain(X_test, y_pred, metric_col, [&#34;feature&#34;, &#34;lambda&#34;], compute)
+        return self._explain(
+            X_test=X_test,
+            y_pred=y_pred,
+            dest_col=metric_name,
+            key_cols=[&#34;feature&#34;, &#34;lambda&#34;],
+            compute=compute,
+        )
 
     def rank_by_bias(self, X_test, y_pred):
         &#34;&#34;&#34;Returns a DataFrame containing the importance of each feature.
@@ -521,6 +591,10 @@ class Explainer:
 
         def get_importance(group):
             &#34;&#34;&#34;Computes the average absolute difference in bias changes per tau increase.&#34;&#34;&#34;
+            #  Normalize bias to get an importance between 0 and 1
+            # bias can be outside [0, 1] for regression
+            bias = group[&#34;bias&#34;]
+            group[&#34;bias&#34;] = (bias - bias.min()) / (bias.max() - bias.min())
             baseline = group.query(&#34;tau == 0&#34;).iloc[0][&#34;bias&#34;]
             return (group[&#34;bias&#34;] - baseline).abs().mean()
 
@@ -533,11 +607,11 @@ class Explainer:
         )
 
     def rank_by_performance(self, X_test, y_test, y_pred, metric):
-        metric_col = metric_to_col(metric)
+        metric_name = self.get_metric_name(metric)
 
         def get_aggregates(df):
             return pd.Series(
-                [df[metric_col].min(), df[metric_col].max()], index=[&#34;min&#34;, &#34;max&#34;]
+                [df[metric_name].min(), df[metric_name].max()], index=[&#34;min&#34;, &#34;max&#34;]
             )
 
         return (
@@ -547,14 +621,16 @@ class Explainer:
             .reset_index()
         )
 
-    def _make_explanation_fig(
-        self, explanation, col, y_label, with_taus=False, colors=None
-    ):
-        if colors is None:
-            colors = {}
+    def _plot_explanation(self, explanation, col, y_label, colors=None, yrange=None):
         features = explanation[&#34;feature&#34;].unique()
 
-        if with_taus:
+        if colors is None:
+            colors = {}
+        elif type(colors) is str:
+            colors = {feat: colors for feat in features}
+
+        #  There are multiple features, we plot them together with taus
+        if len(features) &gt; 1:
             fig = go.Figure()
             for feat in features:
                 x = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;tau&#34;]
@@ -579,73 +655,61 @@ class Explainer:
             fig.update_layout(
                 margin=dict(t=50, r=50),
                 xaxis=dict(title=&#34;tau&#34;, zeroline=False),
-                yaxis=dict(title=y_label, range=[0, 1], showline=True, tickformat=&#34;%&#34;),
+                yaxis=dict(title=y_label, range=yrange, showline=True),
                 plot_bgcolor=&#34;white&#34;,
             )
             return fig
 
-        figures = {}
-        for feat in features:
-            fig = go.Figure()
-            x = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;value&#34;]
-            y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
-            mean_row = explanation.query(f&#39;feature == &#34;{feat}&#34; and tau == 0&#39;).iloc[0]
+        #  There is only one feature, we plot it with its nominal values.
+        feat = features[0]
+        fig = go.Figure()
+        x = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;value&#34;]
+        y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
+        mean_row = explanation.query(f&#39;feature == &#34;{feat}&#34; and tau == 0&#39;).iloc[0]
 
-            if self.n_samples &gt; 1:
-                low = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_low&#34;]
-                high = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_high&#34;]
-                fig.add_trace(
-                    go.Scatter(
-                        x=np.concatenate((x, x[::-1])),
-                        y=np.concatenate((low, high[::-1])),
-                        name=f&#34;{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%&#34;,
-                        fill=&#34;toself&#34;,
-                        fillcolor=&#34;#eee&#34;,  # TODO: same color as mean line?
-                        line_color=&#34;rgba(0, 0, 0, 0)&#34;,
-                    )
-                )
-
+        if self.n_samples &gt; 1:
+            low = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_low&#34;]
+            high = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_high&#34;]
             fig.add_trace(
                 go.Scatter(
-                    x=x,
-                    y=y,
-                    mode=&#34;lines+markers&#34;,
-                    hoverinfo=&#34;x+y&#34;,
-                    showlegend=False,
-                    marker=dict(color=colors.get(feat)),
+                    x=np.concatenate((x, x[::-1])),
+                    y=np.concatenate((low, high[::-1])),
+                    name=f&#34;{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%&#34;,
+                    fill=&#34;toself&#34;,
+                    fillcolor=&#34;#eee&#34;,  # TODO: same color as mean line?
+                    line_color=&#34;rgba(0, 0, 0, 0)&#34;,
                 )
             )
-            fig.add_trace(
-                go.Scatter(
-                    x=[mean_row[&#34;value&#34;]],
-                    y=[mean_row[col]],
-                    mode=&#34;markers&#34;,
-                    name=&#34;Original mean&#34;,
-                    hoverinfo=&#34;skip&#34;,
-                    marker=dict(symbol=&#34;x&#34;, size=9),
-                )
-            )
-            fig.update_layout(
-                margin=dict(t=50, r=50),
-                xaxis=dict(title=f&#34;Mean {feat}&#34;, zeroline=False),
-                yaxis=dict(title=y_label, range=[0, 1], showline=True, tickformat=&#34;%&#34;),
-                plot_bgcolor=&#34;white&#34;,
-            )
-            figures[feat] = fig
-        return figures
 
-    def make_bias_fig(self, explanation, **fig_kwargs):
-        labels = explanation[&#34;label&#34;].unique()
-        y_label = f&#34;Proportion of {labels[0]}&#34;  #  Single class
-        return self._make_explanation_fig(explanation, &#34;bias&#34;, y_label, **fig_kwargs)
-
-    def make_performance_fig(self, explanation, metric, **fig_kwargs):
-        metric_col = metric_to_col(metric)
-        return self._make_explanation_fig(
-            explanation, metric_col, y_label=metric_col, **fig_kwargs
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=y,
+                mode=&#34;lines+markers&#34;,
+                hoverinfo=&#34;x+y&#34;,
+                showlegend=False,
+                marker=dict(color=colors.get(feat)),
+            )
         )
+        fig.add_trace(
+            go.Scatter(
+                x=[mean_row[&#34;value&#34;]],
+                y=[mean_row[col]],
+                mode=&#34;markers&#34;,
+                name=&#34;Original mean&#34;,
+                hoverinfo=&#34;skip&#34;,
+                marker=dict(symbol=&#34;x&#34;, size=9, color=&#34;black&#34;),
+            )
+        )
+        fig.update_layout(
+            margin=dict(t=50, r=50),
+            xaxis=dict(title=f&#34;Average {feat}&#34;, zeroline=False),
+            yaxis=dict(title=y_label, range=yrange, showline=True),
+            plot_bgcolor=&#34;white&#34;,
+        )
+        return fig
 
-    def _make_ranking_fig(self, ranking, score_column, title, colors=None):
+    def _plot_ranking(self, ranking, score_column, title, colors=None):
         ranking = ranking.sort_values(by=[score_column])
 
         return go.Figure(
@@ -673,59 +737,123 @@ class Explainer:
             ),
         )
 
-    def make_bias_ranking_fig(self, ranking, colors=None):
-        return self._make_ranking_fig(
-            ranking, &#34;importance&#34;, &#34;Importance&#34;, colors=colors
+    def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+        &#34;&#34;&#34;Plot the bias of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_bias()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_bias()`.
+            colors (dict, optional): A dictionary that maps features to colors.
+                Default is `None` and the colors are choosen automatically.
+            yrange (list, optional): A two-item list `[low, high]`. Default is
+                `None` and the range is based on the data.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+
+        Examples:
+            &gt;&gt;&gt; explainer.plot_bias(X_test, y_pred)
+            &gt;&gt;&gt; explainer.plot_bias(X_test, y_pred, colors=dict(
+            ...     x0=&#34;blue&#34;,
+            ...     x1=&#34;red&#34;,
+            ... ))
+            &gt;&gt;&gt; explainer.plot_bias(X_test, y_pred, yrange=[0.5, 1])
+        &#34;&#34;&#34;
+        explanation = self.explain_bias(X_test, y_pred)
+        labels = explanation[&#34;label&#34;].unique()
+        if len(labels) &gt; 1:
+            raise ValueError(&#34;Cannot plot multiple labels&#34;)
+        y_label = f&#39;Average &#34;{labels[0]}&#34;&#39;
+        return self._plot_explanation(
+            explanation, &#34;bias&#34;, y_label, colors=colors, yrange=yrange
         )
 
-    def make_performance_ranking_fig(self, ranking, metric, criterion, colors=None):
-        return self._make_ranking_fig(
-            ranking, criterion, f&#34;{criterion} {metric_to_col(metric)}&#34;, colors=colors
-        )
+    def plot_bias_ranking(self, X_test, y_pred, colors=None):
+        &#34;&#34;&#34;Plot the ranking of the features based on their bias.
 
-    def _plot(self, explanation, make_fig, inline, **fig_kwargs):
-        features = explanation[&#34;feature&#34;].unique()
-        if len(features) &gt; 1:
-            return plot(
-                make_fig(explanation, with_taus=True, **fig_kwargs), inline=inline
-            )
-        return plot(
-            make_fig(explanation, with_taus=False, **fig_kwargs)[features[0]],
-            inline=inline,
-        )
+        Args:
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_bias()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_bias()`.
+            colors (dict, optional): See `Explainer.plot_bias()`.
 
-    def plot_bias(self, X_test, y_pred, inline=False, **fig_kwargs):
-        explanation = self.explain_bias(X_test=X_test, y_pred=y_pred)
-        return self._plot(explanation, self.make_bias_fig, inline=inline, **fig_kwargs)
-
-    def plot_bias_ranking(self, X_test, y_pred, inline=False, **fig_kwargs):
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        &#34;&#34;&#34;
         ranking = self.rank_by_bias(X_test=X_test, y_pred=y_pred)
-        return plot(self.make_bias_ranking_fig(ranking, **fig_kwargs), inline=inline)
+        return self._plot_ranking(
+            ranking=ranking,
+            score_column=&#34;importance&#34;,
+            title=&#34;Importance&#34;,
+            colors=colors,
+        )
 
     def plot_performance(
-        self, X_test, y_test, y_pred, metric, inline=False, **fig_kwargs
+        self, X_test, y_test, y_pred, metric, colors=None, yrange=None
     ):
+        &#34;&#34;&#34;Plot the performance of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_performance()`.
+            y_test (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+            metric (callable): See `Explainer.explain_performance()`.
+            colors (dict, optional): See `Explainer.plot_bias()`.
+            yrange (list, optional): See `Explainer.plot_bias()`.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        &#34;&#34;&#34;
+        metric_name = self.get_metric_name(metric)
         explanation = self.explain_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
-        return self._plot(
-            explanation,
-            functools.partial(self.make_performance_fig, metric=metric),
-            inline=inline,
-            **fig_kwargs,
+        if fig_kwargs.get(&#34;yrange&#34;) is None:
+            if explanation[metric_name].between(0, 1).all():
+                fig_kwargs[&#34;yrange&#34;] = [0, 1]
+
+        return self._plot_explanation(
+            explanation, metric_name, y_label=f&#34;Average {metric_name}&#34;, **fig_kwargs
         )
 
     def plot_performance_ranking(
-        self, X_test, y_test, y_pred, metric, criterion, inline=False, **fig_kwargs
+        self, X_test, y_test, y_pred, metric, criterion, colors
     ):
+        &#34;&#34;&#34;Plot the performance of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_performance()`.
+            y_test (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+            metric (callable): See `Explainer.explain_performance()`.
+            criterion (str): Either &#34;min&#34; or &#34;max&#34; to determine whether, for a
+                given feature, we keep the worst or the best performance for all
+                the values taken by the mean.
+            colors (dict, optional): See `Explainer.plot_bias_ranking()`.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        &#34;&#34;&#34;
+        metric_name = self.get_metric_name(metric)
         ranking = self.rank_by_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
-        return plot(
-            self.make_performance_ranking_fig(
-                ranking, criterion=criterion, metric=metric, **fig_kwargs
-            ),
-            inline=inline,
+        return self._plot_ranking(
+            ranking=ranking,
+            score_column=criterion,
+            title=f&#34;{criterion} {metric_name}&#34;,
+            colors=colors,
         )</code></pre>
 </details>
 </section>
@@ -740,7 +868,7 @@ class Explainer:
 <dl>
 <dt id="ethik.explainer.Explainer"><code class="flex name class">
 <span>class <span class="ident">Explainer</span></span>
-<span>(</span><span>alpha=0.05, n_taus=41, lambda_iterations=5, n_jobs=-1, verbose=False, n_samples=1, sample_frac=0.8, conf_level=0.05)</span>
+<span>(</span><span>alpha=0.05, n_taus=41, lambda_iterations=5, n_jobs=1, verbose=False, n_samples=1, sample_frac=0.8, conf_level=0.05, memoize=False)</span>
 </code></dt>
 <dd>
 <section class="desc"><p>Explains the bias and reliability of model predictions.</p>
@@ -757,8 +885,34 @@ higher this value is. However the computation time increases linearly with <code
 The default is <code>41</code> and corresponds to each τ being separated by it's neighbors by
 <code>0.05</code>.</dd>
 <dt><strong><code>lambda_iterations</code></strong> :&ensp;<code>int</code></dt>
-<dd>The maximum number of iterations used when applying the Newton step
-of the optimization procedure.</dd>
+<dd>The number of iterations used when applying the Newton step
+of the optimization procedure. Default is <code>5</code>.</dd>
+<dt><strong><code>n_jobs</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of jobs to use for parallel computations. See
+<code>joblib.Parallel()</code>. Default is <code>-1</code>.</dd>
+<dt><strong><code>verbose</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Passed to <code>joblib.Parallel()</code> for parallel computations.
+Default is <code>False</code>.</dd>
+<dt><strong><code>n_samples</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of samples to use for the confidence interval.
+If <code>1</code>, the default, no confidence interval is computed.</dd>
+<dt><strong><code>sample_frac</code></strong> :&ensp;<code>float</code></dt>
+<dd>The proportion of lines in the dataset sampled to
+generate the samples for the confidence interval. If <code>n_samples</code> is
+<code>1</code>, no confidence interval is computed and the whole dataset is used.
+Default is <code>0.8</code>.</dd>
+<dt><strong><code>conf_level</code></strong> :&ensp;<code>float</code></dt>
+<dd>A <code>float</code> between <code>0</code> and <code>0.5</code> which indicates the
+quantile used for the confidence interval. Default is <code>0.05</code>, which
+means that the confidence interval contains the data between the 5th
+and 95th quantiles.</dd>
+<dt><strong><code>memoize</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Indicates whether or not memoization should be used or not. If <code>True</code>, then
+intermediate results will be stored in order to avoid recomputing results that can be
+reused by successively called methods. For example, if you call <code>plot_bias</code> followed by
+<code>plot_bias_ranking</code> and <code>memoize</code> is <code>True</code>, then the intermediate results required by
+<code>plot_bias</code> will be reused for <code>plot_bias_ranking</code>. Memoization is turned off by
+default because it can lead to unexpected behavior depending on your usage.</dd>
 </dl></section>
 <details class="source">
 <summary>Source code</summary>
@@ -774,9 +928,28 @@ of the optimization procedure.</dd>
             higher this value is. However the computation time increases linearly with `n_taus`.
             The default is `41` and corresponds to each τ being separated by it&#39;s neighbors by
             `0.05`.
-        lambda_iterations (int): The maximum number of iterations used when applying the Newton step
-            of the optimization procedure.
-
+        lambda_iterations (int): The number of iterations used when applying the Newton step
+            of the optimization procedure. Default is `5`.
+        n_jobs (int): The number of jobs to use for parallel computations. See
+            `joblib.Parallel()`. Default is `-1`.
+        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
+            Default is `False`.
+        n_samples (int): The number of samples to use for the confidence interval.
+            If `1`, the default, no confidence interval is computed.
+        sample_frac (float): The proportion of lines in the dataset sampled to
+            generate the samples for the confidence interval. If `n_samples` is
+            `1`, no confidence interval is computed and the whole dataset is used.
+            Default is `0.8`.
+        conf_level (float): A `float` between `0` and `0.5` which indicates the
+            quantile used for the confidence interval. Default is `0.05`, which
+            means that the confidence interval contains the data between the 5th
+            and 95th quantiles.
+        memoize (bool): Indicates whether or not memoization should be used or not. If `True`, then
+            intermediate results will be stored in order to avoid recomputing results that can be
+            reused by successively called methods. For example, if you call `plot_bias` followed by
+            `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
+            `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned off by
+            default because it can lead to unexpected behavior depending on your usage.
     &#34;&#34;&#34;
 
     def __init__(
@@ -784,13 +957,14 @@ of the optimization procedure.</dd>
         alpha=0.05,
         n_taus=41,
         lambda_iterations=5,
-        n_jobs=-1,
+        n_jobs=1,  # Parallelism is only worth it if the dataset is &#34;large&#34;
         verbose=False,
         n_samples=1,
         sample_frac=0.8,
         conf_level=0.05,
+        memoize=False,
     ):
-        if not 0 &lt; alpha &lt; 0.5:
+        if not 0 &lt;= alpha &lt; 0.5:
             raise ValueError(&#34;alpha must be between 0 and 0.5, got &#34; f&#34;{alpha}&#34;)
 
         if not n_taus &gt; 0:
@@ -813,16 +987,20 @@ of the optimization procedure.</dd>
         if not 0 &lt; conf_level &lt; 0.5:
             raise ValueError(f&#34;conf_level must be between 0 and 0.5, got {conf_level}&#34;)
 
-        #  TODO: one column per performance metric
         self.alpha = alpha
         self.n_taus = n_taus
         self.lambda_iterations = lambda_iterations
         self.n_jobs = n_jobs
         self.verbose = verbose
-        self.metric_cols = set()
+        self.metric_names = set()
         self.n_samples = n_samples
         self.sample_frac = sample_frac if n_samples &gt; 1 else 1
         self.conf_level = conf_level
+        self.memoize = memoize
+        self._reset_info()
+
+    def _reset_info(self):
+        &#34;&#34;&#34;Resets the info dataframe (for when memoization is turned off).&#34;&#34;&#34;
         self.info = pd.DataFrame(
             columns=[
                 &#34;feature&#34;,
@@ -835,7 +1013,21 @@ of the optimization procedure.</dd>
                 &#34;bias_high&#34;,
             ]
         )
-        self.cat_features = {}
+
+    def get_metric_name(self, metric):
+        &#34;&#34;&#34;Get the name of the column in explainer&#39;s info dataframe to store the
+        performance with respect of the given metric.
+
+        Args:
+            metric (callable): The metric to compute the model&#39;s performance.
+
+        Returns:
+            str: The name of the column.
+        &#34;&#34;&#34;
+        name = metric.__name__
+        if name in self.info.columns and name not in self.metric_names:
+            raise ValueError(f&#34;Cannot use {name} as a metric name&#34;)
+        return name
 
     @property
     def taus(self):
@@ -844,72 +1036,88 @@ of the optimization procedure.</dd>
 
     @property
     def features(self):
-        return self.info[&#34;feature&#34;].unique().tolist() + list(self.cat_features)
+        return self.info[&#34;feature&#34;].unique().tolist()
+
+    def _determine_pairs_to_do(self, features, labels):
+        to_do_pairs = set(itertools.product(features, labels)) - set(
+            self.info.groupby([&#34;feature&#34;, &#34;label&#34;]).groups.keys()
+        )
+        to_do_map = collections.defaultdict(list)
+        for feat, label in to_do_pairs:
+            to_do_map[feat].append(label)
+        return {feat: list(sorted(labels)) for feat, labels in to_do_map.items()}
 
     def _find_lambdas(self, X_test, y_pred):
-        &#34;&#34;&#34;Fits the explainer to a tabular dataset.
-
-        During a `fit` call, the following steps are taken:
+        &#34;&#34;&#34;Finds lambda values for each (feature, tau, label) triplet.
 
         1. A list of $\tau$ values is generated using `n_taus`. The $\tau$ values range from -1 to 1.
         2. A grid of $\eps$ values is generated for each $\tau$ and for each variable. Each $\eps$ represents a shift from a variable&#39;s mean towards a particular quantile.
         3. A grid of $\lambda$ values is generated for each $\eps$. Each $\lambda$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\eps$ shift.
 
-        Parameters:
-            X_test (`pandas.DataFrame` or `numpy.ndarray`)
-            y_pred (`pandas.DataFrame` or `numpy.ndarray`)
-
+        Args:
+            X_test (pandas.DataFrame or numpy.ndarray): a
+            y_pred (pandas.DataFrame or numpy.ndarray): a
         &#34;&#34;&#34;
 
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
-        X_test = X_test[X_test.columns.difference(self.features)]
+        # One-hot encode the categorical features
+        X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
+
+        # Check which (feature, label) pairs have to be done
+        to_do_map = self._determine_pairs_to_do(
+            features=X_test.columns, labels=y_pred.columns
+        )
+        # We need a list to keep the order of X_test
+        to_do_features = list(feat for feat in X_test.columns if feat in to_do_map)
+        X_test = X_test[to_do_features]
+
         if X_test.empty:
             return self
 
-        X_test_num, cat_features = make_dataset_numeric(X_test)
-        self.cat_features = {**self.cat_features, **cat_features}
-
-        # Make the epsilons
-        q_mins = X_test_num.quantile(q=self.alpha).to_dict()
-        q_maxs = X_test_num.quantile(q=1 - self.alpha).to_dict()
-        means = X_test_num.mean().to_dict()
+        # Make the epsilons for each (feature, label, tau) triplet
+        quantiles = X_test.quantile(q=[self.alpha, 1.0 - self.alpha])
+        q_mins = quantiles.loc[self.alpha].to_dict()
+        q_maxs = quantiles.loc[1.0 - self.alpha].to_dict()
+        means = X_test.mean().to_dict()
         additional_info = pd.concat(
             [
                 pd.DataFrame(
                     {
                         &#34;tau&#34;: self.taus,
                         &#34;value&#34;: [
-                            means[col]
+                            means[feature]
                             + tau
                             * (
-                                (means[col] - q_mins[col])
+                                max(means[feature] - q_mins[feature], 0)
                                 if tau &lt; 0
-                                else (q_maxs[col] - means[col])
+                                else max(q_maxs[feature] - means[feature], 0)
                             )
                             for tau in self.taus
                         ],
-                        &#34;feature&#34;: [col] * len(self.taus),
-                        &#34;label&#34;: [y] * len(self.taus),
+                        &#34;feature&#34;: [feature] * len(self.taus),
+                        &#34;label&#34;: [label] * len(self.taus),
                     }
                 )
-                for col in X_test_num.columns
-                for y in y_pred.columns
+                # We need to iterate over `to_do_features` to keep the order of X_test
+                for feature in to_do_features
+                for label in to_do_map[feature]
             ],
             ignore_index=True,
         )
         self.info = self.info.append(additional_info, ignore_index=True, sort=False)
 
-        # Find a lambda for each (column, espilon) pair
-        lambdas = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
+        # Find a lambda for each (feature, espilon) pair
+        lambdas = joblib.Parallel(
+            n_jobs=self.n_jobs, verbose=10 if self.verbose else 0
+        )(
             joblib.delayed(compute_lambdas)(
-                x=X_test_num[col],
+                x=X_test[feature],
                 target_means=part[&#34;value&#34;].unique(),
                 iterations=self.lambda_iterations,
             )
-            for col, part in self.info.groupby(&#34;feature&#34;)
-            if col in X_test_num
+            for feature, part in self.info.groupby(&#34;feature&#34;)
         )
         lambdas = dict(collections.ChainMap(*lambdas))
         self.info[&#34;lambda&#34;] = self.info.apply(
@@ -918,34 +1126,63 @@ of the optimization procedure.</dd>
         )
         self.info[&#34;lambda&#34;] = self.info[&#34;lambda&#34;].fillna(0.0)
 
-        return self.info
+        return self
 
     def _explain(self, X_test, y_pred, dest_col, key_cols, compute):
+
+        # Reset info if memoization is turned off
+        if not self.memoize:
+            self._reset_info()
+        if dest_col not in self.info.columns:
+            self.info[dest_col] = None
+            self.info[f&#34;{dest_col}_low&#34;] = None
+            self.info[f&#34;{dest_col}_high&#34;] = None
+
         # Coerce X_test and y_pred to DataFrames
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
+        # Check X_test and y_pred okay
+        if len(X_test) != len(y_pred):
+            raise ValueError(&#34;X_test and y_pred are not of the same length&#34;)
+
+        # Find the lambda values for each (feature, tau, label) triplet
         self._find_lambdas(X_test, y_pred)
 
-        X_test, _ = make_dataset_numeric(X_test)
-        queried_features = X_test.columns.tolist()
-        to_explain = self.info[&#34;feature&#34;][self.info[dest_col].isnull()].unique()
-        X_test = X_test[X_test.columns.intersection(to_explain)]
-        relevant = self.info[self.info[&#34;feature&#34;].isin(X_test.columns)]
+        # One-hot encode the categorical variables
+        X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
+
+        # Determine which features are missing explanations; that is they have null biases for at
+        # least one lambda value
+        relevant = self.info[
+            self.info[&#34;feature&#34;].isin(X_test.columns)
+            &amp; self.info[&#34;label&#34;].isin(y_pred.columns)
+            &amp; self.info[dest_col].isnull()
+        ]
 
         if not relevant.empty:
-            data = compute(X_test, y_pred, relevant)
-            data = pd.DataFrame(
-                [line for batch in data for line in batch],
-                columns=[*key_cols, &#34;sample_index&#34;, dest_col],
-            )
+            # `compute()` will return something like:
+            # [
+            #   [ # First batch
+            #     (*key_cols1, sample_index1, computed_value1),
+            #     (*key_cols2, sample_index2, computed_value2),
+            #     ...
+            #   ],
+            #   ...
+            # ]
+            data = compute(X_test=X_test, y_pred=y_pred, relevant=relevant)
+            # We group by the key to gather the samples and compute the confidence
+            #  interval
             data = data.groupby(key_cols)[dest_col].agg(
                 [
+                    # Mean bias
                     (dest_col, &#34;mean&#34;),
+                    # Lower bound on the mean bias
                     (
                         f&#34;{dest_col}_low&#34;,
                         functools.partial(np.quantile, q=self.conf_level),
                     ),
+                    # Upper bound on the mean bias
                     (
                         f&#34;{dest_col}_high&#34;,
                         functools.partial(np.quantile, q=1 - self.conf_level),
@@ -953,29 +1190,105 @@ of the optimization procedure.</dd>
                 ]
             )
 
-            #  TODO: merge all columns in a single operation?
-            for col in data.columns:
-                self.info[col] = self.info.apply(
-                    lambda r: data[col].get(tuple([r[k] for k in key_cols]), r[col]),
-                    axis=&#34;columns&#34;,
-                )
+            # Merge the new information with the current information
+            self.info = join_with_overlap(left=self.info, right=data, on=key_cols)
 
-        return self.info[self.info[&#34;feature&#34;].isin(queried_features)]
+        return self.info[
+            self.info[&#34;feature&#34;].isin(X_test.columns)
+            &amp; self.info[&#34;label&#34;].isin(y_pred.columns)
+        ]
 
     def explain_bias(self, X_test, y_pred):
+        &#34;&#34;&#34;Compute the bias of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                `pd.Series` is expected. For multi-label classification, a
+                pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+
+        Returns:
+            pd.DataFrame:
+                A dataframe with columns `(feature, tau, value, lambda, label,
+                bias, bias_low, bias_high)`. If `explainer.n_samples` is `1`,
+                no confidence interval is computed and `bias = bias_low = bias_high`.
+                The value of `label` is not important for regression.
+
+        Examples:
+            See more examples in `notebooks`.
+
+            Binary classification:
+
+            &gt;&gt;&gt; X_test = pd.DataFrame([
+            ...     [1, 2],
+            ...     [1.1, 2.2],
+            ...     [1.3, 2.3],
+            ... ], columns=[&#34;x0&#34;, &#34;x1&#34;])
+            &gt;&gt;&gt; y_pred = model(X_test)
+            &gt;&gt;&gt; y_pred
+            [0, 1, 1]  # Can also be probabilities: [0.3, 0.65, 0.8]
+            &gt;&gt;&gt; # For readibility reasons, we give a name to the predictions
+            &gt;&gt;&gt; y_pred = pd.Series(y_pred, name=&#34;is_reliable&#34;)
+            &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
+
+            Regression is similar to binary classification:
+            
+            &gt;&gt;&gt; X_test = pd.DataFrame([
+            ...     [1, 2],
+            ...     [1.1, 2.2],
+            ...     [1.3, 2.3],
+            ... ], columns=[&#34;x0&#34;, &#34;x1&#34;])
+            &gt;&gt;&gt; y_pred = model(X_test)
+            &gt;&gt;&gt; y_pred
+            [22, 24, 19]
+            &gt;&gt;&gt; # For readibility reasons, we give a name to the predictions
+            &gt;&gt;&gt; y_pred = pd.Series(y_pred, name=&#34;price&#34;)
+            &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
+
+            For multi-label classification, we need a dataframe to store predictions:
+            
+            &gt;&gt;&gt; X_test = pd.DataFrame([
+            ...     [1, 2],
+            ...     [1.1, 2.2],
+            ...     [1.3, 2.3],
+            ... ], columns=[&#34;x0&#34;, &#34;x1&#34;])
+            &gt;&gt;&gt; y_pred = model(X_test)
+            &gt;&gt;&gt; y_pred.columns
+            [&#34;class0&#34;, &#34;class1&#34;, &#34;class2&#34;]
+            &gt;&gt;&gt; y_pred.iloc[0]
+            [0, 1, 0] # One-hot encoded, or probabilities: [0.15, 0.6, 0.25]
+            &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
+        &#34;&#34;&#34;
+
         def compute(X_test, y_pred, relevant):
-            return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
-                joblib.delayed(compute_bias)(
-                    y_pred=y_pred[label][mask],
-                    x=X_test[col][mask],
-                    lambdas=part[&#34;lambda&#34;].unique(),
-                    sample_index=i,
-                )
-                for label in y_pred.columns
-                for col, part in relevant.groupby(&#34;feature&#34;)
-                for i, mask in enumerate(
-                    yield_masks(self.n_samples, len(X_test), self.sample_frac)
-                )
+            return pd.DataFrame(
+                [
+                    (
+                        feature,
+                        label,
+                        λ,
+                        sample_index,
+                        np.average(
+                            y_pred[label][mask],
+                            weights=special.softmax(λ * X_test[feature][mask]),
+                        ),
+                    )
+                    for (sample_index, mask), (feature, label, λ) in itertools.product(
+                        enumerate(
+                            yield_masks(
+                                n_masks=self.n_samples,
+                                n=len(X_test),
+                                p=self.sample_frac,
+                            )
+                        ),
+                        relevant.groupby([&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;]).groups.keys(),
+                    )
+                ],
+                columns=[&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, &#34;bias&#34;],
             )
 
         return self._explain(
@@ -987,32 +1300,79 @@ of the optimization procedure.</dd>
         )
 
     def explain_performance(self, X_test, y_test, y_pred, metric):
-        metric_col = metric_to_col(metric)
-        if metric_col not in self.info.columns:
-            self.info[metric_col] = None
-            self.info[f&#34;{metric_col}_low&#34;] = None
-            self.info[f&#34;{metric_col}_high&#34;] = None
-        self.metric_cols.add(metric_col)
+        &#34;&#34;&#34;Compute the change in model&#39;s performance for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_test (pd.DataFrame or pd.Series): The true values
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series` is expected. For multi-label classification,
+                a pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. The format is the same as `y_test`.
+            metric (callable): A scikit-learn-like metric
+                `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+                to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+                &#34;the set of labels predicted for a sample must exactly match the
+                corresponding set of labels in `y_true`&#34;.
+
+        Returns:
+            pd.DataFrame:
+                A dataframe with columns `(feature, tau, value, lambda, label,
+                bias, bias_low, bias_high, &lt;metric_name&gt;, &lt;metric_name_low&gt;, &lt;metric_name_high&gt;)`.
+                If `explainer.n_samples` is `1`, no confidence interval is computed
+                and `&lt;metric_name&gt; = &lt;metric_name_low&gt; = &lt;metric_name_high&gt;`.
+                The value of `label` is not important for regression.
+
+        Examples:
+            See examples in `notebooks`.
+        &#34;&#34;&#34;
+        metric_name = self.get_metric_name(metric)
+        if metric_name not in self.info.columns:
+            self.info[metric_name] = None
+            self.info[f&#34;{metric_name}_low&#34;] = None
+            self.info[f&#34;{metric_name}_high&#34;] = None
+        self.metric_names.add(metric_name)
 
         y_test = np.asarray(y_test)
 
         def compute(X_test, y_pred, relevant):
-            return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
-                joblib.delayed(compute_performance)(
-                    y_test=y_test[mask],
-                    y_pred=y_pred[mask],
-                    metric=metric,
-                    x=X_test[col][mask],
-                    lambdas=part[&#34;lambda&#34;].unique(),
-                    sample_index=i,
-                )
-                for col, part in relevant.groupby(&#34;feature&#34;)
-                for i, mask in enumerate(
-                    yield_masks(self.n_samples, len(X_test), self.sample_frac)
-                )
+            return pd.DataFrame(
+                [
+                    (
+                        feature,
+                        λ,
+                        sample_index,
+                        metric(
+                            y_test[mask],
+                            y_pred[mask],
+                            sample_weight=special.softmax(λ * X_test[feature][mask]),
+                        ),
+                    )
+                    for (sample_index, mask), (feature, λ) in itertools.product(
+                        enumerate(
+                            yield_masks(
+                                n_masks=self.n_samples,
+                                n=len(X_test),
+                                p=self.sample_frac,
+                            )
+                        ),
+                        relevant.groupby([&#34;feature&#34;, &#34;lambda&#34;]).groups.keys(),
+                    )
+                ],
+                columns=[&#34;feature&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, metric_name],
             )
 
-        return self._explain(X_test, y_pred, metric_col, [&#34;feature&#34;, &#34;lambda&#34;], compute)
+        return self._explain(
+            X_test=X_test,
+            y_pred=y_pred,
+            dest_col=metric_name,
+            key_cols=[&#34;feature&#34;, &#34;lambda&#34;],
+            compute=compute,
+        )
 
     def rank_by_bias(self, X_test, y_pred):
         &#34;&#34;&#34;Returns a DataFrame containing the importance of each feature.
@@ -1021,6 +1381,10 @@ of the optimization procedure.</dd>
 
         def get_importance(group):
             &#34;&#34;&#34;Computes the average absolute difference in bias changes per tau increase.&#34;&#34;&#34;
+            #  Normalize bias to get an importance between 0 and 1
+            # bias can be outside [0, 1] for regression
+            bias = group[&#34;bias&#34;]
+            group[&#34;bias&#34;] = (bias - bias.min()) / (bias.max() - bias.min())
             baseline = group.query(&#34;tau == 0&#34;).iloc[0][&#34;bias&#34;]
             return (group[&#34;bias&#34;] - baseline).abs().mean()
 
@@ -1033,11 +1397,11 @@ of the optimization procedure.</dd>
         )
 
     def rank_by_performance(self, X_test, y_test, y_pred, metric):
-        metric_col = metric_to_col(metric)
+        metric_name = self.get_metric_name(metric)
 
         def get_aggregates(df):
             return pd.Series(
-                [df[metric_col].min(), df[metric_col].max()], index=[&#34;min&#34;, &#34;max&#34;]
+                [df[metric_name].min(), df[metric_name].max()], index=[&#34;min&#34;, &#34;max&#34;]
             )
 
         return (
@@ -1047,14 +1411,16 @@ of the optimization procedure.</dd>
             .reset_index()
         )
 
-    def _make_explanation_fig(
-        self, explanation, col, y_label, with_taus=False, colors=None
-    ):
-        if colors is None:
-            colors = {}
+    def _plot_explanation(self, explanation, col, y_label, colors=None, yrange=None):
         features = explanation[&#34;feature&#34;].unique()
 
-        if with_taus:
+        if colors is None:
+            colors = {}
+        elif type(colors) is str:
+            colors = {feat: colors for feat in features}
+
+        #  There are multiple features, we plot them together with taus
+        if len(features) &gt; 1:
             fig = go.Figure()
             for feat in features:
                 x = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;tau&#34;]
@@ -1079,73 +1445,61 @@ of the optimization procedure.</dd>
             fig.update_layout(
                 margin=dict(t=50, r=50),
                 xaxis=dict(title=&#34;tau&#34;, zeroline=False),
-                yaxis=dict(title=y_label, range=[0, 1], showline=True, tickformat=&#34;%&#34;),
+                yaxis=dict(title=y_label, range=yrange, showline=True),
                 plot_bgcolor=&#34;white&#34;,
             )
             return fig
 
-        figures = {}
-        for feat in features:
-            fig = go.Figure()
-            x = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;value&#34;]
-            y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
-            mean_row = explanation.query(f&#39;feature == &#34;{feat}&#34; and tau == 0&#39;).iloc[0]
+        #  There is only one feature, we plot it with its nominal values.
+        feat = features[0]
+        fig = go.Figure()
+        x = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;value&#34;]
+        y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
+        mean_row = explanation.query(f&#39;feature == &#34;{feat}&#34; and tau == 0&#39;).iloc[0]
 
-            if self.n_samples &gt; 1:
-                low = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_low&#34;]
-                high = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_high&#34;]
-                fig.add_trace(
-                    go.Scatter(
-                        x=np.concatenate((x, x[::-1])),
-                        y=np.concatenate((low, high[::-1])),
-                        name=f&#34;{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%&#34;,
-                        fill=&#34;toself&#34;,
-                        fillcolor=&#34;#eee&#34;,  # TODO: same color as mean line?
-                        line_color=&#34;rgba(0, 0, 0, 0)&#34;,
-                    )
-                )
-
+        if self.n_samples &gt; 1:
+            low = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_low&#34;]
+            high = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_high&#34;]
             fig.add_trace(
                 go.Scatter(
-                    x=x,
-                    y=y,
-                    mode=&#34;lines+markers&#34;,
-                    hoverinfo=&#34;x+y&#34;,
-                    showlegend=False,
-                    marker=dict(color=colors.get(feat)),
+                    x=np.concatenate((x, x[::-1])),
+                    y=np.concatenate((low, high[::-1])),
+                    name=f&#34;{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%&#34;,
+                    fill=&#34;toself&#34;,
+                    fillcolor=&#34;#eee&#34;,  # TODO: same color as mean line?
+                    line_color=&#34;rgba(0, 0, 0, 0)&#34;,
                 )
             )
-            fig.add_trace(
-                go.Scatter(
-                    x=[mean_row[&#34;value&#34;]],
-                    y=[mean_row[col]],
-                    mode=&#34;markers&#34;,
-                    name=&#34;Original mean&#34;,
-                    hoverinfo=&#34;skip&#34;,
-                    marker=dict(symbol=&#34;x&#34;, size=9),
-                )
-            )
-            fig.update_layout(
-                margin=dict(t=50, r=50),
-                xaxis=dict(title=f&#34;Mean {feat}&#34;, zeroline=False),
-                yaxis=dict(title=y_label, range=[0, 1], showline=True, tickformat=&#34;%&#34;),
-                plot_bgcolor=&#34;white&#34;,
-            )
-            figures[feat] = fig
-        return figures
 
-    def make_bias_fig(self, explanation, **fig_kwargs):
-        labels = explanation[&#34;label&#34;].unique()
-        y_label = f&#34;Proportion of {labels[0]}&#34;  #  Single class
-        return self._make_explanation_fig(explanation, &#34;bias&#34;, y_label, **fig_kwargs)
-
-    def make_performance_fig(self, explanation, metric, **fig_kwargs):
-        metric_col = metric_to_col(metric)
-        return self._make_explanation_fig(
-            explanation, metric_col, y_label=metric_col, **fig_kwargs
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=y,
+                mode=&#34;lines+markers&#34;,
+                hoverinfo=&#34;x+y&#34;,
+                showlegend=False,
+                marker=dict(color=colors.get(feat)),
+            )
         )
+        fig.add_trace(
+            go.Scatter(
+                x=[mean_row[&#34;value&#34;]],
+                y=[mean_row[col]],
+                mode=&#34;markers&#34;,
+                name=&#34;Original mean&#34;,
+                hoverinfo=&#34;skip&#34;,
+                marker=dict(symbol=&#34;x&#34;, size=9, color=&#34;black&#34;),
+            )
+        )
+        fig.update_layout(
+            margin=dict(t=50, r=50),
+            xaxis=dict(title=f&#34;Average {feat}&#34;, zeroline=False),
+            yaxis=dict(title=y_label, range=yrange, showline=True),
+            plot_bgcolor=&#34;white&#34;,
+        )
+        return fig
 
-    def _make_ranking_fig(self, ranking, score_column, title, colors=None):
+    def _plot_ranking(self, ranking, score_column, title, colors=None):
         ranking = ranking.sort_values(by=[score_column])
 
         return go.Figure(
@@ -1173,64 +1527,130 @@ of the optimization procedure.</dd>
             ),
         )
 
-    def make_bias_ranking_fig(self, ranking, colors=None):
-        return self._make_ranking_fig(
-            ranking, &#34;importance&#34;, &#34;Importance&#34;, colors=colors
+    def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+        &#34;&#34;&#34;Plot the bias of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_bias()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_bias()`.
+            colors (dict, optional): A dictionary that maps features to colors.
+                Default is `None` and the colors are choosen automatically.
+            yrange (list, optional): A two-item list `[low, high]`. Default is
+                `None` and the range is based on the data.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+
+        Examples:
+            &gt;&gt;&gt; explainer.plot_bias(X_test, y_pred)
+            &gt;&gt;&gt; explainer.plot_bias(X_test, y_pred, colors=dict(
+            ...     x0=&#34;blue&#34;,
+            ...     x1=&#34;red&#34;,
+            ... ))
+            &gt;&gt;&gt; explainer.plot_bias(X_test, y_pred, yrange=[0.5, 1])
+        &#34;&#34;&#34;
+        explanation = self.explain_bias(X_test, y_pred)
+        labels = explanation[&#34;label&#34;].unique()
+        if len(labels) &gt; 1:
+            raise ValueError(&#34;Cannot plot multiple labels&#34;)
+        y_label = f&#39;Average &#34;{labels[0]}&#34;&#39;
+        return self._plot_explanation(
+            explanation, &#34;bias&#34;, y_label, colors=colors, yrange=yrange
         )
 
-    def make_performance_ranking_fig(self, ranking, metric, criterion, colors=None):
-        return self._make_ranking_fig(
-            ranking, criterion, f&#34;{criterion} {metric_to_col(metric)}&#34;, colors=colors
-        )
+    def plot_bias_ranking(self, X_test, y_pred, colors=None):
+        &#34;&#34;&#34;Plot the ranking of the features based on their bias.
 
-    def _plot(self, explanation, make_fig, inline, **fig_kwargs):
-        features = explanation[&#34;feature&#34;].unique()
-        if len(features) &gt; 1:
-            return plot(
-                make_fig(explanation, with_taus=True, **fig_kwargs), inline=inline
-            )
-        return plot(
-            make_fig(explanation, with_taus=False, **fig_kwargs)[features[0]],
-            inline=inline,
-        )
+        Args:
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_bias()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_bias()`.
+            colors (dict, optional): See `Explainer.plot_bias()`.
 
-    def plot_bias(self, X_test, y_pred, inline=False, **fig_kwargs):
-        explanation = self.explain_bias(X_test=X_test, y_pred=y_pred)
-        return self._plot(explanation, self.make_bias_fig, inline=inline, **fig_kwargs)
-
-    def plot_bias_ranking(self, X_test, y_pred, inline=False, **fig_kwargs):
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        &#34;&#34;&#34;
         ranking = self.rank_by_bias(X_test=X_test, y_pred=y_pred)
-        return plot(self.make_bias_ranking_fig(ranking, **fig_kwargs), inline=inline)
+        return self._plot_ranking(
+            ranking=ranking,
+            score_column=&#34;importance&#34;,
+            title=&#34;Importance&#34;,
+            colors=colors,
+        )
 
     def plot_performance(
-        self, X_test, y_test, y_pred, metric, inline=False, **fig_kwargs
+        self, X_test, y_test, y_pred, metric, colors=None, yrange=None
     ):
+        &#34;&#34;&#34;Plot the performance of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_performance()`.
+            y_test (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+            metric (callable): See `Explainer.explain_performance()`.
+            colors (dict, optional): See `Explainer.plot_bias()`.
+            yrange (list, optional): See `Explainer.plot_bias()`.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        &#34;&#34;&#34;
+        metric_name = self.get_metric_name(metric)
         explanation = self.explain_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
-        return self._plot(
-            explanation,
-            functools.partial(self.make_performance_fig, metric=metric),
-            inline=inline,
-            **fig_kwargs,
+        if fig_kwargs.get(&#34;yrange&#34;) is None:
+            if explanation[metric_name].between(0, 1).all():
+                fig_kwargs[&#34;yrange&#34;] = [0, 1]
+
+        return self._plot_explanation(
+            explanation, metric_name, y_label=f&#34;Average {metric_name}&#34;, **fig_kwargs
         )
 
     def plot_performance_ranking(
-        self, X_test, y_test, y_pred, metric, criterion, inline=False, **fig_kwargs
+        self, X_test, y_test, y_pred, metric, criterion, colors
     ):
+        &#34;&#34;&#34;Plot the performance of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_performance()`.
+            y_test (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+            metric (callable): See `Explainer.explain_performance()`.
+            criterion (str): Either &#34;min&#34; or &#34;max&#34; to determine whether, for a
+                given feature, we keep the worst or the best performance for all
+                the values taken by the mean.
+            colors (dict, optional): See `Explainer.plot_bias_ranking()`.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        &#34;&#34;&#34;
+        metric_name = self.get_metric_name(metric)
         ranking = self.rank_by_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
-        return plot(
-            self.make_performance_ranking_fig(
-                ranking, criterion=criterion, metric=metric, **fig_kwargs
-            ),
-            inline=inline,
+        return self._plot_ranking(
+            ranking=ranking,
+            score_column=criterion,
+            title=f&#34;{criterion} {metric_name}&#34;,
+            colors=colors,
         )</code></pre>
 </details>
 <h3>Subclasses</h3>
 <ul class="hlist">
-<li><a title="ethik.image_explainer.ImageExplainer" href="image_explainer.html#ethik.image_explainer.ImageExplainer">ImageExplainer</a></li>
+<li><a title="ethik.classification_explainer.ClassificationExplainer" href="classification_explainer.html#ethik.classification_explainer.ClassificationExplainer">ClassificationExplainer</a></li>
+<li><a title="ethik.regression_explainer.RegressionExplainer" href="regression_explainer.html#ethik.regression_explainer.RegressionExplainer">RegressionExplainer</a></li>
+<li><a title="ethik.image_classification_explainer.ImageClassificationExplainer" href="image_classification_explainer.html#ethik.image_classification_explainer.ImageClassificationExplainer">ImageClassificationExplainer</a></li>
 </ul>
 <h3>Instance variables</h3>
 <dl>
@@ -1241,7 +1661,7 @@ of the optimization procedure.</dd>
 <summary>Source code</summary>
 <pre><code class="python">@property
 def features(self):
-    return self.info[&#34;feature&#34;].unique().tolist() + list(self.cat_features)</code></pre>
+    return self.info[&#34;feature&#34;].unique().tolist()</code></pre>
 </details>
 </dd>
 <dt id="ethik.explainer.Explainer.taus"><code class="name">var <span class="ident">taus</span></code></dt>
@@ -1262,23 +1682,162 @@ def taus(self):
 <span>def <span class="ident">explain_bias</span></span>(<span>self, X_test, y_pred)</span>
 </code></dt>
 <dd>
-<section class="desc"></section>
+<section class="desc"><p>Compute the bias of the model for the features in <code>X_test</code>.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The dataset as a pandas dataframe
+with one column per feature or a pandas series for a single feature.</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The model predictions
+for the samples in <code>X_test</code>. For binary classification and regression,
+<code>pd.Series</code> is expected. For multi-label classification, a
+pandas dataframe with one column per label is
+expected. The values can either be probabilities or <code>0/1</code>
+(for a one-hot-encoded output).</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.DataFrame</code>:</dt>
+<dd>A dataframe with columns <code>(feature, tau, value, lambda, label,
+bias, bias_low, bias_high)</code>. If <code>explainer.n_samples</code> is <code>1</code>,
+no confidence interval is computed and <code>bias = bias_low = bias_high</code>.
+The value of <code>label</code> is not important for regression.</dd>
+</dl>
+<h2 id="examples">Examples</h2>
+<p>See more examples in <code>notebooks</code>.</p>
+<p>Binary classification:</p>
+<pre><code>&gt;&gt;&gt; X_test = pd.DataFrame([
+...     [1, 2],
+...     [1.1, 2.2],
+...     [1.3, 2.3],
+... ], columns=["x0", "x1"])
+&gt;&gt;&gt; y_pred = model(X_test)
+&gt;&gt;&gt; y_pred
+[0, 1, 1]  # Can also be probabilities: [0.3, 0.65, 0.8]
+&gt;&gt;&gt; # For readibility reasons, we give a name to the predictions
+&gt;&gt;&gt; y_pred = pd.Series(y_pred, name="is_reliable")
+&gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
+</code></pre>
+<p>Regression is similar to binary classification:</p>
+<pre><code>&gt;&gt;&gt; X_test = pd.DataFrame([
+...     [1, 2],
+...     [1.1, 2.2],
+...     [1.3, 2.3],
+... ], columns=["x0", "x1"])
+&gt;&gt;&gt; y_pred = model(X_test)
+&gt;&gt;&gt; y_pred
+[22, 24, 19]
+&gt;&gt;&gt; # For readibility reasons, we give a name to the predictions
+&gt;&gt;&gt; y_pred = pd.Series(y_pred, name="price")
+&gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
+</code></pre>
+<p>For multi-label classification, we need a dataframe to store predictions:</p>
+<pre><code>&gt;&gt;&gt; X_test = pd.DataFrame([
+...     [1, 2],
+...     [1.1, 2.2],
+...     [1.3, 2.3],
+... ], columns=["x0", "x1"])
+&gt;&gt;&gt; y_pred = model(X_test)
+&gt;&gt;&gt; y_pred.columns
+["class0", "class1", "class2"]
+&gt;&gt;&gt; y_pred.iloc[0]
+[0, 1, 0] # One-hot encoded, or probabilities: [0.15, 0.6, 0.25]
+&gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
+</code></pre></section>
 <details class="source">
 <summary>Source code</summary>
 <pre><code class="python">def explain_bias(self, X_test, y_pred):
+    &#34;&#34;&#34;Compute the bias of the model for the features in `X_test`.
+
+    Args:
+        X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+            with one column per feature or a pandas series for a single feature.
+        y_pred (pd.DataFrame or pd.Series): The model predictions
+            for the samples in `X_test`. For binary classification and regression,
+            `pd.Series` is expected. For multi-label classification, a
+            pandas dataframe with one column per label is
+            expected. The values can either be probabilities or `0/1`
+            (for a one-hot-encoded output).
+
+    Returns:
+        pd.DataFrame:
+            A dataframe with columns `(feature, tau, value, lambda, label,
+            bias, bias_low, bias_high)`. If `explainer.n_samples` is `1`,
+            no confidence interval is computed and `bias = bias_low = bias_high`.
+            The value of `label` is not important for regression.
+
+    Examples:
+        See more examples in `notebooks`.
+
+        Binary classification:
+
+        &gt;&gt;&gt; X_test = pd.DataFrame([
+        ...     [1, 2],
+        ...     [1.1, 2.2],
+        ...     [1.3, 2.3],
+        ... ], columns=[&#34;x0&#34;, &#34;x1&#34;])
+        &gt;&gt;&gt; y_pred = model(X_test)
+        &gt;&gt;&gt; y_pred
+        [0, 1, 1]  # Can also be probabilities: [0.3, 0.65, 0.8]
+        &gt;&gt;&gt; # For readibility reasons, we give a name to the predictions
+        &gt;&gt;&gt; y_pred = pd.Series(y_pred, name=&#34;is_reliable&#34;)
+        &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
+
+        Regression is similar to binary classification:
+        
+        &gt;&gt;&gt; X_test = pd.DataFrame([
+        ...     [1, 2],
+        ...     [1.1, 2.2],
+        ...     [1.3, 2.3],
+        ... ], columns=[&#34;x0&#34;, &#34;x1&#34;])
+        &gt;&gt;&gt; y_pred = model(X_test)
+        &gt;&gt;&gt; y_pred
+        [22, 24, 19]
+        &gt;&gt;&gt; # For readibility reasons, we give a name to the predictions
+        &gt;&gt;&gt; y_pred = pd.Series(y_pred, name=&#34;price&#34;)
+        &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
+
+        For multi-label classification, we need a dataframe to store predictions:
+        
+        &gt;&gt;&gt; X_test = pd.DataFrame([
+        ...     [1, 2],
+        ...     [1.1, 2.2],
+        ...     [1.3, 2.3],
+        ... ], columns=[&#34;x0&#34;, &#34;x1&#34;])
+        &gt;&gt;&gt; y_pred = model(X_test)
+        &gt;&gt;&gt; y_pred.columns
+        [&#34;class0&#34;, &#34;class1&#34;, &#34;class2&#34;]
+        &gt;&gt;&gt; y_pred.iloc[0]
+        [0, 1, 0] # One-hot encoded, or probabilities: [0.15, 0.6, 0.25]
+        &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
+    &#34;&#34;&#34;
+
     def compute(X_test, y_pred, relevant):
-        return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
-            joblib.delayed(compute_bias)(
-                y_pred=y_pred[label][mask],
-                x=X_test[col][mask],
-                lambdas=part[&#34;lambda&#34;].unique(),
-                sample_index=i,
-            )
-            for label in y_pred.columns
-            for col, part in relevant.groupby(&#34;feature&#34;)
-            for i, mask in enumerate(
-                yield_masks(self.n_samples, len(X_test), self.sample_frac)
-            )
+        return pd.DataFrame(
+            [
+                (
+                    feature,
+                    label,
+                    λ,
+                    sample_index,
+                    np.average(
+                        y_pred[label][mask],
+                        weights=special.softmax(λ * X_test[feature][mask]),
+                    ),
+                )
+                for (sample_index, mask), (feature, label, λ) in itertools.product(
+                    enumerate(
+                        yield_masks(
+                            n_masks=self.n_samples,
+                            n=len(X_test),
+                            p=self.sample_frac,
+                        )
+                    ),
+                    relevant.groupby([&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;]).groups.keys(),
+                )
+            ],
+            columns=[&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, &#34;bias&#34;],
         )
 
     return self._explain(
@@ -1294,154 +1853,390 @@ def taus(self):
 <span>def <span class="ident">explain_performance</span></span>(<span>self, X_test, y_test, y_pred, metric)</span>
 </code></dt>
 <dd>
-<section class="desc"></section>
+<section class="desc"><p>Compute the change in model's performance for the features in <code>X_test</code>.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The dataset as a pandas dataframe
+with one column per feature or a pandas series for a single feature.</dd>
+<dt><strong><code>y_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The true values
+for the samples in <code>X_test</code>. For binary classification and regression,
+a <code>pd.Series</code> is expected. For multi-label classification,
+a pandas dataframe with one column per label is
+expected. The values can either be probabilities or <code>0/1</code>
+(for a one-hot-encoded output).</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The model predictions
+for the samples in <code>X_test</code>. The format is the same as <code>y_test</code>.</dd>
+<dt><strong><code>metric</code></strong> :&ensp;<code>callable</code></dt>
+<dd>A scikit-learn-like metric
+<code>f(y_true, y_pred, sample_weight=None)</code>. The metric must be able
+to handle the <code>y</code> data. For instance, for <code>sklearn.metrics.accuracy_score()</code>,
+"the set of labels predicted for a sample must exactly match the
+corresponding set of labels in <code>y_true</code>".</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.DataFrame</code>:</dt>
+<dd>A dataframe with columns <code>(feature, tau, value, lambda, label,
+bias, bias_low, bias_high, &lt;metric_name&gt;, &lt;metric_name_low&gt;, &lt;metric_name_high&gt;)</code>.
+If <code>explainer.n_samples</code> is <code>1</code>, no confidence interval is computed
+and <code>&lt;metric_name&gt; = &lt;metric_name_low&gt; = &lt;metric_name_high&gt;</code>.
+The value of <code>label</code> is not important for regression.</dd>
+</dl>
+<h2 id="examples">Examples</h2>
+<p>See examples in <code>notebooks</code>.</p></section>
 <details class="source">
 <summary>Source code</summary>
 <pre><code class="python">def explain_performance(self, X_test, y_test, y_pred, metric):
-    metric_col = metric_to_col(metric)
-    if metric_col not in self.info.columns:
-        self.info[metric_col] = None
-        self.info[f&#34;{metric_col}_low&#34;] = None
-        self.info[f&#34;{metric_col}_high&#34;] = None
-    self.metric_cols.add(metric_col)
+    &#34;&#34;&#34;Compute the change in model&#39;s performance for the features in `X_test`.
+
+    Args:
+        X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+            with one column per feature or a pandas series for a single feature.
+        y_test (pd.DataFrame or pd.Series): The true values
+            for the samples in `X_test`. For binary classification and regression,
+            a `pd.Series` is expected. For multi-label classification,
+            a pandas dataframe with one column per label is
+            expected. The values can either be probabilities or `0/1`
+            (for a one-hot-encoded output).
+        y_pred (pd.DataFrame or pd.Series): The model predictions
+            for the samples in `X_test`. The format is the same as `y_test`.
+        metric (callable): A scikit-learn-like metric
+            `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+            to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+            &#34;the set of labels predicted for a sample must exactly match the
+            corresponding set of labels in `y_true`&#34;.
+
+    Returns:
+        pd.DataFrame:
+            A dataframe with columns `(feature, tau, value, lambda, label,
+            bias, bias_low, bias_high, &lt;metric_name&gt;, &lt;metric_name_low&gt;, &lt;metric_name_high&gt;)`.
+            If `explainer.n_samples` is `1`, no confidence interval is computed
+            and `&lt;metric_name&gt; = &lt;metric_name_low&gt; = &lt;metric_name_high&gt;`.
+            The value of `label` is not important for regression.
+
+    Examples:
+        See examples in `notebooks`.
+    &#34;&#34;&#34;
+    metric_name = self.get_metric_name(metric)
+    if metric_name not in self.info.columns:
+        self.info[metric_name] = None
+        self.info[f&#34;{metric_name}_low&#34;] = None
+        self.info[f&#34;{metric_name}_high&#34;] = None
+    self.metric_names.add(metric_name)
 
     y_test = np.asarray(y_test)
 
     def compute(X_test, y_pred, relevant):
-        return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
-            joblib.delayed(compute_performance)(
-                y_test=y_test[mask],
-                y_pred=y_pred[mask],
-                metric=metric,
-                x=X_test[col][mask],
-                lambdas=part[&#34;lambda&#34;].unique(),
-                sample_index=i,
-            )
-            for col, part in relevant.groupby(&#34;feature&#34;)
-            for i, mask in enumerate(
-                yield_masks(self.n_samples, len(X_test), self.sample_frac)
-            )
+        return pd.DataFrame(
+            [
+                (
+                    feature,
+                    λ,
+                    sample_index,
+                    metric(
+                        y_test[mask],
+                        y_pred[mask],
+                        sample_weight=special.softmax(λ * X_test[feature][mask]),
+                    ),
+                )
+                for (sample_index, mask), (feature, λ) in itertools.product(
+                    enumerate(
+                        yield_masks(
+                            n_masks=self.n_samples,
+                            n=len(X_test),
+                            p=self.sample_frac,
+                        )
+                    ),
+                    relevant.groupby([&#34;feature&#34;, &#34;lambda&#34;]).groups.keys(),
+                )
+            ],
+            columns=[&#34;feature&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, metric_name],
         )
 
-    return self._explain(X_test, y_pred, metric_col, [&#34;feature&#34;, &#34;lambda&#34;], compute)</code></pre>
-</details>
-</dd>
-<dt id="ethik.explainer.Explainer.make_bias_fig"><code class="name flex">
-<span>def <span class="ident">make_bias_fig</span></span>(<span>self, explanation, **fig_kwargs)</span>
-</code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def make_bias_fig(self, explanation, **fig_kwargs):
-    labels = explanation[&#34;label&#34;].unique()
-    y_label = f&#34;Proportion of {labels[0]}&#34;  #  Single class
-    return self._make_explanation_fig(explanation, &#34;bias&#34;, y_label, **fig_kwargs)</code></pre>
-</details>
-</dd>
-<dt id="ethik.explainer.Explainer.make_bias_ranking_fig"><code class="name flex">
-<span>def <span class="ident">make_bias_ranking_fig</span></span>(<span>self, ranking, colors=None)</span>
-</code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def make_bias_ranking_fig(self, ranking, colors=None):
-    return self._make_ranking_fig(
-        ranking, &#34;importance&#34;, &#34;Importance&#34;, colors=colors
+    return self._explain(
+        X_test=X_test,
+        y_pred=y_pred,
+        dest_col=metric_name,
+        key_cols=[&#34;feature&#34;, &#34;lambda&#34;],
+        compute=compute,
     )</code></pre>
 </details>
 </dd>
-<dt id="ethik.explainer.Explainer.make_performance_fig"><code class="name flex">
-<span>def <span class="ident">make_performance_fig</span></span>(<span>self, explanation, metric, **fig_kwargs)</span>
+<dt id="ethik.explainer.Explainer.get_metric_name"><code class="name flex">
+<span>def <span class="ident">get_metric_name</span></span>(<span>self, metric)</span>
 </code></dt>
 <dd>
-<section class="desc"></section>
+<section class="desc"><p>Get the name of the column in explainer's info dataframe to store the
+performance with respect of the given metric.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>metric</code></strong> :&ensp;<code>callable</code></dt>
+<dd>The metric to compute the model's performance.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><strong><code>str</code></strong></dt>
+<dd>The name of the column.</dd>
+</dl></section>
 <details class="source">
 <summary>Source code</summary>
-<pre><code class="python">def make_performance_fig(self, explanation, metric, **fig_kwargs):
-    metric_col = metric_to_col(metric)
-    return self._make_explanation_fig(
-        explanation, metric_col, y_label=metric_col, **fig_kwargs
-    )</code></pre>
-</details>
-</dd>
-<dt id="ethik.explainer.Explainer.make_performance_ranking_fig"><code class="name flex">
-<span>def <span class="ident">make_performance_ranking_fig</span></span>(<span>self, ranking, metric, criterion, colors=None)</span>
-</code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def make_performance_ranking_fig(self, ranking, metric, criterion, colors=None):
-    return self._make_ranking_fig(
-        ranking, criterion, f&#34;{criterion} {metric_to_col(metric)}&#34;, colors=colors
-    )</code></pre>
+<pre><code class="python">def get_metric_name(self, metric):
+    &#34;&#34;&#34;Get the name of the column in explainer&#39;s info dataframe to store the
+    performance with respect of the given metric.
+
+    Args:
+        metric (callable): The metric to compute the model&#39;s performance.
+
+    Returns:
+        str: The name of the column.
+    &#34;&#34;&#34;
+    name = metric.__name__
+    if name in self.info.columns and name not in self.metric_names:
+        raise ValueError(f&#34;Cannot use {name} as a metric name&#34;)
+    return name</code></pre>
 </details>
 </dd>
 <dt id="ethik.explainer.Explainer.plot_bias"><code class="name flex">
-<span>def <span class="ident">plot_bias</span></span>(<span>self, X_test, y_pred, inline=False, **fig_kwargs)</span>
+<span>def <span class="ident">plot_bias</span></span>(<span>self, X_test, y_pred, colors=None, yrange=None)</span>
 </code></dt>
 <dd>
-<section class="desc"></section>
+<section class="desc"><p>Plot the bias of the model for the features in <code>X_test</code>.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>np.array</code></dt>
+<dd>See <a title="ethik.explainer.Explainer.explain_bias" href="#ethik.explainer.Explainer.explain_bias"><code>Explainer.explain_bias()</code></a>.</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>See <a title="ethik.explainer.Explainer.explain_bias" href="#ethik.explainer.Explainer.explain_bias"><code>Explainer.explain_bias()</code></a>.</dd>
+<dt><strong><code>colors</code></strong> :&ensp;<code>dict</code>, optional</dt>
+<dd>A dictionary that maps features to colors.
+Default is <code>None</code> and the colors are choosen automatically.</dd>
+<dt><strong><code>yrange</code></strong> :&ensp;<code>list</code>, optional</dt>
+<dd>A two-item list <code>[low, high]</code>. Default is
+<code>None</code> and the range is based on the data.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>plotly.graph_objs.Figure</code>:</dt>
+<dd>A Plotly figure. It shows automatically in notebook cells but you
+can also call the <code>.show()</code> method to plot multiple charts in the
+same cell.</dd>
+</dl>
+<h2 id="examples">Examples</h2>
+<pre><code>&gt;&gt;&gt; explainer.plot_bias(X_test, y_pred)
+&gt;&gt;&gt; explainer.plot_bias(X_test, y_pred, colors=dict(
+...     x0="blue",
+...     x1="red",
+... ))
+&gt;&gt;&gt; explainer.plot_bias(X_test, y_pred, yrange=[0.5, 1])
+</code></pre></section>
 <details class="source">
 <summary>Source code</summary>
-<pre><code class="python">def plot_bias(self, X_test, y_pred, inline=False, **fig_kwargs):
-    explanation = self.explain_bias(X_test=X_test, y_pred=y_pred)
-    return self._plot(explanation, self.make_bias_fig, inline=inline, **fig_kwargs)</code></pre>
+<pre><code class="python">def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+    &#34;&#34;&#34;Plot the bias of the model for the features in `X_test`.
+
+    Args:
+        X_test (pd.DataFrame or np.array): See `Explainer.explain_bias()`.
+        y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_bias()`.
+        colors (dict, optional): A dictionary that maps features to colors.
+            Default is `None` and the colors are choosen automatically.
+        yrange (list, optional): A two-item list `[low, high]`. Default is
+            `None` and the range is based on the data.
+
+    Returns:
+        plotly.graph_objs.Figure:
+            A Plotly figure. It shows automatically in notebook cells but you
+            can also call the `.show()` method to plot multiple charts in the
+            same cell.
+
+    Examples:
+        &gt;&gt;&gt; explainer.plot_bias(X_test, y_pred)
+        &gt;&gt;&gt; explainer.plot_bias(X_test, y_pred, colors=dict(
+        ...     x0=&#34;blue&#34;,
+        ...     x1=&#34;red&#34;,
+        ... ))
+        &gt;&gt;&gt; explainer.plot_bias(X_test, y_pred, yrange=[0.5, 1])
+    &#34;&#34;&#34;
+    explanation = self.explain_bias(X_test, y_pred)
+    labels = explanation[&#34;label&#34;].unique()
+    if len(labels) &gt; 1:
+        raise ValueError(&#34;Cannot plot multiple labels&#34;)
+    y_label = f&#39;Average &#34;{labels[0]}&#34;&#39;
+    return self._plot_explanation(
+        explanation, &#34;bias&#34;, y_label, colors=colors, yrange=yrange
+    )</code></pre>
 </details>
 </dd>
 <dt id="ethik.explainer.Explainer.plot_bias_ranking"><code class="name flex">
-<span>def <span class="ident">plot_bias_ranking</span></span>(<span>self, X_test, y_pred, inline=False, **fig_kwargs)</span>
+<span>def <span class="ident">plot_bias_ranking</span></span>(<span>self, X_test, y_pred, colors=None)</span>
 </code></dt>
 <dd>
-<section class="desc"></section>
+<section class="desc"><p>Plot the ranking of the features based on their bias.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>np.array</code></dt>
+<dd>See <a title="ethik.explainer.Explainer.explain_bias" href="#ethik.explainer.Explainer.explain_bias"><code>Explainer.explain_bias()</code></a>.</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>See <a title="ethik.explainer.Explainer.explain_bias" href="#ethik.explainer.Explainer.explain_bias"><code>Explainer.explain_bias()</code></a>.</dd>
+<dt><strong><code>colors</code></strong> :&ensp;<code>dict</code>, optional</dt>
+<dd>See <a title="ethik.explainer.Explainer.plot_bias" href="#ethik.explainer.Explainer.plot_bias"><code>Explainer.plot_bias()</code></a>.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>plotly.graph_objs.Figure</code>:</dt>
+<dd>A Plotly figure. It shows automatically in notebook cells but you
+can also call the <code>.show()</code> method to plot multiple charts in the
+same cell.</dd>
+</dl></section>
 <details class="source">
 <summary>Source code</summary>
-<pre><code class="python">def plot_bias_ranking(self, X_test, y_pred, inline=False, **fig_kwargs):
+<pre><code class="python">def plot_bias_ranking(self, X_test, y_pred, colors=None):
+    &#34;&#34;&#34;Plot the ranking of the features based on their bias.
+
+    Args:
+        X_test (pd.DataFrame or np.array): See `Explainer.explain_bias()`.
+        y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_bias()`.
+        colors (dict, optional): See `Explainer.plot_bias()`.
+
+    Returns:
+        plotly.graph_objs.Figure:
+            A Plotly figure. It shows automatically in notebook cells but you
+            can also call the `.show()` method to plot multiple charts in the
+            same cell.
+    &#34;&#34;&#34;
     ranking = self.rank_by_bias(X_test=X_test, y_pred=y_pred)
-    return plot(self.make_bias_ranking_fig(ranking, **fig_kwargs), inline=inline)</code></pre>
+    return self._plot_ranking(
+        ranking=ranking,
+        score_column=&#34;importance&#34;,
+        title=&#34;Importance&#34;,
+        colors=colors,
+    )</code></pre>
 </details>
 </dd>
 <dt id="ethik.explainer.Explainer.plot_performance"><code class="name flex">
-<span>def <span class="ident">plot_performance</span></span>(<span>self, X_test, y_test, y_pred, metric, inline=False, **fig_kwargs)</span>
+<span>def <span class="ident">plot_performance</span></span>(<span>self, X_test, y_test, y_pred, metric, colors=None, yrange=None)</span>
 </code></dt>
 <dd>
-<section class="desc"></section>
+<section class="desc"><p>Plot the performance of the model for the features in <code>X_test</code>.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>np.array</code></dt>
+<dd>See <a title="ethik.explainer.Explainer.explain_performance" href="#ethik.explainer.Explainer.explain_performance"><code>Explainer.explain_performance()</code></a>.</dd>
+<dt><strong><code>y_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>See <a title="ethik.explainer.Explainer.explain_performance" href="#ethik.explainer.Explainer.explain_performance"><code>Explainer.explain_performance()</code></a>.</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>See <a title="ethik.explainer.Explainer.explain_performance" href="#ethik.explainer.Explainer.explain_performance"><code>Explainer.explain_performance()</code></a>.</dd>
+<dt><strong><code>metric</code></strong> :&ensp;<code>callable</code></dt>
+<dd>See <a title="ethik.explainer.Explainer.explain_performance" href="#ethik.explainer.Explainer.explain_performance"><code>Explainer.explain_performance()</code></a>.</dd>
+<dt><strong><code>colors</code></strong> :&ensp;<code>dict</code>, optional</dt>
+<dd>See <a title="ethik.explainer.Explainer.plot_bias" href="#ethik.explainer.Explainer.plot_bias"><code>Explainer.plot_bias()</code></a>.</dd>
+<dt><strong><code>yrange</code></strong> :&ensp;<code>list</code>, optional</dt>
+<dd>See <a title="ethik.explainer.Explainer.plot_bias" href="#ethik.explainer.Explainer.plot_bias"><code>Explainer.plot_bias()</code></a>.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>plotly.graph_objs.Figure</code>:</dt>
+<dd>A Plotly figure. It shows automatically in notebook cells but you
+can also call the <code>.show()</code> method to plot multiple charts in the
+same cell.</dd>
+</dl></section>
 <details class="source">
 <summary>Source code</summary>
 <pre><code class="python">def plot_performance(
-    self, X_test, y_test, y_pred, metric, inline=False, **fig_kwargs
+    self, X_test, y_test, y_pred, metric, colors=None, yrange=None
 ):
+    &#34;&#34;&#34;Plot the performance of the model for the features in `X_test`.
+
+    Args:
+        X_test (pd.DataFrame or np.array): See `Explainer.explain_performance()`.
+        y_test (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+        y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+        metric (callable): See `Explainer.explain_performance()`.
+        colors (dict, optional): See `Explainer.plot_bias()`.
+        yrange (list, optional): See `Explainer.plot_bias()`.
+
+    Returns:
+        plotly.graph_objs.Figure:
+            A Plotly figure. It shows automatically in notebook cells but you
+            can also call the `.show()` method to plot multiple charts in the
+            same cell.
+    &#34;&#34;&#34;
+    metric_name = self.get_metric_name(metric)
     explanation = self.explain_performance(
         X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
     )
-    return self._plot(
-        explanation,
-        functools.partial(self.make_performance_fig, metric=metric),
-        inline=inline,
-        **fig_kwargs,
+    if fig_kwargs.get(&#34;yrange&#34;) is None:
+        if explanation[metric_name].between(0, 1).all():
+            fig_kwargs[&#34;yrange&#34;] = [0, 1]
+
+    return self._plot_explanation(
+        explanation, metric_name, y_label=f&#34;Average {metric_name}&#34;, **fig_kwargs
     )</code></pre>
 </details>
 </dd>
 <dt id="ethik.explainer.Explainer.plot_performance_ranking"><code class="name flex">
-<span>def <span class="ident">plot_performance_ranking</span></span>(<span>self, X_test, y_test, y_pred, metric, criterion, inline=False, **fig_kwargs)</span>
+<span>def <span class="ident">plot_performance_ranking</span></span>(<span>self, X_test, y_test, y_pred, metric, criterion, colors)</span>
 </code></dt>
 <dd>
-<section class="desc"></section>
+<section class="desc"><p>Plot the performance of the model for the features in <code>X_test</code>.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>np.array</code></dt>
+<dd>See <a title="ethik.explainer.Explainer.explain_performance" href="#ethik.explainer.Explainer.explain_performance"><code>Explainer.explain_performance()</code></a>.</dd>
+<dt><strong><code>y_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>See <a title="ethik.explainer.Explainer.explain_performance" href="#ethik.explainer.Explainer.explain_performance"><code>Explainer.explain_performance()</code></a>.</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>See <a title="ethik.explainer.Explainer.explain_performance" href="#ethik.explainer.Explainer.explain_performance"><code>Explainer.explain_performance()</code></a>.</dd>
+<dt><strong><code>metric</code></strong> :&ensp;<code>callable</code></dt>
+<dd>See <a title="ethik.explainer.Explainer.explain_performance" href="#ethik.explainer.Explainer.explain_performance"><code>Explainer.explain_performance()</code></a>.</dd>
+<dt><strong><code>criterion</code></strong> :&ensp;<code>str</code></dt>
+<dd>Either "min" or "max" to determine whether, for a
+given feature, we keep the worst or the best performance for all
+the values taken by the mean.</dd>
+<dt><strong><code>colors</code></strong> :&ensp;<code>dict</code>, optional</dt>
+<dd>See <a title="ethik.explainer.Explainer.plot_bias_ranking" href="#ethik.explainer.Explainer.plot_bias_ranking"><code>Explainer.plot_bias_ranking()</code></a>.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>plotly.graph_objs.Figure</code>:</dt>
+<dd>A Plotly figure. It shows automatically in notebook cells but you
+can also call the <code>.show()</code> method to plot multiple charts in the
+same cell.</dd>
+</dl></section>
 <details class="source">
 <summary>Source code</summary>
 <pre><code class="python">def plot_performance_ranking(
-    self, X_test, y_test, y_pred, metric, criterion, inline=False, **fig_kwargs
+    self, X_test, y_test, y_pred, metric, criterion, colors
 ):
+    &#34;&#34;&#34;Plot the performance of the model for the features in `X_test`.
+
+    Args:
+        X_test (pd.DataFrame or np.array): See `Explainer.explain_performance()`.
+        y_test (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+        y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+        metric (callable): See `Explainer.explain_performance()`.
+        criterion (str): Either &#34;min&#34; or &#34;max&#34; to determine whether, for a
+            given feature, we keep the worst or the best performance for all
+            the values taken by the mean.
+        colors (dict, optional): See `Explainer.plot_bias_ranking()`.
+
+    Returns:
+        plotly.graph_objs.Figure:
+            A Plotly figure. It shows automatically in notebook cells but you
+            can also call the `.show()` method to plot multiple charts in the
+            same cell.
+    &#34;&#34;&#34;
+    metric_name = self.get_metric_name(metric)
     ranking = self.rank_by_performance(
         X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
     )
-    return plot(
-        self.make_performance_ranking_fig(
-            ranking, criterion=criterion, metric=metric, **fig_kwargs
-        ),
-        inline=inline,
+    return self._plot_ranking(
+        ranking=ranking,
+        score_column=criterion,
+        title=f&#34;{criterion} {metric_name}&#34;,
+        colors=colors,
     )</code></pre>
 </details>
 </dd>
@@ -1459,6 +2254,10 @@ def taus(self):
 
     def get_importance(group):
         &#34;&#34;&#34;Computes the average absolute difference in bias changes per tau increase.&#34;&#34;&#34;
+        #  Normalize bias to get an importance between 0 and 1
+        # bias can be outside [0, 1] for regression
+        bias = group[&#34;bias&#34;]
+        group[&#34;bias&#34;] = (bias - bias.min()) / (bias.max() - bias.min())
         baseline = group.query(&#34;tau == 0&#34;).iloc[0][&#34;bias&#34;]
         return (group[&#34;bias&#34;] - baseline).abs().mean()
 
@@ -1479,11 +2278,11 @@ def taus(self):
 <details class="source">
 <summary>Source code</summary>
 <pre><code class="python">def rank_by_performance(self, X_test, y_test, y_pred, metric):
-    metric_col = metric_to_col(metric)
+    metric_name = self.get_metric_name(metric)
 
     def get_aggregates(df):
         return pd.Series(
-            [df[metric_col].min(), df[metric_col].max()], index=[&#34;min&#34;, &#34;max&#34;]
+            [df[metric_name].min(), df[metric_name].max()], index=[&#34;min&#34;, &#34;max&#34;]
         )
 
     return (
@@ -1518,10 +2317,7 @@ def taus(self):
 <li><code><a title="ethik.explainer.Explainer.explain_bias" href="#ethik.explainer.Explainer.explain_bias">explain_bias</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.explain_performance" href="#ethik.explainer.Explainer.explain_performance">explain_performance</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.features" href="#ethik.explainer.Explainer.features">features</a></code></li>
-<li><code><a title="ethik.explainer.Explainer.make_bias_fig" href="#ethik.explainer.Explainer.make_bias_fig">make_bias_fig</a></code></li>
-<li><code><a title="ethik.explainer.Explainer.make_bias_ranking_fig" href="#ethik.explainer.Explainer.make_bias_ranking_fig">make_bias_ranking_fig</a></code></li>
-<li><code><a title="ethik.explainer.Explainer.make_performance_fig" href="#ethik.explainer.Explainer.make_performance_fig">make_performance_fig</a></code></li>
-<li><code><a title="ethik.explainer.Explainer.make_performance_ranking_fig" href="#ethik.explainer.Explainer.make_performance_ranking_fig">make_performance_ranking_fig</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.get_metric_name" href="#ethik.explainer.Explainer.get_metric_name">get_metric_name</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.plot_bias" href="#ethik.explainer.Explainer.plot_bias">plot_bias</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.plot_bias_ranking" href="#ethik.explainer.Explainer.plot_bias_ranking">plot_bias_ranking</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.plot_performance" href="#ethik.explainer.Explainer.plot_performance">plot_performance</a></code></li>

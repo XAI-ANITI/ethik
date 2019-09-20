@@ -22,22 +22,46 @@
 <section id="section-intro">
 <details class="source">
 <summary>Source code</summary>
-<pre><code class="python">from .__version__ import __version__
-from .explainer import Explainer
-from .image_explainer import ImageExplainer
+<pre><code class="python">from . import datasets
+from .__version__ import __version__
+from .classification_explainer import ClassificationExplainer
+from .regression_explainer import RegressionExplainer
+from .image_classification_explainer import ImageClassificationExplainer
 
 
-__all__ = [&#34;__version__&#34;, &#34;Explainer&#34;, &#34;ImageExplainer&#34;]</code></pre>
+__all__ = [
+    &#34;__version__&#34;,
+    &#34;datasets&#34;,
+    &#34;RegressionExplainer&#34;,
+    &#34;ClassificationExplainer&#34;,
+    &#34;ImageClassificationExplainer&#34;,
+]</code></pre>
 </details>
 </section>
 <section>
 <h2 class="section-title" id="header-submodules">Sub-modules</h2>
 <dl>
+<dt><code class="name"><a title="ethik.classification_explainer" href="classification_explainer.html">ethik.classification_explainer</a></code></dt>
+<dd>
+<section class="desc"></section>
+</dd>
+<dt><code class="name"><a title="ethik.datasets" href="datasets.html">ethik.datasets</a></code></dt>
+<dd>
+<section class="desc"></section>
+</dd>
 <dt><code class="name"><a title="ethik.explainer" href="explainer.html">ethik.explainer</a></code></dt>
 <dd>
 <section class="desc"></section>
 </dd>
-<dt><code class="name"><a title="ethik.image_explainer" href="image_explainer.html">ethik.image_explainer</a></code></dt>
+<dt><code class="name"><a title="ethik.image_classification_explainer" href="image_classification_explainer.html">ethik.image_classification_explainer</a></code></dt>
+<dd>
+<section class="desc"></section>
+</dd>
+<dt><code class="name"><a title="ethik.regression_explainer" href="regression_explainer.html">ethik.regression_explainer</a></code></dt>
+<dd>
+<section class="desc"></section>
+</dd>
+<dt><code class="name"><a title="ethik.utils" href="utils.html">ethik.utils</a></code></dt>
 <dd>
 <section class="desc"></section>
 </dd>
@@ -50,16 +74,16 @@ __all__ = [&#34;__version__&#34;, &#34;Explainer&#34;, &#34;ImageExplainer&#34;]
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
-<dt id="ethik.Explainer"><code class="flex name class">
-<span>class <span class="ident">Explainer</span></span>
-<span>(</span><span>alpha=0.05, n_taus=41, lambda_iterations=5, n_jobs=-1, verbose=False, n_samples=1, sample_frac=0.8, conf_level=0.05)</span>
+<dt id="ethik.ClassificationExplainer"><code class="flex name class">
+<span>class <span class="ident">ClassificationExplainer</span></span>
+<span>(</span><span>alpha=0.05, n_taus=41, lambda_iterations=5, n_jobs=1, verbose=False, n_samples=1, sample_frac=0.8, conf_level=0.05, memoize=False)</span>
 </code></dt>
 <dd>
 <section class="desc"><p>Explains the bias and reliability of model predictions.</p>
 <h2 id="parameters">Parameters</h2>
 <dl>
 <dt><strong><code>alpha</code></strong> :&ensp;<code>float</code></dt>
-<dd>A <code>float</code> between <code>0</code> and <code>0.5</code> which indicates by how close the <a title="ethik.Explainer" href="#ethik.Explainer"><code>Explainer</code></a>
+<dd>A <code>float</code> between <code>0</code> and <code>0.5</code> which indicates by how close the <code>Explainer</code>
 should look at extreme values of a distribution. The closer to zero, the more so
 extreme values will be accounted for. The default is <code>0.05</code> which means that all values
 beyond the 5th and 95th quantiles are ignored.</dd>
@@ -69,756 +93,164 @@ higher this value is. However the computation time increases linearly with <code
 The default is <code>41</code> and corresponds to each τ being separated by it's neighbors by
 <code>0.05</code>.</dd>
 <dt><strong><code>lambda_iterations</code></strong> :&ensp;<code>int</code></dt>
-<dd>The maximum number of iterations used when applying the Newton step
-of the optimization procedure.</dd>
+<dd>The number of iterations used when applying the Newton step
+of the optimization procedure. Default is <code>5</code>.</dd>
+<dt><strong><code>n_jobs</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of jobs to use for parallel computations. See
+<code>joblib.Parallel()</code>. Default is <code>-1</code>.</dd>
+<dt><strong><code>verbose</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Passed to <code>joblib.Parallel()</code> for parallel computations.
+Default is <code>False</code>.</dd>
+<dt><strong><code>n_samples</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of samples to use for the confidence interval.
+If <code>1</code>, the default, no confidence interval is computed.</dd>
+<dt><strong><code>sample_frac</code></strong> :&ensp;<code>float</code></dt>
+<dd>The proportion of lines in the dataset sampled to
+generate the samples for the confidence interval. If <code>n_samples</code> is
+<code>1</code>, no confidence interval is computed and the whole dataset is used.
+Default is <code>0.8</code>.</dd>
+<dt><strong><code>conf_level</code></strong> :&ensp;<code>float</code></dt>
+<dd>A <code>float</code> between <code>0</code> and <code>0.5</code> which indicates the
+quantile used for the confidence interval. Default is <code>0.05</code>, which
+means that the confidence interval contains the data between the 5th
+and 95th quantiles.</dd>
+<dt><strong><code>memoize</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Indicates whether or not memoization should be used or not. If <code>True</code>, then
+intermediate results will be stored in order to avoid recomputing results that can be
+reused by successively called methods. For example, if you call <code>plot_bias</code> followed by
+<code>plot_bias_ranking</code> and <code>memoize</code> is <code>True</code>, then the intermediate results required by
+<code>plot_bias</code> will be reused for <code>plot_bias_ranking</code>. Memoization is turned off by
+default because it can lead to unexpected behavior depending on your usage.</dd>
 </dl></section>
 <details class="source">
 <summary>Source code</summary>
-<pre><code class="python">class Explainer:
-    &#34;&#34;&#34;Explains the bias and reliability of model predictions.
+<pre><code class="python">class ClassificationExplainer(Explainer):
+    def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+        &#34;&#34;&#34;Plot the bias for the features in `X_test`.
 
-    Parameters:
-        alpha (float): A `float` between `0` and `0.5` which indicates by how close the `Explainer`
-            should look at extreme values of a distribution. The closer to zero, the more so
-            extreme values will be accounted for. The default is `0.05` which means that all values
-            beyond the 5th and 95th quantiles are ignored.
-        n_taus (int): The number of τ values to consider. The results will be more fine-grained the
-            higher this value is. However the computation time increases linearly with `n_taus`.
-            The default is `41` and corresponds to each τ being separated by it&#39;s neighbors by
-            `0.05`.
-        lambda_iterations (int): The maximum number of iterations used when applying the Newton step
-            of the optimization procedure.
-
-    &#34;&#34;&#34;
-
-    def __init__(
-        self,
-        alpha=0.05,
-        n_taus=41,
-        lambda_iterations=5,
-        n_jobs=-1,
-        verbose=False,
-        n_samples=1,
-        sample_frac=0.8,
-        conf_level=0.05,
-    ):
-        if not 0 &lt; alpha &lt; 0.5:
-            raise ValueError(&#34;alpha must be between 0 and 0.5, got &#34; f&#34;{alpha}&#34;)
-
-        if not n_taus &gt; 0:
-            raise ValueError(
-                &#34;n_taus must be a strictly positive integer, got &#34; f&#34;{n_taus}&#34;
-            )
-
-        if not lambda_iterations &gt; 0:
-            raise ValueError(
-                &#34;lambda_iterations must be a strictly positive &#34;
-                f&#34;integer, got {lambda_iterations}&#34;
-            )
-
-        if n_samples &lt; 1:
-            raise ValueError(f&#34;n_samples must be strictly positive, got {n_samples}&#34;)
-
-        if not 0 &lt; sample_frac &lt; 1:
-            raise ValueError(f&#34;sample_frac must be between 0 and 1, got {sample_frac}&#34;)
-
-        if not 0 &lt; conf_level &lt; 0.5:
-            raise ValueError(f&#34;conf_level must be between 0 and 0.5, got {conf_level}&#34;)
-
-        #  TODO: one column per performance metric
-        self.alpha = alpha
-        self.n_taus = n_taus
-        self.lambda_iterations = lambda_iterations
-        self.n_jobs = n_jobs
-        self.verbose = verbose
-        self.metric_cols = set()
-        self.n_samples = n_samples
-        self.sample_frac = sample_frac if n_samples &gt; 1 else 1
-        self.conf_level = conf_level
-        self.info = pd.DataFrame(
-            columns=[
-                &#34;feature&#34;,
-                &#34;tau&#34;,
-                &#34;value&#34;,
-                &#34;lambda&#34;,
-                &#34;label&#34;,
-                &#34;bias&#34;,
-                &#34;bias_low&#34;,
-                &#34;bias_high&#34;,
-            ]
-        )
-        self.cat_features = {}
-
-    @property
-    def taus(self):
-        tau_precision = 2 / (self.n_taus - 1)
-        return list(decimal_range(-1, 1, tau_precision))
-
-    @property
-    def features(self):
-        return self.info[&#34;feature&#34;].unique().tolist() + list(self.cat_features)
-
-    def _find_lambdas(self, X_test, y_pred):
-        &#34;&#34;&#34;Fits the explainer to a tabular dataset.
-
-        During a `fit` call, the following steps are taken:
-
-        1. A list of $\tau$ values is generated using `n_taus`. The $\tau$ values range from -1 to 1.
-        2. A grid of $\eps$ values is generated for each $\tau$ and for each variable. Each $\eps$ represents a shift from a variable&#39;s mean towards a particular quantile.
-        3. A grid of $\lambda$ values is generated for each $\eps$. Each $\lambda$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\eps$ shift.
-
-        Parameters:
-            X_test (`pandas.DataFrame` or `numpy.ndarray`)
-            y_pred (`pandas.DataFrame` or `numpy.ndarray`)
-
+        See `ethik.explainer.Explainer.plot_bias()`.
         &#34;&#34;&#34;
-
+        if yrange is None:
+            yrange = [0, 1]
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
-        X_test = X_test[X_test.columns.difference(self.features)]
-        if X_test.empty:
-            return self
-
-        X_test_num, cat_features = make_dataset_numeric(X_test)
-        self.cat_features = {**self.cat_features, **cat_features}
-
-        # Make the epsilons
-        q_mins = X_test_num.quantile(q=self.alpha).to_dict()
-        q_maxs = X_test_num.quantile(q=1 - self.alpha).to_dict()
-        means = X_test_num.mean().to_dict()
-        additional_info = pd.concat(
-            [
-                pd.DataFrame(
-                    {
-                        &#34;tau&#34;: self.taus,
-                        &#34;value&#34;: [
-                            means[col]
-                            + tau
-                            * (
-                                (means[col] - q_mins[col])
-                                if tau &lt; 0
-                                else (q_maxs[col] - means[col])
-                            )
-                            for tau in self.taus
-                        ],
-                        &#34;feature&#34;: [col] * len(self.taus),
-                        &#34;label&#34;: [y] * len(self.taus),
-                    }
-                )
-                for col in X_test_num.columns
-                for y in y_pred.columns
-            ],
-            ignore_index=True,
-        )
-        self.info = self.info.append(additional_info, ignore_index=True, sort=False)
-
-        # Find a lambda for each (column, espilon) pair
-        lambdas = joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
-            joblib.delayed(compute_lambdas)(
-                x=X_test_num[col],
-                target_means=part[&#34;value&#34;].unique(),
-                iterations=self.lambda_iterations,
-            )
-            for col, part in self.info.groupby(&#34;feature&#34;)
-            if col in X_test_num
-        )
-        lambdas = dict(collections.ChainMap(*lambdas))
-        self.info[&#34;lambda&#34;] = self.info.apply(
-            lambda r: lambdas.get((r[&#34;feature&#34;], r[&#34;value&#34;]), r[&#34;lambda&#34;]),
-            axis=&#34;columns&#34;,
-        )
-        self.info[&#34;lambda&#34;] = self.info[&#34;lambda&#34;].fillna(0.0)
-
-        return self.info
-
-    def _explain(self, X_test, y_pred, dest_col, key_cols, compute):
-        # Coerce X_test and y_pred to DataFrames
-        X_test = pd.DataFrame(to_pandas(X_test))
-        y_pred = pd.DataFrame(to_pandas(y_pred))
-
-        self._find_lambdas(X_test, y_pred)
-
-        X_test, _ = make_dataset_numeric(X_test)
-        queried_features = X_test.columns.tolist()
-        to_explain = self.info[&#34;feature&#34;][self.info[dest_col].isnull()].unique()
-        X_test = X_test[X_test.columns.intersection(to_explain)]
-        relevant = self.info[self.info[&#34;feature&#34;].isin(X_test.columns)]
-
-        if not relevant.empty:
-            data = compute(X_test, y_pred, relevant)
-            data = pd.DataFrame(
-                [line for batch in data for line in batch],
-                columns=[*key_cols, &#34;sample_index&#34;, dest_col],
-            )
-            data = data.groupby(key_cols)[dest_col].agg(
-                [
-                    (dest_col, &#34;mean&#34;),
-                    (
-                        f&#34;{dest_col}_low&#34;,
-                        functools.partial(np.quantile, q=self.conf_level),
-                    ),
-                    (
-                        f&#34;{dest_col}_high&#34;,
-                        functools.partial(np.quantile, q=1 - self.conf_level),
-                    ),
-                ]
+        if len(y_pred.columns) == 1:
+            return super().plot_bias(
+                X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange
             )
 
-            #  TODO: merge all columns in a single operation?
-            for col in data.columns:
-                self.info[col] = self.info.apply(
-                    lambda r: data[col].get(tuple([r[k] for k in key_cols]), r[col]),
-                    axis=&#34;columns&#34;,
-                )
-
-        return self.info[self.info[&#34;feature&#34;].isin(queried_features)]
-
-    def explain_bias(self, X_test, y_pred):
-        def compute(X_test, y_pred, relevant):
-            return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
-                joblib.delayed(compute_bias)(
-                    y_pred=y_pred[label][mask],
-                    x=X_test[col][mask],
-                    lambdas=part[&#34;lambda&#34;].unique(),
-                    sample_index=i,
-                )
-                for label in y_pred.columns
-                for col, part in relevant.groupby(&#34;feature&#34;)
-                for i, mask in enumerate(
-                    yield_masks(self.n_samples, len(X_test), self.sample_frac)
-                )
-            )
-
-        return self._explain(
-            X_test=X_test,
-            y_pred=y_pred,
-            dest_col=&#34;bias&#34;,
-            key_cols=[&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;],
-            compute=compute,
-        )
-
-    def explain_performance(self, X_test, y_test, y_pred, metric):
-        metric_col = metric_to_col(metric)
-        if metric_col not in self.info.columns:
-            self.info[metric_col] = None
-            self.info[f&#34;{metric_col}_low&#34;] = None
-            self.info[f&#34;{metric_col}_high&#34;] = None
-        self.metric_cols.add(metric_col)
-
-        y_test = np.asarray(y_test)
-
-        def compute(X_test, y_pred, relevant):
-            return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
-                joblib.delayed(compute_performance)(
-                    y_test=y_test[mask],
-                    y_pred=y_pred[mask],
-                    metric=metric,
-                    x=X_test[col][mask],
-                    lambdas=part[&#34;lambda&#34;].unique(),
-                    sample_index=i,
-                )
-                for col, part in relevant.groupby(&#34;feature&#34;)
-                for i, mask in enumerate(
-                    yield_masks(self.n_samples, len(X_test), self.sample_frac)
-                )
-            )
-
-        return self._explain(X_test, y_pred, metric_col, [&#34;feature&#34;, &#34;lambda&#34;], compute)
-
-    def rank_by_bias(self, X_test, y_pred):
-        &#34;&#34;&#34;Returns a DataFrame containing the importance of each feature.
-
-        &#34;&#34;&#34;
-
-        def get_importance(group):
-            &#34;&#34;&#34;Computes the average absolute difference in bias changes per tau increase.&#34;&#34;&#34;
-            baseline = group.query(&#34;tau == 0&#34;).iloc[0][&#34;bias&#34;]
-            return (group[&#34;bias&#34;] - baseline).abs().mean()
-
-        return (
-            self.explain_bias(X_test=X_test, y_pred=y_pred)
-            .groupby([&#34;label&#34;, &#34;feature&#34;])
-            .apply(get_importance)
-            .to_frame(&#34;importance&#34;)
-            .reset_index()
-        )
-
-    def rank_by_performance(self, X_test, y_test, y_pred, metric):
-        metric_col = metric_to_col(metric)
-
-        def get_aggregates(df):
-            return pd.Series(
-                [df[metric_col].min(), df[metric_col].max()], index=[&#34;min&#34;, &#34;max&#34;]
-            )
-
-        return (
-            self.explain_performance(X_test, y_test, y_pred, metric)
-            .groupby(&#34;feature&#34;)
-            .apply(get_aggregates)
-            .reset_index()
-        )
-
-    def _make_explanation_fig(
-        self, explanation, col, y_label, with_taus=False, colors=None
-    ):
         if colors is None:
-            colors = {}
-        features = explanation[&#34;feature&#34;].unique()
+            features = X_test.columns
+            #  Skip the lightest color as it is too light
+            scale = cl.interp(cl.scales[&#34;10&#34;][&#34;qual&#34;][&#34;Paired&#34;], len(features) + 1)[1:]
+            colors = {feat: scale[i] for i, feat in enumerate(features)}
 
-        if with_taus:
-            fig = go.Figure()
-            for feat in features:
-                x = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;tau&#34;]
-                y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
-                fig.add_trace(
-                    go.Scatter(
-                        x=x,
-                        y=y,
-                        mode=&#34;lines+markers&#34;,
-                        hoverinfo=&#34;x+y+text&#34;,
-                        name=feat,
-                        text=[
-                            f&#34;{feat} = {val}&#34;
-                            for val in explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[
-                                &#34;value&#34;
-                            ]
-                        ],
-                        marker=dict(color=colors.get(feat)),
-                    )
-                )
-
-            fig.update_layout(
-                margin=dict(t=50, r=50),
-                xaxis=dict(title=&#34;tau&#34;, zeroline=False),
-                yaxis=dict(title=y_label, range=[0, 1], showline=True, tickformat=&#34;%&#34;),
-                plot_bgcolor=&#34;white&#34;,
+        labels = y_pred.columns
+        plots = []
+        for label in labels:
+            plots.append(
+                super().plot_bias(X_test, y_pred[label], colors=colors, yrange=yrange)
             )
-            return fig
 
-        figures = {}
-        for feat in features:
-            fig = go.Figure()
-            x = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;value&#34;]
-            y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
-            mean_row = explanation.query(f&#39;feature == &#34;{feat}&#34; and tau == 0&#39;).iloc[0]
+        fig = make_subplots(rows=len(labels), cols=1, shared_xaxes=True)
+        for ilabel, (label, plot) in enumerate(zip(labels, plots)):
+            fig.update_layout({f&#34;yaxis{ilabel+1}&#34;: dict(title=f&#34;Average {label}&#34;)})
+            for trace in plot[&#34;data&#34;]:
+                trace[&#34;showlegend&#34;] = ilabel == 0 and trace[&#34;showlegend&#34;]
+                trace[&#34;legendgroup&#34;] = trace[&#34;name&#34;]
+                fig.add_trace(trace, row=ilabel + 1, col=1)
 
-            if self.n_samples &gt; 1:
-                low = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_low&#34;]
-                high = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_high&#34;]
-                fig.add_trace(
-                    go.Scatter(
-                        x=np.concatenate((x, x[::-1])),
-                        y=np.concatenate((low, high[::-1])),
-                        name=f&#34;{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%&#34;,
-                        fill=&#34;toself&#34;,
-                        fillcolor=&#34;#eee&#34;,  # TODO: same color as mean line?
-                        line_color=&#34;rgba(0, 0, 0, 0)&#34;,
-                    )
-                )
-
-            fig.add_trace(
-                go.Scatter(
-                    x=x,
-                    y=y,
-                    mode=&#34;lines+markers&#34;,
-                    hoverinfo=&#34;x+y&#34;,
-                    showlegend=False,
-                    marker=dict(color=colors.get(feat)),
-                )
-            )
-            fig.add_trace(
-                go.Scatter(
-                    x=[mean_row[&#34;value&#34;]],
-                    y=[mean_row[col]],
-                    mode=&#34;markers&#34;,
-                    name=&#34;Original mean&#34;,
-                    hoverinfo=&#34;skip&#34;,
-                    marker=dict(symbol=&#34;x&#34;, size=9),
-                )
-            )
-            fig.update_layout(
-                margin=dict(t=50, r=50),
-                xaxis=dict(title=f&#34;Mean {feat}&#34;, zeroline=False),
-                yaxis=dict(title=y_label, range=[0, 1], showline=True, tickformat=&#34;%&#34;),
-                plot_bgcolor=&#34;white&#34;,
-            )
-            figures[feat] = fig
-        return figures
-
-    def make_bias_fig(self, explanation, **fig_kwargs):
-        labels = explanation[&#34;label&#34;].unique()
-        y_label = f&#34;Proportion of {labels[0]}&#34;  #  Single class
-        return self._make_explanation_fig(explanation, &#34;bias&#34;, y_label, **fig_kwargs)
-
-    def make_performance_fig(self, explanation, metric, **fig_kwargs):
-        metric_col = metric_to_col(metric)
-        return self._make_explanation_fig(
-            explanation, metric_col, y_label=metric_col, **fig_kwargs
+        xlabel = &#34;tau&#34; if len(X_test.columns) &gt; 1 else f&#34;Average {X_test.columns[0]}&#34;
+        fig.update_layout(
+            {f&#34;xaxis{len(labels)}&#34;: dict(title=xlabel), &#34;plot_bgcolor&#34;: &#34;white&#34;}
         )
-
-    def _make_ranking_fig(self, ranking, score_column, title, colors=None):
-        ranking = ranking.sort_values(by=[score_column])
-
-        return go.Figure(
-            data=[
-                go.Bar(
-                    x=ranking[score_column],
-                    y=ranking[&#34;feature&#34;],
-                    orientation=&#34;h&#34;,
-                    hoverinfo=&#34;x&#34;,
-                    marker=dict(color=colors),
-                )
-            ],
-            layout=go.Layout(
-                margin=dict(l=200, b=0, t=40),
-                xaxis=dict(
-                    title=title,
-                    range=[0, 1],
-                    showline=True,
-                    zeroline=False,
-                    side=&#34;top&#34;,
-                    fixedrange=True,
-                ),
-                yaxis=dict(showline=True, zeroline=False, fixedrange=True),
-                plot_bgcolor=&#34;white&#34;,
-            ),
-        )
-
-    def make_bias_ranking_fig(self, ranking, colors=None):
-        return self._make_ranking_fig(
-            ranking, &#34;importance&#34;, &#34;Importance&#34;, colors=colors
-        )
-
-    def make_performance_ranking_fig(self, ranking, metric, criterion, colors=None):
-        return self._make_ranking_fig(
-            ranking, criterion, f&#34;{criterion} {metric_to_col(metric)}&#34;, colors=colors
-        )
-
-    def _plot(self, explanation, make_fig, inline, **fig_kwargs):
-        features = explanation[&#34;feature&#34;].unique()
-        if len(features) &gt; 1:
-            return plot(
-                make_fig(explanation, with_taus=True, **fig_kwargs), inline=inline
-            )
-        return plot(
-            make_fig(explanation, with_taus=False, **fig_kwargs)[features[0]],
-            inline=inline,
-        )
-
-    def plot_bias(self, X_test, y_pred, inline=False, **fig_kwargs):
-        explanation = self.explain_bias(X_test=X_test, y_pred=y_pred)
-        return self._plot(explanation, self.make_bias_fig, inline=inline, **fig_kwargs)
-
-    def plot_bias_ranking(self, X_test, y_pred, inline=False, **fig_kwargs):
-        ranking = self.rank_by_bias(X_test=X_test, y_pred=y_pred)
-        return plot(self.make_bias_ranking_fig(ranking, **fig_kwargs), inline=inline)
-
-    def plot_performance(
-        self, X_test, y_test, y_pred, metric, inline=False, **fig_kwargs
-    ):
-        explanation = self.explain_performance(
-            X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
-        )
-        return self._plot(
-            explanation,
-            functools.partial(self.make_performance_fig, metric=metric),
-            inline=inline,
-            **fig_kwargs,
-        )
-
-    def plot_performance_ranking(
-        self, X_test, y_test, y_pred, metric, criterion, inline=False, **fig_kwargs
-    ):
-        ranking = self.rank_by_performance(
-            X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
-        )
-        return plot(
-            self.make_performance_ranking_fig(
-                ranking, criterion=criterion, metric=metric, **fig_kwargs
-            ),
-            inline=inline,
-        )</code></pre>
+        return fig</code></pre>
 </details>
-<h3>Subclasses</h3>
+<h3>Ancestors</h3>
 <ul class="hlist">
-<li><a title="ethik.image_explainer.ImageExplainer" href="image_explainer.html#ethik.image_explainer.ImageExplainer">ImageExplainer</a></li>
+<li><a title="ethik.explainer.Explainer" href="explainer.html#ethik.explainer.Explainer">Explainer</a></li>
 </ul>
-<h3>Instance variables</h3>
-<dl>
-<dt id="ethik.Explainer.features"><code class="name">var <span class="ident">features</span></code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">@property
-def features(self):
-    return self.info[&#34;feature&#34;].unique().tolist() + list(self.cat_features)</code></pre>
-</details>
-</dd>
-<dt id="ethik.Explainer.taus"><code class="name">var <span class="ident">taus</span></code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">@property
-def taus(self):
-    tau_precision = 2 / (self.n_taus - 1)
-    return list(decimal_range(-1, 1, tau_precision))</code></pre>
-</details>
-</dd>
-</dl>
 <h3>Methods</h3>
 <dl>
-<dt id="ethik.Explainer.explain_bias"><code class="name flex">
-<span>def <span class="ident">explain_bias</span></span>(<span>self, X_test, y_pred)</span>
+<dt id="ethik.ClassificationExplainer.plot_bias"><code class="name flex">
+<span>def <span class="ident">plot_bias</span></span>(<span>self, X_test, y_pred, colors=None, yrange=None)</span>
 </code></dt>
 <dd>
-<section class="desc"></section>
+<section class="desc"><p>Plot the bias for the features in <code>X_test</code>.</p>
+<p>See <a title="ethik.explainer.Explainer.plot_bias" href="explainer.html#ethik.explainer.Explainer.plot_bias"><code>Explainer.plot_bias()</code></a>.</p></section>
 <details class="source">
 <summary>Source code</summary>
-<pre><code class="python">def explain_bias(self, X_test, y_pred):
-    def compute(X_test, y_pred, relevant):
-        return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
-            joblib.delayed(compute_bias)(
-                y_pred=y_pred[label][mask],
-                x=X_test[col][mask],
-                lambdas=part[&#34;lambda&#34;].unique(),
-                sample_index=i,
-            )
-            for label in y_pred.columns
-            for col, part in relevant.groupby(&#34;feature&#34;)
-            for i, mask in enumerate(
-                yield_masks(self.n_samples, len(X_test), self.sample_frac)
-            )
-        )
+<pre><code class="python">def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+    &#34;&#34;&#34;Plot the bias for the features in `X_test`.
 
-    return self._explain(
-        X_test=X_test,
-        y_pred=y_pred,
-        dest_col=&#34;bias&#34;,
-        key_cols=[&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;],
-        compute=compute,
-    )</code></pre>
-</details>
-</dd>
-<dt id="ethik.Explainer.explain_performance"><code class="name flex">
-<span>def <span class="ident">explain_performance</span></span>(<span>self, X_test, y_test, y_pred, metric)</span>
-</code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def explain_performance(self, X_test, y_test, y_pred, metric):
-    metric_col = metric_to_col(metric)
-    if metric_col not in self.info.columns:
-        self.info[metric_col] = None
-        self.info[f&#34;{metric_col}_low&#34;] = None
-        self.info[f&#34;{metric_col}_high&#34;] = None
-    self.metric_cols.add(metric_col)
-
-    y_test = np.asarray(y_test)
-
-    def compute(X_test, y_pred, relevant):
-        return joblib.Parallel(n_jobs=self.n_jobs, verbose=self.verbose)(
-            joblib.delayed(compute_performance)(
-                y_test=y_test[mask],
-                y_pred=y_pred[mask],
-                metric=metric,
-                x=X_test[col][mask],
-                lambdas=part[&#34;lambda&#34;].unique(),
-                sample_index=i,
-            )
-            for col, part in relevant.groupby(&#34;feature&#34;)
-            for i, mask in enumerate(
-                yield_masks(self.n_samples, len(X_test), self.sample_frac)
-            )
-        )
-
-    return self._explain(X_test, y_pred, metric_col, [&#34;feature&#34;, &#34;lambda&#34;], compute)</code></pre>
-</details>
-</dd>
-<dt id="ethik.Explainer.make_bias_fig"><code class="name flex">
-<span>def <span class="ident">make_bias_fig</span></span>(<span>self, explanation, **fig_kwargs)</span>
-</code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def make_bias_fig(self, explanation, **fig_kwargs):
-    labels = explanation[&#34;label&#34;].unique()
-    y_label = f&#34;Proportion of {labels[0]}&#34;  #  Single class
-    return self._make_explanation_fig(explanation, &#34;bias&#34;, y_label, **fig_kwargs)</code></pre>
-</details>
-</dd>
-<dt id="ethik.Explainer.make_bias_ranking_fig"><code class="name flex">
-<span>def <span class="ident">make_bias_ranking_fig</span></span>(<span>self, ranking, colors=None)</span>
-</code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def make_bias_ranking_fig(self, ranking, colors=None):
-    return self._make_ranking_fig(
-        ranking, &#34;importance&#34;, &#34;Importance&#34;, colors=colors
-    )</code></pre>
-</details>
-</dd>
-<dt id="ethik.Explainer.make_performance_fig"><code class="name flex">
-<span>def <span class="ident">make_performance_fig</span></span>(<span>self, explanation, metric, **fig_kwargs)</span>
-</code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def make_performance_fig(self, explanation, metric, **fig_kwargs):
-    metric_col = metric_to_col(metric)
-    return self._make_explanation_fig(
-        explanation, metric_col, y_label=metric_col, **fig_kwargs
-    )</code></pre>
-</details>
-</dd>
-<dt id="ethik.Explainer.make_performance_ranking_fig"><code class="name flex">
-<span>def <span class="ident">make_performance_ranking_fig</span></span>(<span>self, ranking, metric, criterion, colors=None)</span>
-</code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def make_performance_ranking_fig(self, ranking, metric, criterion, colors=None):
-    return self._make_ranking_fig(
-        ranking, criterion, f&#34;{criterion} {metric_to_col(metric)}&#34;, colors=colors
-    )</code></pre>
-</details>
-</dd>
-<dt id="ethik.Explainer.plot_bias"><code class="name flex">
-<span>def <span class="ident">plot_bias</span></span>(<span>self, X_test, y_pred, inline=False, **fig_kwargs)</span>
-</code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def plot_bias(self, X_test, y_pred, inline=False, **fig_kwargs):
-    explanation = self.explain_bias(X_test=X_test, y_pred=y_pred)
-    return self._plot(explanation, self.make_bias_fig, inline=inline, **fig_kwargs)</code></pre>
-</details>
-</dd>
-<dt id="ethik.Explainer.plot_bias_ranking"><code class="name flex">
-<span>def <span class="ident">plot_bias_ranking</span></span>(<span>self, X_test, y_pred, inline=False, **fig_kwargs)</span>
-</code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def plot_bias_ranking(self, X_test, y_pred, inline=False, **fig_kwargs):
-    ranking = self.rank_by_bias(X_test=X_test, y_pred=y_pred)
-    return plot(self.make_bias_ranking_fig(ranking, **fig_kwargs), inline=inline)</code></pre>
-</details>
-</dd>
-<dt id="ethik.Explainer.plot_performance"><code class="name flex">
-<span>def <span class="ident">plot_performance</span></span>(<span>self, X_test, y_test, y_pred, metric, inline=False, **fig_kwargs)</span>
-</code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def plot_performance(
-    self, X_test, y_test, y_pred, metric, inline=False, **fig_kwargs
-):
-    explanation = self.explain_performance(
-        X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
-    )
-    return self._plot(
-        explanation,
-        functools.partial(self.make_performance_fig, metric=metric),
-        inline=inline,
-        **fig_kwargs,
-    )</code></pre>
-</details>
-</dd>
-<dt id="ethik.Explainer.plot_performance_ranking"><code class="name flex">
-<span>def <span class="ident">plot_performance_ranking</span></span>(<span>self, X_test, y_test, y_pred, metric, criterion, inline=False, **fig_kwargs)</span>
-</code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def plot_performance_ranking(
-    self, X_test, y_test, y_pred, metric, criterion, inline=False, **fig_kwargs
-):
-    ranking = self.rank_by_performance(
-        X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
-    )
-    return plot(
-        self.make_performance_ranking_fig(
-            ranking, criterion=criterion, metric=metric, **fig_kwargs
-        ),
-        inline=inline,
-    )</code></pre>
-</details>
-</dd>
-<dt id="ethik.Explainer.rank_by_bias"><code class="name flex">
-<span>def <span class="ident">rank_by_bias</span></span>(<span>self, X_test, y_pred)</span>
-</code></dt>
-<dd>
-<section class="desc"><p>Returns a DataFrame containing the importance of each feature.</p></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def rank_by_bias(self, X_test, y_pred):
-    &#34;&#34;&#34;Returns a DataFrame containing the importance of each feature.
-
+    See `ethik.explainer.Explainer.plot_bias()`.
     &#34;&#34;&#34;
+    if yrange is None:
+        yrange = [0, 1]
+    X_test = pd.DataFrame(to_pandas(X_test))
+    y_pred = pd.DataFrame(to_pandas(y_pred))
 
-    def get_importance(group):
-        &#34;&#34;&#34;Computes the average absolute difference in bias changes per tau increase.&#34;&#34;&#34;
-        baseline = group.query(&#34;tau == 0&#34;).iloc[0][&#34;bias&#34;]
-        return (group[&#34;bias&#34;] - baseline).abs().mean()
-
-    return (
-        self.explain_bias(X_test=X_test, y_pred=y_pred)
-        .groupby([&#34;label&#34;, &#34;feature&#34;])
-        .apply(get_importance)
-        .to_frame(&#34;importance&#34;)
-        .reset_index()
-    )</code></pre>
-</details>
-</dd>
-<dt id="ethik.Explainer.rank_by_performance"><code class="name flex">
-<span>def <span class="ident">rank_by_performance</span></span>(<span>self, X_test, y_test, y_pred, metric)</span>
-</code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def rank_by_performance(self, X_test, y_test, y_pred, metric):
-    metric_col = metric_to_col(metric)
-
-    def get_aggregates(df):
-        return pd.Series(
-            [df[metric_col].min(), df[metric_col].max()], index=[&#34;min&#34;, &#34;max&#34;]
+    if len(y_pred.columns) == 1:
+        return super().plot_bias(
+            X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange
         )
 
-    return (
-        self.explain_performance(X_test, y_test, y_pred, metric)
-        .groupby(&#34;feature&#34;)
-        .apply(get_aggregates)
-        .reset_index()
-    )</code></pre>
+    if colors is None:
+        features = X_test.columns
+        #  Skip the lightest color as it is too light
+        scale = cl.interp(cl.scales[&#34;10&#34;][&#34;qual&#34;][&#34;Paired&#34;], len(features) + 1)[1:]
+        colors = {feat: scale[i] for i, feat in enumerate(features)}
+
+    labels = y_pred.columns
+    plots = []
+    for label in labels:
+        plots.append(
+            super().plot_bias(X_test, y_pred[label], colors=colors, yrange=yrange)
+        )
+
+    fig = make_subplots(rows=len(labels), cols=1, shared_xaxes=True)
+    for ilabel, (label, plot) in enumerate(zip(labels, plots)):
+        fig.update_layout({f&#34;yaxis{ilabel+1}&#34;: dict(title=f&#34;Average {label}&#34;)})
+        for trace in plot[&#34;data&#34;]:
+            trace[&#34;showlegend&#34;] = ilabel == 0 and trace[&#34;showlegend&#34;]
+            trace[&#34;legendgroup&#34;] = trace[&#34;name&#34;]
+            fig.add_trace(trace, row=ilabel + 1, col=1)
+
+    xlabel = &#34;tau&#34; if len(X_test.columns) &gt; 1 else f&#34;Average {X_test.columns[0]}&#34;
+    fig.update_layout(
+        {f&#34;xaxis{len(labels)}&#34;: dict(title=xlabel), &#34;plot_bgcolor&#34;: &#34;white&#34;}
+    )
+    return fig</code></pre>
 </details>
 </dd>
 </dl>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="ethik.explainer.Explainer" href="explainer.html#ethik.explainer.Explainer">Explainer</a></b></code>:
+<ul class="hlist">
+<li><code><a title="ethik.explainer.Explainer.explain_bias" href="explainer.html#ethik.explainer.Explainer.explain_bias">explain_bias</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.explain_performance" href="explainer.html#ethik.explainer.Explainer.explain_performance">explain_performance</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.get_metric_name" href="explainer.html#ethik.explainer.Explainer.get_metric_name">get_metric_name</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.plot_bias_ranking" href="explainer.html#ethik.explainer.Explainer.plot_bias_ranking">plot_bias_ranking</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.plot_performance" href="explainer.html#ethik.explainer.Explainer.plot_performance">plot_performance</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.plot_performance_ranking" href="explainer.html#ethik.explainer.Explainer.plot_performance_ranking">plot_performance_ranking</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.rank_by_bias" href="explainer.html#ethik.explainer.Explainer.rank_by_bias">rank_by_bias</a></code></li>
+</ul>
+</li>
+</ul>
 </dd>
-<dt id="ethik.ImageExplainer"><code class="flex name class">
-<span>class <span class="ident">ImageExplainer</span></span>
-<span>(</span><span>alpha=0.05, max_iterations=5, n_jobs=-1, verbose=False, n_samples=1, sample_frac=0.8, conf_level=0.05)</span>
+<dt id="ethik.ImageClassificationExplainer"><code class="flex name class">
+<span>class <span class="ident">ImageClassificationExplainer</span></span>
+<span>(</span><span>alpha=0.05, lambda_iterations=5, n_jobs=-1, verbose=False, memoize=True)</span>
 </code></dt>
 <dd>
 <section class="desc"><p>An explainer specially suited for image classification.</p>
-<p>This has exactly the same API as <a title="ethik.Explainer" href="#ethik.Explainer"><code>Explainer</code></a>, but expects to be provided with an array of
+<p>This has exactly the same API as <code>Explainer</code>, but expects to be provided with an array of
 images instead of a tabular dataset.</p></section>
 <details class="source">
 <summary>Source code</summary>
-<pre><code class="python">class ImageExplainer(explainer.Explainer):
+<pre><code class="python">class ImageClassificationExplainer(explainer.Explainer):
     &#34;&#34;&#34;An explainer specially suited for image classification.
 
     This has exactly the same API as `Explainer`, but expects to be provided with an array of
@@ -826,86 +258,105 @@ images instead of a tabular dataset.</p></section>
 
     &#34;&#34;&#34;
 
-    def __init__(
-        self,
-        alpha=0.05,
-        max_iterations=5,
-        n_jobs=-1,
-        verbose=False,
-        n_samples=1,
-        sample_frac=0.8,
-        conf_level=0.05,
-    ):
+    def __init__(self, alpha=0.05, lambda_iterations=5, n_jobs=-1, verbose=False, memoize=True):
         super().__init__(
             alpha=alpha,
             n_taus=2,
-            max_iterations=max_iterations,
+            lambda_iterations=lambda_iterations,
             n_jobs=n_jobs,
             verbose=verbose,
-            n_samples=n_samples,
-            sample_frac=sample_frac,
-            conf_level=conf_level
+            memoize=memoize
         )
 
-    def explain_bias(self, X_test, y_pred):
-        self.img_shape = X_test[0].shape
+    def _set_image_shape(self, images):
+        self.img_shape = images[0].shape
         if self.img_shape[-1] == 1:
             self.img_shape = self.img_shape[:-1]
+
+    def explain_bias(self, X_test, y_pred):
+        self._set_image_shape(images=X_test)
         return super().explain_bias(X_test=images_to_dataframe(X_test), y_pred=y_pred)
 
-    def plot_bias(self, X_test, y_pred, n_cols=3, width=4):
+    def explain_performance(self, X_test, y_test, y_pred, metric):
+        self._set_image_shape(images=X_test)
+        return super().explain_performance(
+            X_test=images_to_dataframe(X_test),
+            y_test=y_test,
+            y_pred=y_pred,
+            metric=metric,
+        )
 
-        means = self.explain_bias(X_test=X_test, y_pred=y_pred)
+    def _plot(self, z_values, n_cols):
+        n_plots = len(z_values)
+        labels = sorted(z_values)
+        n_rows = n_plots // n_cols + 1
+        fig = make_subplots(
+            rows=n_rows,
+            cols=n_cols,
+            subplot_titles=list(map(str, labels)),
+            shared_xaxes=&#34;all&#34;,
+            shared_yaxes=&#34;all&#34;,
+            horizontal_spacing=0.2 / n_cols,
+            vertical_spacing=0.2 / n_rows,
+        )
 
-        if isinstance(means.columns, pd.MultiIndex):
+        # We want all the heatmaps to share the same scale
+        zmin = min(np.min(z) for z in z_values.values())
+        zmax = max(np.max(z) for z in z_values.values())
 
-            # Determine the number of rows from the number of columns and the number of labels
-            labels = means.columns.unique(&#34;labels&#34;)
-            n_rows = math.ceil(len(labels) / n_cols)
+        # We want to make sure that 0 is at the center of the scale
+        zmin, zmax = min(zmin, -zmax), max(zmax, -zmin)
 
-            # Make one plot per label
-            fig, axes = plt.subplots(
-                n_rows, n_cols, figsize=(n_cols * width, n_rows * width)
+        for i, label in enumerate(labels):
+            fig.add_trace(
+                go.Heatmap(
+                    z=z_values[label][::-1],
+                    x=list(range(self.img_shape[1])),
+                    y=list(range(self.img_shape[0])),
+                    zmin=zmin,
+                    zmax=zmax,
+                    colorscale=&#34;RdYlBu&#34;,
+                    zsmooth=&#34;best&#34;,
+                    showscale=i == 0,
+                    name=label,
+                    hoverinfo=&#34;x+y+z&#34;,
+                    reversescale=True
+                ),
+                row=i // n_cols + 1,
+                col=i % n_cols + 1,
             )
-            for ax in axes.ravel()[len(labels):]:
-                fig.delaxes(ax)
 
-            v_min = math.inf
-            v_max = -math.inf
+        for i in range(n_plots):
+            fig.update_layout(
+                {
+                    f&#34;xaxis{i+1}&#34;: dict(visible=False),
+                    f&#34;yaxis{i+1}&#34;: dict(scaleanchor=f&#34;x{i+1}&#34;, visible=False),
+                }
+            )
+        fig.update_layout(
+            margin=dict(t=20, l=20, b=20),
+            width=800,
+            height=800,
+            autosize=False,
+            plot_bgcolor=&#34;white&#34;,
+        )
+        return fig
 
-            for label, ax in zip(labels, axes.flat):
-                label_means = means[label]
-                diffs = (label_means.iloc[-1] - label_means.iloc[0]).fillna(0.0)
+    def plot_bias(self, X_test, y_pred, n_cols=3):
+        biases = self.explain_bias(X_test=X_test, y_pred=y_pred)
+        values = {}
 
-                v_min = min(v_min, diffs.min())
-                v_max = max(v_max, diffs.max())
+        for label, group in biases.groupby(&#34;label&#34;):
+            diffs = (
+                group.query(&#34;tau == 1&#34;)[&#34;bias&#34;]
+                - group.query(&#34;tau == -1&#34;)[&#34;bias&#34;].values
+            )
+            diffs = diffs.to_numpy().reshape(self.img_shape)
+            values[label] = diffs
 
-                ax.imshow(
-                    diffs.to_numpy().reshape(self.img_shape), interpolation=&#34;none&#34;
-                )
-                ax.get_xaxis().set_visible(False)
-                ax.get_yaxis().set_visible(False)
-                ax.set_title(label, fontsize=20)
+        return self._plot(values, n_cols=n_cols)
 
-            for img in plt.gca().get_images():
-                img.set_clim(v_min, v_max)
-
-            cbar = fig.colorbar(img, ax=axes.flat)
-            cbar.ax.tick_params(labelsize=20)
-
-            return fig, axes
-
-        fig, ax = plt.subplots()
-        diffs = (means.iloc[-1] - means.iloc[0]).fillna(0.0)
-        img = ax.imshow(diffs.to_numpy().reshape(self.img_shape))
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-
-        fig.colorbar(img, ax=ax)
-
-        return ax
-
-    def plot_metric(self, images, y, y_pred, metric):
+    def plot_metric(self, X_test, y_test, y_pred, metric):
 
         metrics = self.explain_metric(
             X=images_to_dataframe(images), y=y, y_pred=y_pred, metric=metric
@@ -927,88 +378,14 @@ images instead of a tabular dataset.</p></section>
 </ul>
 <h3>Methods</h3>
 <dl>
-<dt id="ethik.ImageExplainer.explain_bias"><code class="name flex">
-<span>def <span class="ident">explain_bias</span></span>(<span>self, X_test, y_pred)</span>
+<dt id="ethik.ImageClassificationExplainer.plot_metric"><code class="name flex">
+<span>def <span class="ident">plot_metric</span></span>(<span>self, X_test, y_test, y_pred, metric)</span>
 </code></dt>
 <dd>
 <section class="desc"></section>
 <details class="source">
 <summary>Source code</summary>
-<pre><code class="python">def explain_bias(self, X_test, y_pred):
-    self.img_shape = X_test[0].shape
-    if self.img_shape[-1] == 1:
-        self.img_shape = self.img_shape[:-1]
-    return super().explain_bias(X_test=images_to_dataframe(X_test), y_pred=y_pred)</code></pre>
-</details>
-</dd>
-<dt id="ethik.ImageExplainer.plot_bias"><code class="name flex">
-<span>def <span class="ident">plot_bias</span></span>(<span>self, X_test, y_pred, n_cols=3, width=4)</span>
-</code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def plot_bias(self, X_test, y_pred, n_cols=3, width=4):
-
-    means = self.explain_bias(X_test=X_test, y_pred=y_pred)
-
-    if isinstance(means.columns, pd.MultiIndex):
-
-        # Determine the number of rows from the number of columns and the number of labels
-        labels = means.columns.unique(&#34;labels&#34;)
-        n_rows = math.ceil(len(labels) / n_cols)
-
-        # Make one plot per label
-        fig, axes = plt.subplots(
-            n_rows, n_cols, figsize=(n_cols * width, n_rows * width)
-        )
-        for ax in axes.ravel()[len(labels):]:
-            fig.delaxes(ax)
-
-        v_min = math.inf
-        v_max = -math.inf
-
-        for label, ax in zip(labels, axes.flat):
-            label_means = means[label]
-            diffs = (label_means.iloc[-1] - label_means.iloc[0]).fillna(0.0)
-
-            v_min = min(v_min, diffs.min())
-            v_max = max(v_max, diffs.max())
-
-            ax.imshow(
-                diffs.to_numpy().reshape(self.img_shape), interpolation=&#34;none&#34;
-            )
-            ax.get_xaxis().set_visible(False)
-            ax.get_yaxis().set_visible(False)
-            ax.set_title(label, fontsize=20)
-
-        for img in plt.gca().get_images():
-            img.set_clim(v_min, v_max)
-
-        cbar = fig.colorbar(img, ax=axes.flat)
-        cbar.ax.tick_params(labelsize=20)
-
-        return fig, axes
-
-    fig, ax = plt.subplots()
-    diffs = (means.iloc[-1] - means.iloc[0]).fillna(0.0)
-    img = ax.imshow(diffs.to_numpy().reshape(self.img_shape))
-    ax.get_xaxis().set_visible(False)
-    ax.get_yaxis().set_visible(False)
-
-    fig.colorbar(img, ax=ax)
-
-    return ax</code></pre>
-</details>
-</dd>
-<dt id="ethik.ImageExplainer.plot_metric"><code class="name flex">
-<span>def <span class="ident">plot_metric</span></span>(<span>self, images, y, y_pred, metric)</span>
-</code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def plot_metric(self, images, y, y_pred, metric):
+<pre><code class="python">def plot_metric(self, X_test, y_test, y_pred, metric):
 
     metrics = self.explain_metric(
         X=images_to_dataframe(images), y=y, y_pred=y_pred, metric=metric
@@ -1030,6 +407,86 @@ images instead of a tabular dataset.</p></section>
 <ul class="hlist">
 <li><code><b><a title="ethik.explainer.Explainer" href="explainer.html#ethik.explainer.Explainer">Explainer</a></b></code>:
 <ul class="hlist">
+<li><code><a title="ethik.explainer.Explainer.explain_bias" href="explainer.html#ethik.explainer.Explainer.explain_bias">explain_bias</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.explain_performance" href="explainer.html#ethik.explainer.Explainer.explain_performance">explain_performance</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.get_metric_name" href="explainer.html#ethik.explainer.Explainer.get_metric_name">get_metric_name</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.plot_bias" href="explainer.html#ethik.explainer.Explainer.plot_bias">plot_bias</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.plot_bias_ranking" href="explainer.html#ethik.explainer.Explainer.plot_bias_ranking">plot_bias_ranking</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.plot_performance" href="explainer.html#ethik.explainer.Explainer.plot_performance">plot_performance</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.plot_performance_ranking" href="explainer.html#ethik.explainer.Explainer.plot_performance_ranking">plot_performance_ranking</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.rank_by_bias" href="explainer.html#ethik.explainer.Explainer.rank_by_bias">rank_by_bias</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
+<dt id="ethik.RegressionExplainer"><code class="flex name class">
+<span>class <span class="ident">RegressionExplainer</span></span>
+<span>(</span><span>alpha=0.05, n_taus=41, lambda_iterations=5, n_jobs=1, verbose=False, n_samples=1, sample_frac=0.8, conf_level=0.05, memoize=False)</span>
+</code></dt>
+<dd>
+<section class="desc"><p>Explains the bias and reliability of model predictions.</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>alpha</code></strong> :&ensp;<code>float</code></dt>
+<dd>A <code>float</code> between <code>0</code> and <code>0.5</code> which indicates by how close the <code>Explainer</code>
+should look at extreme values of a distribution. The closer to zero, the more so
+extreme values will be accounted for. The default is <code>0.05</code> which means that all values
+beyond the 5th and 95th quantiles are ignored.</dd>
+<dt><strong><code>n_taus</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of τ values to consider. The results will be more fine-grained the
+higher this value is. However the computation time increases linearly with <code>n_taus</code>.
+The default is <code>41</code> and corresponds to each τ being separated by it's neighbors by
+<code>0.05</code>.</dd>
+<dt><strong><code>lambda_iterations</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of iterations used when applying the Newton step
+of the optimization procedure. Default is <code>5</code>.</dd>
+<dt><strong><code>n_jobs</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of jobs to use for parallel computations. See
+<code>joblib.Parallel()</code>. Default is <code>-1</code>.</dd>
+<dt><strong><code>verbose</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Passed to <code>joblib.Parallel()</code> for parallel computations.
+Default is <code>False</code>.</dd>
+<dt><strong><code>n_samples</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of samples to use for the confidence interval.
+If <code>1</code>, the default, no confidence interval is computed.</dd>
+<dt><strong><code>sample_frac</code></strong> :&ensp;<code>float</code></dt>
+<dd>The proportion of lines in the dataset sampled to
+generate the samples for the confidence interval. If <code>n_samples</code> is
+<code>1</code>, no confidence interval is computed and the whole dataset is used.
+Default is <code>0.8</code>.</dd>
+<dt><strong><code>conf_level</code></strong> :&ensp;<code>float</code></dt>
+<dd>A <code>float</code> between <code>0</code> and <code>0.5</code> which indicates the
+quantile used for the confidence interval. Default is <code>0.05</code>, which
+means that the confidence interval contains the data between the 5th
+and 95th quantiles.</dd>
+<dt><strong><code>memoize</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Indicates whether or not memoization should be used or not. If <code>True</code>, then
+intermediate results will be stored in order to avoid recomputing results that can be
+reused by successively called methods. For example, if you call <code>plot_bias</code> followed by
+<code>plot_bias_ranking</code> and <code>memoize</code> is <code>True</code>, then the intermediate results required by
+<code>plot_bias</code> will be reused for <code>plot_bias_ranking</code>. Memoization is turned off by
+default because it can lead to unexpected behavior depending on your usage.</dd>
+</dl></section>
+<details class="source">
+<summary>Source code</summary>
+<pre><code class="python">class RegressionExplainer(Explainer):
+    pass</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="ethik.explainer.Explainer" href="explainer.html#ethik.explainer.Explainer">Explainer</a></li>
+</ul>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="ethik.explainer.Explainer" href="explainer.html#ethik.explainer.Explainer">Explainer</a></b></code>:
+<ul class="hlist">
+<li><code><a title="ethik.explainer.Explainer.explain_bias" href="explainer.html#ethik.explainer.Explainer.explain_bias">explain_bias</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.explain_performance" href="explainer.html#ethik.explainer.Explainer.explain_performance">explain_performance</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.get_metric_name" href="explainer.html#ethik.explainer.Explainer.get_metric_name">get_metric_name</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.plot_bias" href="explainer.html#ethik.explainer.Explainer.plot_bias">plot_bias</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.plot_bias_ranking" href="explainer.html#ethik.explainer.Explainer.plot_bias_ranking">plot_bias_ranking</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.plot_performance" href="explainer.html#ethik.explainer.Explainer.plot_performance">plot_performance</a></code></li>
+<li><code><a title="ethik.explainer.Explainer.plot_performance_ranking" href="explainer.html#ethik.explainer.Explainer.plot_performance_ranking">plot_performance_ranking</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.rank_by_bias" href="explainer.html#ethik.explainer.Explainer.rank_by_bias">rank_by_bias</a></code></li>
 </ul>
 </li>
@@ -1046,38 +503,30 @@ images instead of a tabular dataset.</p></section>
 <ul id="index">
 <li><h3><a href="#header-submodules">Sub-modules</a></h3>
 <ul>
+<li><code><a title="ethik.classification_explainer" href="classification_explainer.html">ethik.classification_explainer</a></code></li>
+<li><code><a title="ethik.datasets" href="datasets.html">ethik.datasets</a></code></li>
 <li><code><a title="ethik.explainer" href="explainer.html">ethik.explainer</a></code></li>
-<li><code><a title="ethik.image_explainer" href="image_explainer.html">ethik.image_explainer</a></code></li>
+<li><code><a title="ethik.image_classification_explainer" href="image_classification_explainer.html">ethik.image_classification_explainer</a></code></li>
+<li><code><a title="ethik.regression_explainer" href="regression_explainer.html">ethik.regression_explainer</a></code></li>
+<li><code><a title="ethik.utils" href="utils.html">ethik.utils</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
 <li>
-<h4><code><a title="ethik.Explainer" href="#ethik.Explainer">Explainer</a></code></h4>
+<h4><code><a title="ethik.ClassificationExplainer" href="#ethik.ClassificationExplainer">ClassificationExplainer</a></code></h4>
 <ul class="">
-<li><code><a title="ethik.Explainer.explain_bias" href="#ethik.Explainer.explain_bias">explain_bias</a></code></li>
-<li><code><a title="ethik.Explainer.explain_performance" href="#ethik.Explainer.explain_performance">explain_performance</a></code></li>
-<li><code><a title="ethik.Explainer.features" href="#ethik.Explainer.features">features</a></code></li>
-<li><code><a title="ethik.Explainer.make_bias_fig" href="#ethik.Explainer.make_bias_fig">make_bias_fig</a></code></li>
-<li><code><a title="ethik.Explainer.make_bias_ranking_fig" href="#ethik.Explainer.make_bias_ranking_fig">make_bias_ranking_fig</a></code></li>
-<li><code><a title="ethik.Explainer.make_performance_fig" href="#ethik.Explainer.make_performance_fig">make_performance_fig</a></code></li>
-<li><code><a title="ethik.Explainer.make_performance_ranking_fig" href="#ethik.Explainer.make_performance_ranking_fig">make_performance_ranking_fig</a></code></li>
-<li><code><a title="ethik.Explainer.plot_bias" href="#ethik.Explainer.plot_bias">plot_bias</a></code></li>
-<li><code><a title="ethik.Explainer.plot_bias_ranking" href="#ethik.Explainer.plot_bias_ranking">plot_bias_ranking</a></code></li>
-<li><code><a title="ethik.Explainer.plot_performance" href="#ethik.Explainer.plot_performance">plot_performance</a></code></li>
-<li><code><a title="ethik.Explainer.plot_performance_ranking" href="#ethik.Explainer.plot_performance_ranking">plot_performance_ranking</a></code></li>
-<li><code><a title="ethik.Explainer.rank_by_bias" href="#ethik.Explainer.rank_by_bias">rank_by_bias</a></code></li>
-<li><code><a title="ethik.Explainer.rank_by_performance" href="#ethik.Explainer.rank_by_performance">rank_by_performance</a></code></li>
-<li><code><a title="ethik.Explainer.taus" href="#ethik.Explainer.taus">taus</a></code></li>
+<li><code><a title="ethik.ClassificationExplainer.plot_bias" href="#ethik.ClassificationExplainer.plot_bias">plot_bias</a></code></li>
 </ul>
 </li>
 <li>
-<h4><code><a title="ethik.ImageExplainer" href="#ethik.ImageExplainer">ImageExplainer</a></code></h4>
+<h4><code><a title="ethik.ImageClassificationExplainer" href="#ethik.ImageClassificationExplainer">ImageClassificationExplainer</a></code></h4>
 <ul class="">
-<li><code><a title="ethik.ImageExplainer.explain_bias" href="#ethik.ImageExplainer.explain_bias">explain_bias</a></code></li>
-<li><code><a title="ethik.ImageExplainer.plot_bias" href="#ethik.ImageExplainer.plot_bias">plot_bias</a></code></li>
-<li><code><a title="ethik.ImageExplainer.plot_metric" href="#ethik.ImageExplainer.plot_metric">plot_metric</a></code></li>
+<li><code><a title="ethik.ImageClassificationExplainer.plot_metric" href="#ethik.ImageClassificationExplainer.plot_metric">plot_metric</a></code></li>
 </ul>
+</li>
+<li>
+<h4><code><a title="ethik.RegressionExplainer" href="#ethik.RegressionExplainer">RegressionExplainer</a></code></h4>
 </li>
 </ul>
 </li>
