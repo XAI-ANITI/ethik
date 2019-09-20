@@ -388,12 +388,12 @@ class Explainer:
         """Compute the bias of the model for the features in `X_test`.
 
         Args:
-            X_test (pd.DataFrame or np.array): The dataset as a pandas dataframe
-                or a 2d numpy array of shape `(n_samples, n_features)`.
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
             y_pred (pd.DataFrame or pd.Series): The model predictions
                 for the samples in `X_test`. For binary classification and regression,
                 `pd.Series` is expected. For multi-label classification, a
-                dataframe or a 2d numpy array with one column per label is
+                pandas dataframe with one column per label is
                 expected. The values can either be probabilities or `0/1`
                 (for a one-hot-encoded output).
 
@@ -489,12 +489,12 @@ class Explainer:
         """Compute the change in model's performance for the features in `X_test`.
 
         Args:
-            X_test (pd.DataFrame or np.array): The dataset as a pandas dataframe
-                or a 2d numpy array of shape `(n_samples, n_features)`.
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
             y_test (pd.DataFrame or pd.Series): The true values
                 for the samples in `X_test`. For binary classification and regression,
                 a `pd.Series` is expected. For multi-label classification,
-                a dataframe or a 2d numpy array with one column per label is
+                a pandas dataframe with one column per label is
                 expected. The values can either be probabilities or `0/1`
                 (for a one-hot-encoded output).
             y_pred (pd.DataFrame or pd.Series): The model predictions

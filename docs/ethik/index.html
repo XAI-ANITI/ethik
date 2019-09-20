@@ -22,7 +22,8 @@
 <section id="section-intro">
 <details class="source">
 <summary>Source code</summary>
-<pre><code class="python">from .__version__ import __version__
+<pre><code class="python">from . import datasets
+from .__version__ import __version__
 from .classification_explainer import ClassificationExplainer
 from .regression_explainer import RegressionExplainer
 from .image_classification_explainer import ImageClassificationExplainer
@@ -30,6 +31,7 @@ from .image_classification_explainer import ImageClassificationExplainer
 
 __all__ = [
     &#34;__version__&#34;,
+    &#34;datasets&#34;,
     &#34;RegressionExplainer&#34;,
     &#34;ClassificationExplainer&#34;,
     &#34;ImageClassificationExplainer&#34;,
@@ -40,6 +42,10 @@ __all__ = [
 <h2 class="section-title" id="header-submodules">Sub-modules</h2>
 <dl>
 <dt><code class="name"><a title="ethik.classification_explainer" href="classification_explainer.html">ethik.classification_explainer</a></code></dt>
+<dd>
+<section class="desc"></section>
+</dd>
+<dt><code class="name"><a title="ethik.datasets" href="datasets.html">ethik.datasets</a></code></dt>
 <dd>
 <section class="desc"></section>
 </dd>
@@ -122,10 +128,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
     def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
         &#34;&#34;&#34;Plot the bias for the features in `X_test`.
 
-        Args:
-            X_test (pd.DataFrame or np.array): The dataset as a pandas dataframe
-                or a numpy 2d-array of shape `(n_samples, n_features)`.
-            y_pred (
+        See `ethik.explainer.Explainer.plot_bias()`.
         &#34;&#34;&#34;
         if yrange is None:
             yrange = [0, 1]
@@ -175,22 +178,13 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
 </code></dt>
 <dd>
 <section class="desc"><p>Plot the bias for the features in <code>X_test</code>.</p>
-<h2 id="args">Args</h2>
-<dl>
-<dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>np.array</code></dt>
-<dd>The dataset as a pandas dataframe
-or a numpy 2d-array of shape <code>(n_samples, n_features)</code>.</dd>
-</dl>
-<p>y_pred (</p></section>
+<p>See <a title="ethik.explainer.Explainer.plot_bias" href="explainer.html#ethik.explainer.Explainer.plot_bias"><code>Explainer.plot_bias()</code></a>.</p></section>
 <details class="source">
 <summary>Source code</summary>
 <pre><code class="python">def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
     &#34;&#34;&#34;Plot the bias for the features in `X_test`.
 
-    Args:
-        X_test (pd.DataFrame or np.array): The dataset as a pandas dataframe
-            or a numpy 2d-array of shape `(n_samples, n_features)`.
-        y_pred (
+    See `ethik.explainer.Explainer.plot_bias()`.
     &#34;&#34;&#34;
     if yrange is None:
         yrange = [0, 1]
@@ -274,11 +268,23 @@ images instead of a tabular dataset.</p></section>
             memoize=memoize
         )
 
-    def explain_bias(self, X_test, y_pred):
-        self.img_shape = X_test[0].shape
+    def _set_image_shape(self, images):
+        self.img_shape = images[0].shape
         if self.img_shape[-1] == 1:
             self.img_shape = self.img_shape[:-1]
+
+    def explain_bias(self, X_test, y_pred):
+        self._set_image_shape(images=X_test)
         return super().explain_bias(X_test=images_to_dataframe(X_test), y_pred=y_pred)
+
+    def explain_performance(self, X_test, y_test, y_pred, metric):
+        self._set_image_shape(images=X_test)
+        return super().explain_performance(
+            X_test=images_to_dataframe(X_test),
+            y_test=y_test,
+            y_pred=y_pred,
+            metric=metric,
+        )
 
     def _plot(self, z_values, n_cols):
         n_plots = len(z_values)
@@ -498,6 +504,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
 <li><h3><a href="#header-submodules">Sub-modules</a></h3>
 <ul>
 <li><code><a title="ethik.classification_explainer" href="classification_explainer.html">ethik.classification_explainer</a></code></li>
+<li><code><a title="ethik.datasets" href="datasets.html">ethik.datasets</a></code></li>
 <li><code><a title="ethik.explainer" href="explainer.html">ethik.explainer</a></code></li>
 <li><code><a title="ethik.image_classification_explainer" href="image_classification_explainer.html">ethik.image_classification_explainer</a></code></li>
 <li><code><a title="ethik.regression_explainer" href="regression_explainer.html">ethik.regression_explainer</a></code></li>

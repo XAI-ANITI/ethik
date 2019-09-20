@@ -36,10 +36,7 @@ class ClassificationExplainer(Explainer):
     def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
         &#34;&#34;&#34;Plot the bias for the features in `X_test`.
 
-        Args:
-            X_test (pd.DataFrame or np.array): The dataset as a pandas dataframe
-                or a numpy 2d-array of shape `(n_samples, n_features)`.
-            y_pred (
+        See `ethik.explainer.Explainer.plot_bias()`.
         &#34;&#34;&#34;
         if yrange is None:
             yrange = [0, 1]
@@ -142,10 +139,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
     def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
         &#34;&#34;&#34;Plot the bias for the features in `X_test`.
 
-        Args:
-            X_test (pd.DataFrame or np.array): The dataset as a pandas dataframe
-                or a numpy 2d-array of shape `(n_samples, n_features)`.
-            y_pred (
+        See `ethik.explainer.Explainer.plot_bias()`.
         &#34;&#34;&#34;
         if yrange is None:
             yrange = [0, 1]
@@ -195,22 +189,13 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
 </code></dt>
 <dd>
 <section class="desc"><p>Plot the bias for the features in <code>X_test</code>.</p>
-<h2 id="args">Args</h2>
-<dl>
-<dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>np.array</code></dt>
-<dd>The dataset as a pandas dataframe
-or a numpy 2d-array of shape <code>(n_samples, n_features)</code>.</dd>
-</dl>
-<p>y_pred (</p></section>
+<p>See <a title="ethik.explainer.Explainer.plot_bias" href="explainer.html#ethik.explainer.Explainer.plot_bias"><code>Explainer.plot_bias()</code></a>.</p></section>
 <details class="source">
 <summary>Source code</summary>
 <pre><code class="python">def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
     &#34;&#34;&#34;Plot the bias for the features in `X_test`.
 
-    Args:
-        X_test (pd.DataFrame or np.array): The dataset as a pandas dataframe
-            or a numpy 2d-array of shape `(n_samples, n_features)`.
-        y_pred (
+    See `ethik.explainer.Explainer.plot_bias()`.
     &#34;&#34;&#34;
     if yrange is None:
         yrange = [0, 1]

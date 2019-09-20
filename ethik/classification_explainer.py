@@ -12,13 +12,11 @@ class ClassificationExplainer(Explainer):
     def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
         """Plot the bias for the features in `X_test`.
 
-        Args:
-            X_test (pd.DataFrame or np.array): The dataset as a pandas dataframe
-                or a numpy 2d-array of shape `(n_samples, n_features)`.
-            y_pred (
+        See `ethik.explainer.Explainer.plot_bias()`.
         """
         if yrange is None:
             yrange = [0, 1]
+
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
