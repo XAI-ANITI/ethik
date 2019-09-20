@@ -81,7 +81,7 @@ class ImageClassificationExplainer(explainer.Explainer):
                     y=list(range(self.img_shape[0])),
                     zmin=zmin,
                     zmax=zmax,
-                    colorscale="RdYlBu",
+                    colorscale="RdBu",
                     zsmooth="best",
                     showscale=i == 0,
                     name=label,
@@ -122,18 +122,48 @@ class ImageClassificationExplainer(explainer.Explainer):
 
         return self._plot(values, n_cols=n_cols)
 
-    def plot_metric(self, X_test, y_test, y_pred, metric):
+    def plot_performance(self, X_test, y_test, y_pred, metric):
 
-        metrics = self.explain_metric(
-            X=images_to_dataframe(images), y=y, y_pred=y_pred, metric=metric
+        perf = self.explain_performance(
+            X_test=X_test,
+            y_test=y_test,
+            y_pred=y_pred,
+            metric=metric
+        )
+        metric_name = self.get_metric_name(metric)
+
+        mask = perf['label'] == perf['label'].iloc[0]
+        diffs = (
+            perf[mask].query(f"tau == 1")[metric_name].to_numpy()
+            - perf[mask].query(f"tau == -1")[metric_name].to_numpy()
+        )
+        diffs = diffs.reshape(self.img_shape)
+
+        # We want to make sure that 0 is at the center of the scale
+        zmin, zmax = diffs.min(), diffs.max()
+        zmin, zmax = min(zmin, -zmax), max(zmax, -zmin)
+
+        fig = go.Figure()
+        fig.add_trace(
+            go.Heatmap(
+                z=diffs[::-1],
+                x=list(range(self.img_shape[1])),
+                y=list(range(self.img_shape[0])),
+                zmin=zmin,
+                zmax=zmax,
+                colorscale="RdBu",
+                zsmooth="best",
+                showscale=True,
+                hoverinfo="x+y+z",
+                reversescale=True
+            )
+        )
+        fig.update_layout(
+            margin=dict(t=20, l=20, b=20),
+            width=400,
+            height=400,
+            autosize=False,
+            plot_bgcolor="white",
         )
 
-        # Create a plot if none is provided
-        fig, ax = plt.subplots()
-
-        diffs = (metrics.iloc[-1] - metrics.iloc[0]).fillna(0.0)
-        img = ax.imshow(diffs.to_numpy().reshape(self.img_shape))
-
-        fig.colorbar(img, ax=ax)
-
-        return ax
+        return fig
