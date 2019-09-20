@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
 <meta name="generator" content="pdoc 0.6.3" />
 <title>ethik API documentation</title>
-<meta name="description" content="Ethik …" />
+<meta name="description" content="Introduction …" />
 <link href='https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.0/normalize.min.css' rel='stylesheet'>
 <link href='https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/8.0.0/sanitize.min.css' rel='stylesheet'>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/github.min.css" rel="stylesheet">
@@ -20,24 +20,10 @@
 <h1 class="title">Module <code>ethik</code></h1>
 </header>
 <section id="section-intro">
-<h1 id="ethik">Ethik</h1>
-<ul>
-<li><a href="#introduction">Introduction</a></li>
-<li><a href="#installation">Installation</a></li>
-<li><a href="#user-guide">User guide</a><ul>
-<li><a href="#measuring-model-bias">Measuring model bias</a></li>
-<li><a href="#evaluating-model-reliability">Evaluating model reliability</a></li>
-<li><a href="#handling-images">Handling images</a></li>
-</ul>
-</li>
-<li><a href="#api">API</a></li>
-<li><a href="#authors">Authors</a></li>
-<li><a href="#license">License</a></li>
-</ul>
-<h2 id="introduction">Introduction</h2>
+<h1 id="introduction">Introduction</h1>
 <p><a title="ethik" href="#ethik"><code>ethik</code></a> is a Python package for performing <a href="https://www.microsoft.com/en-us/research/blog/machine-learning-for-fair-decisions/">fair</a> and <a href="https://www.wikiwand.com/en/Explainable_artificial_intelligence">explainable</a> machine learning.</p>
 <div align="center">
-<img src="figures/overview.svg" width="660px" alt="overview"/>
+<img src="../figures/overview.svg" width="660px" alt="overview"/>
 </div>
 <p><a title="ethik" href="#ethik"><code>ethik</code></a> can be used to:</p>
 <ol>
@@ -45,102 +31,37 @@
 <li>Understand how the performance of the model varies with respect to one or more features.</li>
 <li>Visualize which parts of an image influence a model's predictions.</li>
 </ol>
-<h2 id="installation">Installation</h2>
-<p>:warning: Python 3.6 or above is required :snake:</p>
+<h1 id="installation">Installation</h1>
+<p><strong>Python 3.6 or above is required!</strong></p>
 <!---
 **Via [PyPI](<https://pypi.org/project/ethik/>)**
-<pre><code class="shell">&gt;&gt;&gt; pip install ethik
+<pre><code class="shell">pip install ethik
 </code></pre>
 -->
-<p><strong>Via GitHub for the latest development version</strong></p>
-<pre><code class="shell">&gt;&gt;&gt; pip install git+&lt;https://github.com/MaxHalford/ethik&gt;
-&gt;&gt;&gt; # Or through SSH:
-&gt;&gt;&gt; pip install git+ssh://git@github.com/MaxHalford/ethik.git
+<p>Via GitHub for the latest development version:</p>
+<pre><code class="shell">pip install git+&lt;https://github.com/MaxHalford/ethik&gt;
+# Or through SSH:
+pip install git+ssh://git@github.com/MaxHalford/ethik.git
 </code></pre>
-<p><strong>Development installation</strong></p>
-<pre><code class="shell">&gt;&gt;&gt; git clone &lt;https://github.com/MaxHalford/ethik&gt;
-&gt;&gt;&gt; cd ethik
-&gt;&gt;&gt; python setup.py develop
-&gt;&gt;&gt; pip install -r requirements-dev.txt
-&gt;&gt;&gt; pre-commit install # For black
+<p>For developers:</p>
+<pre><code class="shell">git clone &lt;https://github.com/MaxHalford/ethik&gt;
+cd ethik
+python setup.py develop
+pip install -r requirements-dev.txt
+pre-commit install # For black
 </code></pre>
-<h2 id="user-guide">User guide</h2>
-<p>:point_up: Please check out <a href="notebooks/Adult.ipynb">this notebook</a> for more detailed code.</p>
-<p>In the following example we'll be using the <a href="https://archive.ics.uci.edu/ml/datasets/adult">"Adult" dataset</a>. This dataset contains a binary label indicating if a person's annual income is larger than $50k. <code>ethik</code> can diagnose a model by looking at the predictions the model makes on a test set. Consequently, you first have to split your dataset in two (train and test).</p>
-<pre><code class="python">from sklearn import model_selection
-
-X_train, X_test, y_train, y_test = model_selection.train_test_split(X, y, shuffle=True, random_state=42)
-</code></pre>
-<p>You then want to train your model on the training set and make predictions on the test set. In this example we'll train a gradient boosting classifier from the <a href="https://lightgbm.readthedocs.io/en/latest/">LightGBM library</a>. We'll use a variable named <code>y_pred</code> to store the predicted probabilities associated with the <code>True</code> label.</p>
-<pre><code class="python">import lightgbm as lgb
-
-model = lgb.LGBMClassifier(random_state=42).fit(X_train, y_train)
-
-# We use a named pandas series to make plot labels more explicit
-y_pred = model.predict_proba(X_test)[:, 1]
-y_pred = pd.Series(y_pred, name='&gt;$50k')
-</code></pre>
-<p>We can now initialize an <code>ClassificationExplainer</code> using the default parameters.</p>
-<pre><code class="python">import ethik
-
-explainer = ethik.ClassificationExplainer()
-</code></pre>
-<h3 id="measuring-model-bias">Measuring model bias</h3>
-<p><code>ethik</code> can be used to understand how the model predictions vary as a function of one or more features. For example we can look at how the model behaves with respect to the <code>age</code> feature.</p>
-<pre><code class="python">explainer.plot_bias(X_test=X_test['age'], y_pred=y_pred)
-</code></pre>
-<div align="center">
-<img src="figures/age_bias.png" alt="Age bias" />
-</div>
-<p>Recall that the target indicates if a person's annual salary is above $50k. <strong>We can see that the model predicts higher probabilities for older people</strong>. This isn't a surprising result, and could have just as well been observed by looking at the data. However, we can see that the predictions plateau at around 50 years old. Indeed, although salary is correlated with age, some people may retire early or lose their job. Furthermore we can see that the model understands the fact that salaries shrink once people get in age of retiring. This up-and-down relationship is in nature non-linear, and isn't picked up by summary statistics such as correlation coefficients, <a href="https://www.wikiwand.com/en/Odds_ratio">odds ratios</a>, and feature importances in general. Although the observations we made are quite obvious and rather intuitive, it's always good to confirm what the model is thinking. The point is that the curves produced by <code>plot_predictions</code> represent the relationship between a variable and the target according to the model, rather than the data.</p>
-<p>We can also plot the distribution of predictions for more than one variable. However, because different variables have different scales we have to use a common measure to display them together. For this purpose we plot the τ ("tau") values. These values are contained between -1 and 1 and simply reflect by how much the variable is shifted from it's mean towards it's lower and upper quantiles. In the following figure a tau value of -1 corresponds to just under 20 years old whereas a tau value of 1 refers to being slightly over 60 years old.</p>
-<pre><code class="python">explainer.plot_bias(X_test=X_test['age', 'education-num'], y_pred=y_pred)
-</code></pre>
-<div align="center">
-<img src="figures/age_education_bias.png" alt="Age and education bias" />
-</div>
-<p>We can observe that the model assigns higher probabilities to people with higher degrees, which makes perfect sense. Again, this conveys much more of a story than summary statistics.</p>
-<h3 id="evaluating-model-reliability">Evaluating model reliability</h3>
-<p>Our methodology can also be used to evaluate the reliability of a model under different scenarios. Evaluation metrics that are commonly used in machine learning only tell you part of the story. Indeed they tell you the performance of a model <em>on average</em>. A more interesting approach is to visualize how accurate the model is with respect to the distribution of a variable.</p>
-<pre><code class="python">explainer.plot_performance(
-    X_test=X_test['age'],
-    y_test=y_test,
-    y_pred=y_pred &gt; 0.5,  # metrics.accuracy_score requires y_pred to be binary
-    metric=metrics.accuracy_score
-)
-</code></pre>
-<div align="center">
-<img src="figures/age_accuracy.png" alt="Age accuracy" />
-</div>
-<p>In the above figure <strong>we can see that the model is more reliable for younger people than for older ones</strong>. Having a fine-grained understanding of the accuracy of a model can be of extreme help in real-life scenarios. Moreover this can help you understand from where the error of the model is coming from and guide your data science process.</p>
-<p>Similarly to the <code>plot_predictions</code> method, we can display the performance of the model for multiple variables.</p>
-<pre><code class="python">explainer.plot_performance(
-    X_test=X_test['age', 'education-num'],
-    y_test=y_test,
-    y_pred=y_pred &gt; 0.5,
-    metric=metrics.accuracy_score
-)
-</code></pre>
-<div align="center">
-<img src="figures/age_education_accuracy.png" alt="Age and education accuracy" />
-</div>
-<h3 id="handling-images">Handling images</h3>
-<p>A special class named <code>ImageExplainer</code> can be used to analyze image classification models. It has the same API as <code>Explainer</code> but expects to be provided with an array of images. For example we can analyze a CNN run on the MNIST dataset <a href="https://keras.io/examples/mnist_cnn/">from the Keras documendation</a>. The model achieves an accuracy of around 99% on the test set.</p>
-<p><strong><code>ImageExplainer</code> is being migrated to the new API and does not work for now.</strong></p>
-<!---
-We'll first produce predictions for the test set. `x_test` is expected to be an array of shape (`n_images`, `width`, `height`, `n_channels`). Because we are using the MNIST dataset, `x_test` is an array of shape `(10000, 28, 28, 1)`.
-<pre><code class="python">y_pred = model.predict_proba(x_test)
-</code></pre>
-We will now fit an `ImageExplainer` to analyze the images in parallel using `n_jobs=-1`.
-<pre><code class="python">import ethik
-
-explainer = ethik.ImageExplainer(n_jobs=-1)
-explainer = explainer.fit(x_test)
-</code></pre>
--->
-<h2 id="api">API</h2>
-<p><strong>Working on it.</strong></p>
-<h2 id="authors">Authors</h2>
+<h1 id="user-guide">User guide</h1>
+<ul>
+<li><a href="../notebooks/Binary classification.html">Get started</a></li>
+<li><a href="../notebooks/Binary classification.html">Binary classification (Adult dataset)</a></li>
+<li><a href="../notebooks/Multi-label classification.html">Multi-label classification (Iris dataset)</a></li>
+<li><a href="../notebooks/Regression.html">Regression (Boston dataset)</a></li>
+<li><a href="../notebooks/MNIST_plotly.html">Images (MNIST dataset)</a></li>
+<li><a href="../notebooks/Partial Dependence Plot.html">Comparison with Partial Dependence Plots</a></li>
+</ul>
+<h1 id="api">API</h1>
+<p>Explore the API from the menu on the left.</p>
+<h1 id="authors">Authors</h1>
 <p>This work is led by members of the <a href="https://www.math.univ-toulouse.fr/?lang=en">Toulouse Institute of Mathematics</a>, namely:</p>
 <ul>
 <li><a href="https://www.math.univ-toulouse.fr/~fbachoc/">François Bachoc</a></li>
@@ -151,12 +72,84 @@ explainer = explainer.fit(x_test)
 <li><a href="http://laurent.risser.free.fr/menuEng.html">Laurent Risser</a></li>
 </ul>
 <p>This work is financed by the <a href="http://www.cnrs.fr/">Centre National de la Recherche Scientifique (CNRS)</a> and is done in the context of the <a href="https://en.univ-toulouse.fr/aniti">Artificial and Natural Intelligence Toulouse Institute (ANITI)</a> project.</p>
-<h2 id="license">License</h2>
+<h1 id="license">License</h1>
 <p>This software is released under the <a href="LICENSE">GPL license</a>.</p>
 <details class="source">
 <summary>Source code</summary>
 <pre><code class="python">&#34;&#34;&#34;
-.. include:: ../README.md
+# Introduction
+
+`ethik` is a Python package for performing [fair](https://www.microsoft.com/en-us/research/blog/machine-learning-for-fair-decisions/) and [explainable](https://www.wikiwand.com/en/Explainable_artificial_intelligence) machine learning.
+
+&lt;div align=&#34;center&#34;&gt;
+  &lt;img src=&#34;../figures/overview.svg&#34; width=&#34;660px&#34; alt=&#34;overview&#34;/&gt;
+&lt;/div&gt;
+
+`ethik` can be used to:
+
+1. Determine if a predictive model is biased with respect to one or more features.
+2. Understand how the performance of the model varies with respect to one or more features.
+3. Visualize which parts of an image influence a model&#39;s predictions.
+
+# Installation
+
+**Python 3.6 or above is required!**
+
+&lt;!---
+**Via [PyPI](https://pypi.org/project/ethik/)**
+
+```shell
+pip install ethik
+```
+--&gt;
+
+Via GitHub for the latest development version:
+
+```shell
+pip install git+https://github.com/MaxHalford/ethik
+# Or through SSH:
+pip install git+ssh://git@github.com/MaxHalford/ethik.git
+```
+
+For developers:
+
+```shell
+git clone https://github.com/MaxHalford/ethik
+cd ethik
+python setup.py develop
+pip install -r requirements-dev.txt
+pre-commit install # For black
+```
+
+# User guide
+
+* [Get started](../notebooks/Binary classification.html)
+* [Binary classification (Adult dataset)](../notebooks/Binary classification.html)
+* [Multi-label classification (Iris dataset)](../notebooks/Multi-label classification.html)
+* [Regression (Boston dataset)](../notebooks/Regression.html)
+* [Images (MNIST dataset)](../notebooks/MNIST_plotly.html)
+* [Comparison with Partial Dependence Plots](../notebooks/Partial Dependence Plot.html)
+
+# API
+
+Explore the API from the menu on the left.
+
+# Authors
+
+This work is led by members of the [Toulouse Institute of Mathematics](https://www.math.univ-toulouse.fr/?lang=en), namely:
+
+- [François Bachoc](https://www.math.univ-toulouse.fr/~fbachoc/)
+- [Fabrice Gamboa](https://www.math.univ-toulouse.fr/~gamboa/newwab/Pages_Fabrice_Gamboa/Main_Page.html)
+- [Max Halford](https://maxhalford.github.io/)
+- [Vincent Lefoulon](https://vayel.github.io/)
+- [Jean-Michel Loubes](https://perso.math.univ-toulouse.fr/loubes/)
+- [Laurent Risser](http://laurent.risser.free.fr/menuEng.html)
+
+This work is financed by the [Centre National de la Recherche Scientifique (CNRS)](http://www.cnrs.fr/) and is done in the context of the [Artificial and Natural Intelligence Toulouse Institute (ANITI)](https://en.univ-toulouse.fr/aniti) project.
+
+# License
+
+This software is released under the [GPL license](LICENSE).
 &#34;&#34;&#34;
 from . import datasets
 from .__version__ import __version__
@@ -453,7 +446,7 @@ images instead of a tabular dataset.</p></section>
                     y=list(range(self.img_shape[0])),
                     zmin=zmin,
                     zmax=zmax,
-                    colorscale=&#34;RdYlBu&#34;,
+                    colorscale=&#34;RdBu&#34;,
                     zsmooth=&#34;best&#34;,
                     showscale=i == 0,
                     name=label,
@@ -494,53 +487,56 @@ images instead of a tabular dataset.</p></section>
 
         return self._plot(values, n_cols=n_cols)
 
-    def plot_metric(self, X_test, y_test, y_pred, metric):
+    def plot_performance(self, X_test, y_test, y_pred, metric):
 
-        metrics = self.explain_metric(
-            X=images_to_dataframe(images), y=y, y_pred=y_pred, metric=metric
+        perf = self.explain_performance(
+            X_test=X_test,
+            y_test=y_test,
+            y_pred=y_pred,
+            metric=metric
+        )
+        metric_name = self.get_metric_name(metric)
+
+        mask = perf[&#39;label&#39;] == perf[&#39;label&#39;].iloc[0]
+        diffs = (
+            perf[mask].query(f&#34;tau == 1&#34;)[metric_name].to_numpy()
+            - perf[mask].query(f&#34;tau == -1&#34;)[metric_name].to_numpy()
+        )
+        diffs = diffs.reshape(self.img_shape)
+
+        # We want to make sure that 0 is at the center of the scale
+        zmin, zmax = diffs.min(), diffs.max()
+        zmin, zmax = min(zmin, -zmax), max(zmax, -zmin)
+
+        fig = go.Figure()
+        fig.add_trace(
+            go.Heatmap(
+                z=diffs[::-1],
+                x=list(range(self.img_shape[1])),
+                y=list(range(self.img_shape[0])),
+                zmin=zmin,
+                zmax=zmax,
+                colorscale=&#34;RdBu&#34;,
+                zsmooth=&#34;best&#34;,
+                showscale=True,
+                hoverinfo=&#34;x+y+z&#34;,
+                reversescale=True
+            )
+        )
+        fig.update_layout(
+            margin=dict(t=20, l=20, b=20),
+            width=400,
+            height=400,
+            autosize=False,
+            plot_bgcolor=&#34;white&#34;,
         )
 
-        # Create a plot if none is provided
-        fig, ax = plt.subplots()
-
-        diffs = (metrics.iloc[-1] - metrics.iloc[0]).fillna(0.0)
-        img = ax.imshow(diffs.to_numpy().reshape(self.img_shape))
-
-        fig.colorbar(img, ax=ax)
-
-        return ax</code></pre>
+        return fig</code></pre>
 </details>
 <h3>Ancestors</h3>
 <ul class="hlist">
 <li><a title="ethik.explainer.Explainer" href="explainer.html#ethik.explainer.Explainer">Explainer</a></li>
 </ul>
-<h3>Methods</h3>
-<dl>
-<dt id="ethik.ImageClassificationExplainer.plot_metric"><code class="name flex">
-<span>def <span class="ident">plot_metric</span></span>(<span>self, X_test, y_test, y_pred, metric)</span>
-</code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def plot_metric(self, X_test, y_test, y_pred, metric):
-
-    metrics = self.explain_metric(
-        X=images_to_dataframe(images), y=y, y_pred=y_pred, metric=metric
-    )
-
-    # Create a plot if none is provided
-    fig, ax = plt.subplots()
-
-    diffs = (metrics.iloc[-1] - metrics.iloc[0]).fillna(0.0)
-    img = ax.imshow(diffs.to_numpy().reshape(self.img_shape))
-
-    fig.colorbar(img, ax=ax)
-
-    return ax</code></pre>
-</details>
-</dd>
-</dl>
 <h3>Inherited members</h3>
 <ul class="hlist">
 <li><code><b><a title="ethik.explainer.Explainer" href="explainer.html#ethik.explainer.Explainer">Explainer</a></b></code>:
@@ -637,20 +633,12 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
 <h1>Index</h1>
 <div class="toc">
 <ul>
-<li><a href="#ethik">Ethik</a><ul>
 <li><a href="#introduction">Introduction</a></li>
 <li><a href="#installation">Installation</a></li>
-<li><a href="#user-guide">User guide</a><ul>
-<li><a href="#measuring-model-bias">Measuring model bias</a></li>
-<li><a href="#evaluating-model-reliability">Evaluating model reliability</a></li>
-<li><a href="#handling-images">Handling images</a></li>
-</ul>
-</li>
+<li><a href="#user-guide">User guide</a></li>
 <li><a href="#api">API</a></li>
 <li><a href="#authors">Authors</a></li>
 <li><a href="#license">License</a></li>
-</ul>
-</li>
 </ul>
 </div>
 <ul id="index">
@@ -674,9 +662,6 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
 </li>
 <li>
 <h4><code><a title="ethik.ImageClassificationExplainer" href="#ethik.ImageClassificationExplainer">ImageClassificationExplainer</a></code></h4>
-<ul class="">
-<li><code><a title="ethik.ImageClassificationExplainer.plot_metric" href="#ethik.ImageClassificationExplainer.plot_metric">plot_metric</a></code></li>
-</ul>
 </li>
 <li>
 <h4><code><a title="ethik.RegressionExplainer" href="#ethik.RegressionExplainer">RegressionExplainer</a></code></h4>
