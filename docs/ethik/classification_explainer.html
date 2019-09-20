@@ -40,6 +40,7 @@ class ClassificationExplainer(Explainer):
         &#34;&#34;&#34;
         if yrange is None:
             yrange = [0, 1]
+
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
@@ -143,6 +144,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
         &#34;&#34;&#34;
         if yrange is None:
             yrange = [0, 1]
+
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
@@ -199,6 +201,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
     &#34;&#34;&#34;
     if yrange is None:
         yrange = [0, 1]
+
     X_test = pd.DataFrame(to_pandas(X_test))
     y_pred = pd.DataFrame(to_pandas(y_pred))
 

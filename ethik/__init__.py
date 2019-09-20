@@ -1,3 +1,6 @@
+"""
+.. include:: ../README.md
+"""
 from . import datasets
 from .__version__ import __version__
 from .classification_explainer import ClassificationExplainer

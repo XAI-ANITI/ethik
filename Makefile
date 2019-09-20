@@ -15,5 +15,10 @@ test_syntax:
 
 test: test_nb test_unit test_syntax
 
+nb_to_html:
+	mkdir -p docs/ethik/notebooks
+	jupyter nbconvert --to html --output-dir docs/ethik/notebooks notebooks/*.ipynb
+
 doc:
 	pdoc --html -f -o docs ethik
+
