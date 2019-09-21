@@ -105,7 +105,7 @@ class ImageClassificationExplainer(explainer.Explainer):
                     y=list(range(self.img_shape[0])),
                     zmin=zmin,
                     zmax=zmax,
-                    colorscale=&#34;RdYlBu&#34;,
+                    colorscale=&#34;RdBu&#34;,
                     zsmooth=&#34;best&#34;,
                     showscale=i == 0,
                     name=label,
@@ -146,21 +146,51 @@ class ImageClassificationExplainer(explainer.Explainer):
 
         return self._plot(values, n_cols=n_cols)
 
-    def plot_metric(self, X_test, y_test, y_pred, metric):
+    def plot_performance(self, X_test, y_test, y_pred, metric):
 
-        metrics = self.explain_metric(
-            X=images_to_dataframe(images), y=y, y_pred=y_pred, metric=metric
+        perf = self.explain_performance(
+            X_test=X_test,
+            y_test=y_test,
+            y_pred=y_pred,
+            metric=metric
+        )
+        metric_name = self.get_metric_name(metric)
+
+        mask = perf[&#39;label&#39;] == perf[&#39;label&#39;].iloc[0]
+        diffs = (
+            perf[mask].query(f&#34;tau == 1&#34;)[metric_name].to_numpy()
+            - perf[mask].query(f&#34;tau == -1&#34;)[metric_name].to_numpy()
+        )
+        diffs = diffs.reshape(self.img_shape)
+
+        # We want to make sure that 0 is at the center of the scale
+        zmin, zmax = diffs.min(), diffs.max()
+        zmin, zmax = min(zmin, -zmax), max(zmax, -zmin)
+
+        fig = go.Figure()
+        fig.add_trace(
+            go.Heatmap(
+                z=diffs[::-1],
+                x=list(range(self.img_shape[1])),
+                y=list(range(self.img_shape[0])),
+                zmin=zmin,
+                zmax=zmax,
+                colorscale=&#34;RdBu&#34;,
+                zsmooth=&#34;best&#34;,
+                showscale=True,
+                hoverinfo=&#34;x+y+z&#34;,
+                reversescale=True
+            )
+        )
+        fig.update_layout(
+            margin=dict(t=20, l=20, b=20),
+            width=400,
+            height=400,
+            autosize=False,
+            plot_bgcolor=&#34;white&#34;,
         )
 
-        # Create a plot if none is provided
-        fig, ax = plt.subplots()
-
-        diffs = (metrics.iloc[-1] - metrics.iloc[0]).fillna(0.0)
-        img = ax.imshow(diffs.to_numpy().reshape(self.img_shape))
-
-        fig.colorbar(img, ax=ax)
-
-        return ax</code></pre>
+        return fig</code></pre>
 </details>
 </section>
 <section>
@@ -265,7 +295,7 @@ images instead of a tabular dataset.</p></section>
                     y=list(range(self.img_shape[0])),
                     zmin=zmin,
                     zmax=zmax,
-                    colorscale=&#34;RdYlBu&#34;,
+                    colorscale=&#34;RdBu&#34;,
                     zsmooth=&#34;best&#34;,
                     showscale=i == 0,
                     name=label,
@@ -306,53 +336,56 @@ images instead of a tabular dataset.</p></section>
 
         return self._plot(values, n_cols=n_cols)
 
-    def plot_metric(self, X_test, y_test, y_pred, metric):
+    def plot_performance(self, X_test, y_test, y_pred, metric):
 
-        metrics = self.explain_metric(
-            X=images_to_dataframe(images), y=y, y_pred=y_pred, metric=metric
+        perf = self.explain_performance(
+            X_test=X_test,
+            y_test=y_test,
+            y_pred=y_pred,
+            metric=metric
+        )
+        metric_name = self.get_metric_name(metric)
+
+        mask = perf[&#39;label&#39;] == perf[&#39;label&#39;].iloc[0]
+        diffs = (
+            perf[mask].query(f&#34;tau == 1&#34;)[metric_name].to_numpy()
+            - perf[mask].query(f&#34;tau == -1&#34;)[metric_name].to_numpy()
+        )
+        diffs = diffs.reshape(self.img_shape)
+
+        # We want to make sure that 0 is at the center of the scale
+        zmin, zmax = diffs.min(), diffs.max()
+        zmin, zmax = min(zmin, -zmax), max(zmax, -zmin)
+
+        fig = go.Figure()
+        fig.add_trace(
+            go.Heatmap(
+                z=diffs[::-1],
+                x=list(range(self.img_shape[1])),
+                y=list(range(self.img_shape[0])),
+                zmin=zmin,
+                zmax=zmax,
+                colorscale=&#34;RdBu&#34;,
+                zsmooth=&#34;best&#34;,
+                showscale=True,
+                hoverinfo=&#34;x+y+z&#34;,
+                reversescale=True
+            )
+        )
+        fig.update_layout(
+            margin=dict(t=20, l=20, b=20),
+            width=400,
+            height=400,
+            autosize=False,
+            plot_bgcolor=&#34;white&#34;,
         )
 
-        # Create a plot if none is provided
-        fig, ax = plt.subplots()
-
-        diffs = (metrics.iloc[-1] - metrics.iloc[0]).fillna(0.0)
-        img = ax.imshow(diffs.to_numpy().reshape(self.img_shape))
-
-        fig.colorbar(img, ax=ax)
-
-        return ax</code></pre>
+        return fig</code></pre>
 </details>
 <h3>Ancestors</h3>
 <ul class="hlist">
 <li><a title="ethik.explainer.Explainer" href="explainer.html#ethik.explainer.Explainer">Explainer</a></li>
 </ul>
-<h3>Methods</h3>
-<dl>
-<dt id="ethik.image_classification_explainer.ImageClassificationExplainer.plot_metric"><code class="name flex">
-<span>def <span class="ident">plot_metric</span></span>(<span>self, X_test, y_test, y_pred, metric)</span>
-</code></dt>
-<dd>
-<section class="desc"></section>
-<details class="source">
-<summary>Source code</summary>
-<pre><code class="python">def plot_metric(self, X_test, y_test, y_pred, metric):
-
-    metrics = self.explain_metric(
-        X=images_to_dataframe(images), y=y, y_pred=y_pred, metric=metric
-    )
-
-    # Create a plot if none is provided
-    fig, ax = plt.subplots()
-
-    diffs = (metrics.iloc[-1] - metrics.iloc[0]).fillna(0.0)
-    img = ax.imshow(diffs.to_numpy().reshape(self.img_shape))
-
-    fig.colorbar(img, ax=ax)
-
-    return ax</code></pre>
-</details>
-</dd>
-</dl>
 <h3>Inherited members</h3>
 <ul class="hlist">
 <li><code><b><a title="ethik.explainer.Explainer" href="explainer.html#ethik.explainer.Explainer">Explainer</a></b></code>:
@@ -392,9 +425,6 @@ images instead of a tabular dataset.</p></section>
 <ul>
 <li>
 <h4><code><a title="ethik.image_classification_explainer.ImageClassificationExplainer" href="#ethik.image_classification_explainer.ImageClassificationExplainer">ImageClassificationExplainer</a></code></h4>
-<ul class="">
-<li><code><a title="ethik.image_classification_explainer.ImageClassificationExplainer.plot_metric" href="#ethik.image_classification_explainer.ImageClassificationExplainer.plot_metric">plot_metric</a></code></li>
-</ul>
 </li>
 </ul>
 </li>

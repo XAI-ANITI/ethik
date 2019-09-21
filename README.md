@@ -15,7 +15,7 @@
 `ethik` is a Python package for performing [fair](https://www.microsoft.com/en-us/research/blog/machine-learning-for-fair-decisions/) and [explainable](https://www.wikiwand.com/en/Explainable_artificial_intelligence) machine learning.
 
 <div align="center">
-  <img src="figures/overview.svg" width="660px" alt="overview"/>
+  <img src="docs/figures/overview.svg" width="660px" alt="overview"/>
 </div>
 
 `ethik` can be used to:
@@ -95,7 +95,7 @@ explainer.plot_bias(X_test=X_test['age'], y_pred=y_pred)
 ```
 
 <div align="center">
-    <img src="figures/age_bias.png" alt="Age bias" />
+    <img src="docs/figures/age_bias.png" alt="Age bias" />
 </div>
 
 Recall that the target indicates if a person's annual salary is above $50k. **We can see that the model predicts higher probabilities for older people**. This isn't a surprising result, and could have just as well been observed by looking at the data. However, we can see that the predictions plateau at around 50 years old. Indeed, although salary is correlated with age, some people may retire early or lose their job. Furthermore we can see that the model understands the fact that salaries shrink once people get in age of retiring. This up-and-down relationship is in nature non-linear, and isn't picked up by summary statistics such as correlation coefficients, [odds ratios](https://www.wikiwand.com/en/Odds_ratio), and feature importances in general. Although the observations we made are quite obvious and rather intuitive, it's always good to confirm what the model is thinking. The point is that the curves produced by `plot_predictions` represent the relationship between a variable and the target according to the model, rather than the data.
@@ -107,7 +107,7 @@ explainer.plot_bias(X_test=X_test['age', 'education-num'], y_pred=y_pred)
 ```
 
 <div align="center">
-    <img src="figures/age_education_bias.png" alt="Age and education bias" />
+    <img src="docs/figures/age_education_bias.png" alt="Age and education bias" />
 </div>
 
 We can observe that the model assigns higher probabilities to people with higher degrees, which makes perfect sense. Again, this conveys much more of a story than summary statistics.
@@ -126,7 +126,7 @@ explainer.plot_performance(
 ```
 
 <div align="center">
-    <img src="figures/age_accuracy.png" alt="Age accuracy" />
+    <img src="docs/figures/age_accuracy.png" alt="Age accuracy" />
 </div>
 
 In the above figure **we can see that the model is more reliable for younger people than for older ones**. Having a fine-grained understanding of the accuracy of a model can be of extreme help in real-life scenarios. Moreover this can help you understand from where the error of the model is coming from and guide your data science process.
@@ -143,7 +143,7 @@ explainer.plot_performance(
 ```
 
 <div align="center">
-    <img src="figures/age_education_accuracy.png" alt="Age and education accuracy" />
+    <img src="docs/figures/age_education_accuracy.png" alt="Age and education accuracy" />
 </div>
 
 ### Handling images
