@@ -249,9 +249,8 @@ class Explainer:
         return self.info["feature"].unique().tolist()
 
     def _determine_pairs_to_do(self, features, labels):
-        to_do_pairs = (
-            set(itertools.product(features, labels)) -
-            set(self.info.groupby(["feature", "label"]).groups.keys())
+        to_do_pairs = set(itertools.product(features, labels)) - set(
+            self.info.groupby(["feature", "label"]).groups.keys()
         )
         to_do_map = collections.defaultdict(list)
         for feat, label in to_do_pairs:
@@ -265,10 +264,9 @@ class Explainer:
         2. A grid of $\eps$ values is generated for each $\tau$ and for each variable. Each $\eps$ represents a shift from a variable's mean towards a particular quantile.
         3. A grid of $\lambda$ values is generated for each $\eps$. Each $\lambda$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\eps$ shift.
 
-        Parameters:
-            X_test (`pandas.DataFrame` or `numpy.ndarray`)
-            y_pred (`pandas.DataFrame` or `numpy.ndarray`)
-
+        Args:
+            X_test (pandas.DataFrame or numpy.ndarray): a
+            y_pred (pandas.DataFrame or numpy.ndarray): a
         """
 
         X_test = pd.DataFrame(to_pandas(X_test))
@@ -278,7 +276,9 @@ class Explainer:
         X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
 
         # Check which (feature, label) pairs have to be done
-        to_do_map = self._determine_pairs_to_do(features=X_test.columns, labels=y_pred.columns)
+        to_do_map = self._determine_pairs_to_do(
+            features=X_test.columns, labels=y_pred.columns
+        )
         # We need a list to keep the order of X_test
         to_do_features = list(feat for feat in X_test.columns if feat in to_do_map)
         X_test = X_test[to_do_features]
@@ -287,9 +287,9 @@ class Explainer:
             return self
 
         # Make the epsilons for each (feature, label, tau) triplet
-        quantiles = X_test.quantile([self.alpha, 1. - self.alpha])
+        quantiles = X_test.quantile(q=[self.alpha, 1.0 - self.alpha])
         q_mins = quantiles.loc[self.alpha].to_dict()
-        q_maxs = quantiles.loc[1. - self.alpha].to_dict()
+        q_maxs = quantiles.loc[1.0 - self.alpha].to_dict()
         means = X_test.mean().to_dict()
         additional_info = pd.concat(
             [
@@ -301,8 +301,8 @@ class Explainer:
                             + tau
                             * (
                                 max(means[feature] - q_mins[feature], 0)
-                                if tau < 0 else
-                                max(q_maxs[feature] - means[feature], 0)
+                                if tau < 0
+                                else max(q_maxs[feature] - means[feature], 0)
                             )
                             for tau in self.taus
                         ],
@@ -319,7 +319,9 @@ class Explainer:
         self.info = self.info.append(additional_info, ignore_index=True, sort=False)
 
         # Find a lambda for each (feature, espilon) pair
-        lambdas = joblib.Parallel(n_jobs=self.n_jobs, verbose=10 if self.verbose else 0)(
+        lambdas = joblib.Parallel(
+            n_jobs=self.n_jobs, verbose=10 if self.verbose else 0
+        )(
             joblib.delayed(compute_lambdas)(
                 x=X_test[feature],
                 target_means=part["value"].unique(),
@@ -353,7 +355,7 @@ class Explainer:
 
         # Check X_test and y_pred okay
         if len(X_test) != len(y_pred):
-            raise ValueError('X_test and y_pred are not of the same length')
+            raise ValueError("X_test and y_pred are not of the same length")
 
         # Find the lambda values for each (feature, tau, label) triplet
         self._find_lambdas(X_test, y_pred)
@@ -398,6 +400,7 @@ class Explainer:
                     ),
                 ]
             )
+
             # Merge the new information with the current information
             self.info = join_with_overlap(left=self.info, right=data, on=key_cols)
 
@@ -407,6 +410,71 @@ class Explainer:
         ]
 
     def explain_bias(self, X_test, y_pred):
+        """Compute the bias of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                `pd.Series` is expected. For multi-label classification, a
+                pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+
+        Returns:
+            pd.DataFrame:
+                A dataframe with columns `(feature, tau, value, lambda, label,
+                bias, bias_low, bias_high)`. If `explainer.n_samples` is `1`,
+                no confidence interval is computed and `bias = bias_low = bias_high`.
+                The value of `label` is not important for regression.
+
+        Examples:
+            See more examples in `notebooks`.
+
+            Binary classification:
+
+            >>> X_test = pd.DataFrame([
+            ...     [1, 2],
+            ...     [1.1, 2.2],
+            ...     [1.3, 2.3],
+            ... ], columns=["x0", "x1"])
+            >>> y_pred = model(X_test)
+            >>> y_pred
+            [0, 1, 1]  # Can also be probabilities: [0.3, 0.65, 0.8]
+            >>> # For readibility reasons, we give a name to the predictions
+            >>> y_pred = pd.Series(y_pred, name="is_reliable")
+            >>> explainer.explain_bias(X_test, y_pred)
+
+            Regression is similar to binary classification:
+            
+            >>> X_test = pd.DataFrame([
+            ...     [1, 2],
+            ...     [1.1, 2.2],
+            ...     [1.3, 2.3],
+            ... ], columns=["x0", "x1"])
+            >>> y_pred = model(X_test)
+            >>> y_pred
+            [22, 24, 19]
+            >>> # For readibility reasons, we give a name to the predictions
+            >>> y_pred = pd.Series(y_pred, name="price")
+            >>> explainer.explain_bias(X_test, y_pred)
+
+            For multi-label classification, we need a dataframe to store predictions:
+            
+            >>> X_test = pd.DataFrame([
+            ...     [1, 2],
+            ...     [1.1, 2.2],
+            ...     [1.3, 2.3],
+            ... ], columns=["x0", "x1"])
+            >>> y_pred = model(X_test)
+            >>> y_pred.columns
+            ["class0", "class1", "class2"]
+            >>> y_pred.iloc[0]
+            [0, 1, 0] # One-hot encoded, or probabilities: [0.15, 0.6, 0.25]
+            >>> explainer.explain_bias(X_test, y_pred)
+        """
+
         def compute(X_test, y_pred, relevant):
             return pd.DataFrame(
                 [
@@ -417,19 +485,21 @@ class Explainer:
                         sample_index,
                         np.average(
                             y_pred[label][mask],
-                            weights=special.softmax(λ * X_test[feature][mask])
+                            weights=special.softmax(λ * X_test[feature][mask]),
                         ),
                     )
                     for (sample_index, mask), (feature, label, λ) in itertools.product(
-                        enumerate(yield_masks(
-                            n_masks=self.n_samples,
-                            n=len(X_test),
-                            p=self.sample_frac
-                        )),
-                        relevant.groupby(["feature", "label", "lambda"]).groups.keys()
+                        enumerate(
+                            yield_masks(
+                                n_masks=self.n_samples,
+                                n=len(X_test),
+                                p=self.sample_frac,
+                            )
+                        ),
+                        relevant.groupby(["feature", "label", "lambda"]).groups.keys(),
                     )
                 ],
-                columns=["feature", "label", "lambda", "sample_index", "bias"]
+                columns=["feature", "label", "lambda", "sample_index", "bias"],
             )
 
         return self._explain(
@@ -441,6 +511,36 @@ class Explainer:
         )
 
     def explain_performance(self, X_test, y_test, y_pred, metric):
+        """Compute the change in model's performance for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_test (pd.DataFrame or pd.Series): The true values
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series` is expected. For multi-label classification,
+                a pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. The format is the same as `y_test`.
+            metric (callable): A scikit-learn-like metric
+                `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+                to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+                "the set of labels predicted for a sample must exactly match the
+                corresponding set of labels in `y_true`".
+
+        Returns:
+            pd.DataFrame:
+                A dataframe with columns `(feature, tau, value, lambda, label,
+                bias, bias_low, bias_high, <metric_name>, <metric_name_low>, <metric_name_high>)`.
+                If `explainer.n_samples` is `1`, no confidence interval is computed
+                and `<metric_name> = <metric_name_low> = <metric_name_high>`.
+                The value of `label` is not important for regression.
+
+        Examples:
+            See examples in `notebooks`.
+        """
         metric_name = self.get_metric_name(metric)
         if metric_name not in self.info.columns:
             self.info[metric_name] = None
@@ -460,19 +560,21 @@ class Explainer:
                         metric(
                             y_test[mask],
                             y_pred[mask],
-                            sample_weight=special.softmax(λ * X_test[feature][mask])
+                            sample_weight=special.softmax(λ * X_test[feature][mask]),
                         ),
                     )
                     for (sample_index, mask), (feature, λ) in itertools.product(
-                        enumerate(yield_masks(
-                            n_masks=self.n_samples,
-                            n=len(X_test),
-                            p=self.sample_frac
-                        )),
-                        relevant.groupby(["feature", "lambda"]).groups.keys()
+                        enumerate(
+                            yield_masks(
+                                n_masks=self.n_samples,
+                                n=len(X_test),
+                                p=self.sample_frac,
+                            )
+                        ),
+                        relevant.groupby(["feature", "lambda"]).groups.keys(),
                     )
                 ],
-                columns=["feature", "lambda", "sample_index", metric_name]
+                columns=["feature", "lambda", "sample_index", metric_name],
             )
 
         return self._explain(
@@ -480,7 +582,7 @@ class Explainer:
             y_pred=y_pred,
             dest_col=metric_name,
             key_cols=["feature", "lambda"],
-            compute=compute
+            compute=compute,
         )
 
     def rank_by_bias(self, X_test, y_pred):
@@ -636,19 +738,81 @@ class Explainer:
             ),
         )
 
-    def plot_bias(self, X_test, y_pred, **fig_kwargs):
+    def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+        """Plot the bias of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_bias()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_bias()`.
+            colors (dict, optional): A dictionary that maps features to colors.
+                Default is `None` and the colors are choosen automatically.
+            yrange (list, optional): A two-item list `[low, high]`. Default is
+                `None` and the range is based on the data.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+
+        Examples:
+            >>> explainer.plot_bias(X_test, y_pred)
+            >>> explainer.plot_bias(X_test, y_pred, colors=dict(
+            ...     x0="blue",
+            ...     x1="red",
+            ... ))
+            >>> explainer.plot_bias(X_test, y_pred, yrange=[0.5, 1])
+        """
         explanation = self.explain_bias(X_test, y_pred)
         labels = explanation["label"].unique()
         if len(labels) > 1:
             raise ValueError("Cannot plot multiple labels")
         y_label = f'Average "{labels[0]}"'
-        return self._plot_explanation(explanation, "bias", y_label, **fig_kwargs)
+        return self._plot_explanation(
+            explanation, "bias", y_label, colors=colors, yrange=yrange
+        )
 
-    def plot_bias_ranking(self, X_test, y_pred, **fig_kwargs):
+    def plot_bias_ranking(self, X_test, y_pred, colors=None):
+        """Plot the ranking of the features based on their bias.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_bias()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_bias()`.
+            colors (dict, optional): See `Explainer.plot_bias()`.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        """
         ranking = self.rank_by_bias(X_test=X_test, y_pred=y_pred)
-        return self._plot_ranking(ranking, "importance", "Importance", **fig_kwargs)
+        return self._plot_ranking(
+            ranking=ranking,
+            score_column="importance",
+            title="Importance",
+            colors=colors,
+        )
 
-    def plot_performance(self, X_test, y_test, y_pred, metric, **fig_kwargs):
+    def plot_performance(
+        self, X_test, y_test, y_pred, metric, colors=None, yrange=None
+    ):
+        """Plot the performance of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_performance()`.
+            y_test (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+            metric (callable): See `Explainer.explain_performance()`.
+            colors (dict, optional): See `Explainer.plot_bias()`.
+            yrange (list, optional): See `Explainer.plot_bias()`.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        """
         metric_name = self.get_metric_name(metric)
         explanation = self.explain_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
@@ -662,12 +826,33 @@ class Explainer:
         )
 
     def plot_performance_ranking(
-        self, X_test, y_test, y_pred, metric, criterion, **fig_kwargs
+        self, X_test, y_test, y_pred, metric, criterion, colors
     ):
+        """Plot the performance of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_performance()`.
+            y_test (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
+            metric (callable): See `Explainer.explain_performance()`.
+            criterion (str): Either "min" or "max" to determine whether, for a
+                given feature, we keep the worst or the best performance for all
+                the values taken by the mean.
+            colors (dict, optional): See `Explainer.plot_bias_ranking()`.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        """
         metric_name = self.get_metric_name(metric)
         ranking = self.rank_by_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
         return self._plot_ranking(
-            ranking, criterion, f"{criterion} {metric_name}", **fig_kwargs
+            ranking=ranking,
+            score_column=criterion,
+            title=f"{criterion} {metric_name}",
+            colors=colors,
         )
