@@ -35,10 +35,34 @@ def test_check_n_taus():
             ethik.ClassificationExplainer(n_taus=n_taus)
 
 
-def test_check_lambda_iterations():
-    for iterations in (-1, 0):
+def test_check_n_samples():
+    for n_samples in (-1, 0):
         with pytest.raises(ValueError):
-            ethik.ClassificationExplainer(lambda_iterations=iterations)
+            ethik.ClassificationExplainer(n_samples=n_samples)
+
+
+def test_check_sample_frac():
+    for sample_frac in (-1, 0, 1):
+        with pytest.raises(ValueError):
+            ethik.ClassificationExplainer(sample_frac=sample_frac)
+
+
+def test_check_conf_level():
+    for conf_level in (-1, 0, .5):
+        with pytest.raises(ValueError):
+            ethik.ClassificationExplainer(conf_level=conf_level)
+
+
+def test_check_max_iterations():
+    for max_iterations in (-1, 0):
+        with pytest.raises(ValueError):
+            ethik.ClassificationExplainer(max_iterations=max_iterations)
+
+
+def test_check_tol():
+    for tol in (-1, 0):
+        with pytest.raises(ValueError):
+            ethik.ClassificationExplainer(tol=tol)
 
 
 def test_memoization():
@@ -55,17 +79,19 @@ def test_memoization():
 
     # Without memoization
     explainer = ethik.RegressionExplainer(memoize=False, n_jobs=1)
-    explainer.explain_bias(X_test[['CRIM', 'ZN']], y_pred)
-    assert explainer.info['feature'].unique().tolist() == ['CRIM', 'ZN']
-    explainer.explain_bias(X_test[['CRIM']], y_pred)
-    assert explainer.info['feature'].unique().tolist() == ['CRIM']
+    explainer.explain_bias(X_test[['INDUS', 'NOX']], y_pred)
+    assert explainer.info['feature'].unique().tolist() == ['INDUS', 'NOX']
+    explainer.explain_bias(X_test[['INDUS']], y_pred)
+    assert explainer.info['feature'].unique().tolist() == ['INDUS']
 
     # With memoization
     explainer = ethik.RegressionExplainer(memoize=True, n_jobs=1)
-    explainer.explain_bias(X_test[['CRIM', 'ZN']], y_pred)
-    assert explainer.info['feature'].unique().tolist() == ['CRIM', 'ZN']
-    explainer.explain_bias(X_test[['CRIM']], y_pred)
-    assert explainer.info['feature'].unique().tolist() == ['CRIM', 'ZN']
+    bias = explainer.explain_bias(X_test[['INDUS', 'NOX']], y_pred)
+    assert bias['feature'].unique().tolist() == ['INDUS', 'NOX']
+    assert explainer.info['feature'].unique().tolist() == ['INDUS', 'NOX']
+    bias = explainer.explain_bias(X_test[['INDUS']], y_pred)
+    assert bias['feature'].unique().tolist() == ['INDUS']
+    assert explainer.info['feature'].unique().tolist() == ['INDUS', 'NOX']
 
 
 def test_determine_pairs_to_do():

@@ -84,8 +84,8 @@ def compute_lambdas(x, target_means, max_iterations, tol):
             warnings.warn(
                 message=(
                     f"Gradient descent failed to converge after {max_iterations} iterations " +
-                    f"(mean={mean}, target_mean={target_mean}, current_mean={current_mean}, " +
-                    f"grad={grad}, hess={hess}, step={step}, λ={λ})"
+                    f"(name={x.name}, mean={mean}, target_mean={target_mean}, " +
+                    f"current_mean={current_mean}, grad={grad}, hess={hess}, step={step}, λ={λ})"
                 ),
                 category=ConvergenceWarning
             )
@@ -447,7 +447,7 @@ class Explainer:
             >>> explainer.explain_bias(X_test, y_pred)
 
             Regression is similar to binary classification:
-            
+
             >>> X_test = pd.DataFrame([
             ...     [1, 2],
             ...     [1.1, 2.2],
@@ -461,7 +461,7 @@ class Explainer:
             >>> explainer.explain_bias(X_test, y_pred)
 
             For multi-label classification, we need a dataframe to store predictions:
-            
+
             >>> X_test = pd.DataFrame([
             ...     [1, 2],
             ...     [1.1, 2.2],
