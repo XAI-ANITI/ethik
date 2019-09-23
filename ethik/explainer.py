@@ -1,6 +1,7 @@
 import collections
 import functools
 import itertools
+import warnings
 
 import joblib
 import numpy as np
@@ -16,15 +17,21 @@ __all__ = ["Explainer"]
 CAT_COL_SEP = " = "
 
 
-def compute_lambdas(x, target_means, iterations=5, use_previous_lambda=False):
+class ConvergenceWarning(UserWarning):
+    """Custom warning to capture convergence problems."""
+
+
+def compute_lambdas(x, target_means, max_iterations, tol):
     """Find good lambdas for a variable and given target means.
 
     Args:
         x (pd.Series): The variable's values.
         target_means (iterator of floats): The means to reach by weighting the
             feature's values.
-        iterations (int): The number of iterations to compute the weights for a
-            given target mean. Default is `5`.
+        max_iterations (int): The maximum number of iterations of gradient descent.
+        tol (float): Stopping criterion. The gradient descent will stop if the mean absolute error
+            between the obtained mean and the target mean is lower than tol, even if the maximum
+            number of iterations has not been reached.
 
     Returns:
         dict: The keys are couples `(name of the variable, target mean)` and the
@@ -44,14 +51,18 @@ def compute_lambdas(x, target_means, iterations=5, use_previous_lambda=False):
 
         λ = 0
         current_mean = mean
+        n_iterations = 0
 
-        for _ in range(iterations):
+        while n_iterations < max_iterations:
+            n_iterations += 1
 
             # Stop if the target mean has been reached
             if current_mean == target_mean:
                 break
 
-            # Update the sample weights and see where the mean is
+            # Update the sample weights and obtain the new mean of the distribution
+            # TODO: if λ * x is too large then sample_weights might only contain zeros, which
+            # leads to hess being equal to 0
             sample_weights = special.softmax(λ * x)
             current_mean = np.average(x, weights=sample_weights)
 
@@ -60,14 +71,24 @@ def compute_lambdas(x, target_means, iterations=5, use_previous_lambda=False):
             grad = current_mean - target_mean
             hess = np.average((x - current_mean) ** 2, weights=sample_weights)
 
-            if hess == 0:
-                # We use a magic number based on experience for the step size, this is subject
-                # to change
-                λ -= 1e-5 * grad
+            # We use a magic number for the step size if the hessian is nil
+            step = (1e-5 * grad) if hess == 0 else (grad / hess)
+            λ -= step
+
+            # Stop if the gradient is small enough
+            if abs(grad) < tol:
                 break
 
-            step = grad / hess
-            λ -= step
+        # Warn the user if the algorithm didn't converge
+        else:
+            warnings.warn(
+                message=(
+                    f"Gradient descent failed to converge after {max_iterations} iterations " +
+                    f"(name={x.name}, mean={mean}, target_mean={target_mean}, " +
+                    f"current_mean={current_mean}, grad={grad}, hess={hess}, step={step}, λ={λ})"
+                ),
+                category=ConvergenceWarning
+            )
 
         lambdas[(x.name, target_mean)] = λ
 
@@ -142,27 +163,20 @@ class Explainer:
         self,
         alpha=0.05,
         n_taus=41,
-        lambda_iterations=5,
-        n_jobs=1,  # Parallelism is only worth it if the dataset is "large"
-        verbose=False,
         n_samples=1,
         sample_frac=0.8,
         conf_level=0.05,
+        max_iterations=15,
+        tol=1e-3,
+        n_jobs=1,  # Parallelism is only worth it if the dataset is "large"
         memoize=False,
+        verbose=False,
     ):
         if not 0 <= alpha < 0.5:
-            raise ValueError("alpha must be between 0 and 0.5, got " f"{alpha}")
+            raise ValueError(f"alpha must be between 0 and 0.5, got {alpha}")
 
         if not n_taus > 0:
-            raise ValueError(
-                "n_taus must be a strictly positive integer, got " f"{n_taus}"
-            )
-
-        if not lambda_iterations > 0:
-            raise ValueError(
-                "lambda_iterations must be a strictly positive "
-                f"integer, got {lambda_iterations}"
-            )
+            raise ValueError(f"n_taus must be a strictly positive integer, got {n_taus}")
 
         if n_samples < 1:
             raise ValueError(f"n_samples must be strictly positive, got {n_samples}")
@@ -173,16 +187,26 @@ class Explainer:
         if not 0 < conf_level < 0.5:
             raise ValueError(f"conf_level must be between 0 and 0.5, got {conf_level}")
 
+        if not max_iterations > 0:
+            raise ValueError(
+                "max_iterations must be a strictly positive "
+                f"integer, got {max_iterations}"
+            )
+
+        if not tol > 0:
+            raise ValueError(f"tol must be a strictly positive number, got {tol}")
+
         self.alpha = alpha
         self.n_taus = n_taus
-        self.lambda_iterations = lambda_iterations
-        self.n_jobs = n_jobs
-        self.verbose = verbose
-        self.metric_names = set()
         self.n_samples = n_samples
         self.sample_frac = sample_frac if n_samples > 1 else 1
         self.conf_level = conf_level
+        self.max_iterations = max_iterations
+        self.tol = tol
+        self.n_jobs = n_jobs
         self.memoize = memoize
+        self.verbose = verbose
+        self.metric_names = set()
         self._reset_info()
 
     def _reset_info(self):
@@ -301,7 +325,8 @@ class Explainer:
             joblib.delayed(compute_lambdas)(
                 x=X_test[feature],
                 target_means=part["value"].unique(),
-                iterations=self.lambda_iterations,
+                max_iterations=self.max_iterations,
+                tol=self.tol,
             )
             for feature, part in self.info.groupby("feature")
         )
@@ -422,7 +447,7 @@ class Explainer:
             >>> explainer.explain_bias(X_test, y_pred)
 
             Regression is similar to binary classification:
-            
+
             >>> X_test = pd.DataFrame([
             ...     [1, 2],
             ...     [1.1, 2.2],
@@ -436,7 +461,7 @@ class Explainer:
             >>> explainer.explain_bias(X_test, y_pred)
 
             For multi-label classification, we need a dataframe to store predictions:
-            
+
             >>> X_test = pd.DataFrame([
             ...     [1, 2],
             ...     [1.1, 2.2],

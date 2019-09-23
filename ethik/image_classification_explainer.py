@@ -24,14 +24,16 @@ class ImageClassificationExplainer(explainer.Explainer):
 
     """
 
-    def __init__(self, alpha=0.05, lambda_iterations=5, n_jobs=-1, verbose=False, memoize=True):
+    def __init__(self, alpha=0.05, max_iterations=10, tol=1e-3, n_jobs=-1, memoize=True,
+                 verbose=False):
         super().__init__(
             alpha=alpha,
             n_taus=2,
-            lambda_iterations=lambda_iterations,
+            max_iterations=max_iterations,
+            tol=tol,
             n_jobs=n_jobs,
+            memoize=memoize,
             verbose=verbose,
-            memoize=memoize
         )
 
     def _set_image_shape(self, images):

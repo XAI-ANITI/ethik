@@ -18,11 +18,11 @@
   <img src="docs/figures/overview.svg" width="660px" alt="overview"/>
 </div>
 
-`ethik` can be used to:
+Currently, `ethik` can be used for:
 
-1. Determine if a predictive model is biased with respect to one or more features.
-2. Understand how the performance of the model varies with respect to one or more features.
-3. Visualize which parts of an image influence a model's predictions.
+1. Detecting model bias with respect to one or more (protected) attributes.
+2. Identifying causes for why the model performs poorly on certain inputs.
+3. Visualizing which regions of an image influence a model's predictions.
 
 ## Installation
 
