@@ -83,11 +83,11 @@ def compute_lambdas(x, target_means, max_iterations, tol):
         else:
             warnings.warn(
                 message=(
-                    f"Gradient descent failed to converge after {max_iterations} iterations " +
-                    f"(name={x.name}, mean={mean}, target_mean={target_mean}, " +
-                    f"current_mean={current_mean}, grad={grad}, hess={hess}, step={step}, λ={λ})"
+                    f"Gradient descent failed to converge after {max_iterations} iterations "
+                    + f"(name={x.name}, mean={mean}, target_mean={target_mean}, "
+                    + f"current_mean={current_mean}, grad={grad}, hess={hess}, step={step}, λ={λ})"
                 ),
-                category=ConvergenceWarning
+                category=ConvergenceWarning,
             )
 
         lambdas[(x.name, target_mean)] = λ
@@ -176,7 +176,9 @@ class Explainer:
             raise ValueError(f"alpha must be between 0 and 0.5, got {alpha}")
 
         if not n_taus > 0:
-            raise ValueError(f"n_taus must be a strictly positive integer, got {n_taus}")
+            raise ValueError(
+                f"n_taus must be a strictly positive integer, got {n_taus}"
+            )
 
         if n_samples < 1:
             raise ValueError(f"n_samples must be strictly positive, got {n_samples}")
@@ -632,32 +634,55 @@ class Explainer:
 
         #  There are multiple features, we plot them together with taus
         if len(features) > 1:
-            fig = go.Figure()
-            for feat in features:
-                x = explanation.query(f'feature == "{feat}"')["tau"]
+            fig = go.FigureWidget()
+
+            def on_click(trace, points, selector):
+                taus, values = zip(*trace["customdata"])
+                if not len(points.point_inds):
+                    trace["x"] = taus
+                    trace["xaxis"] = "x"
+                    trace["opacity"] = 0.3
+                    return
+                trace["x"] = values
+                trace["xaxis"] = "x2"
+                trace["opacity"] = 1
+                fig.update_layout(xaxis2=dict(title=trace["name"]))
+
+            for i, feat in enumerate(features):
+                taus = explanation.query(f'feature == "{feat}"')["tau"]
+                values = explanation.query(f'feature == "{feat}"')["value"]
                 y = explanation.query(f'feature == "{feat}"')[col]
                 fig.add_trace(
                     go.Scatter(
-                        x=x,
+                        x=taus if i > 0 else values,
                         y=y,
                         mode="lines+markers",
-                        hoverinfo="x+y+text",
+                        hoverinfo="y",
                         name=feat,
-                        text=[
-                            f"{feat} = {val}"
-                            for val in explanation.query(f'feature == "{feat}"')[
-                                "value"
-                            ]
-                        ],
+                        customdata=list(zip(taus, values)),
                         marker=dict(color=colors.get(feat)),
+                        xaxis="x" if i > 0 else "x2",
+                        opacity=0.3 if i > 0 else 1,
                     )
                 )
+                fig.data[i].on_click(on_click)
 
             fig.update_layout(
                 margin=dict(t=50, r=50),
-                xaxis=dict(title="tau", zeroline=False),
-                yaxis=dict(title=y_label, range=yrange, showline=True),
+                xaxis=dict(title="tau", nticks=5),
+                xaxis2=dict(anchor="y", side="top", overlaying="x", title=features[0]),
+                yaxis=dict(title=y_label, range=yrange, showline=True, showgrid=True),
                 plot_bgcolor="white",
+            )
+            fig.update_xaxes(
+                showline=True,
+                showgrid=False,
+                zeroline=False,
+                linecolor="black",
+                gridcolor="#eee",
+            )
+            fig.update_yaxes(
+                showline=True, linecolor="black", gridcolor="#eee", mirror=True
             )
             return fig
 
@@ -677,8 +702,9 @@ class Explainer:
                     y=np.concatenate((low, high[::-1])),
                     name=f"{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%",
                     fill="toself",
-                    fillcolor="#eee",  # TODO: same color as mean line?
+                    fillcolor=colors.get(feat),
                     line_color="rgba(0, 0, 0, 0)",
+                    opacity=0.3,
                 )
             )
 
@@ -696,10 +722,12 @@ class Explainer:
             go.Scatter(
                 x=[mean_row["value"]],
                 y=[mean_row[col]],
+                text=["Dataset mean"],
+                showlegend=False,
                 mode="markers",
                 name="Original mean",
-                hoverinfo="skip",
-                marker=dict(symbol="x", size=9, color="black"),
+                hoverinfo="text",
+                marker=dict(symbol="x", size=9, color=colors.get(feat)),
             )
         )
         fig.update_layout(
@@ -707,6 +735,12 @@ class Explainer:
             xaxis=dict(title=f"Average {feat}", zeroline=False),
             yaxis=dict(title=y_label, range=yrange, showline=True),
             plot_bgcolor="white",
+        )
+        fig.update_xaxes(
+            showline=True, showgrid=True, linecolor="black", gridcolor="#eee"
+        )
+        fig.update_yaxes(
+            showline=True, showgrid=True, linecolor="black", gridcolor="#eee"
         )
         return fig
 
@@ -724,16 +758,24 @@ class Explainer:
                 )
             ],
             layout=go.Layout(
-                margin=dict(l=200, b=0, t=40),
+                margin=dict(b=0, t=40),
                 xaxis=dict(
                     title=title,
                     range=[0, 1],
                     showline=True,
                     zeroline=False,
+                    linecolor="black",
+                    gridcolor="#eee",
                     side="top",
                     fixedrange=True,
                 ),
-                yaxis=dict(showline=True, zeroline=False, fixedrange=True),
+                yaxis=dict(
+                    showline=True,
+                    zeroline=False,
+                    fixedrange=True,
+                    linecolor="black",
+                    automargin=True,
+                ),
                 plot_bgcolor="white",
             ),
         )
@@ -817,16 +859,20 @@ class Explainer:
         explanation = self.explain_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
-        if fig_kwargs.get("yrange") is None:
+        if yrange is None:
             if explanation[metric_name].between(0, 1).all():
-                fig_kwargs["yrange"] = [0, 1]
+                yrange = [0, 1]
 
         return self._plot_explanation(
-            explanation, metric_name, y_label=f"Average {metric_name}", **fig_kwargs
+            explanation,
+            metric_name,
+            y_label=f"Average {metric_name}",
+            colors=colors,
+            yrange=yrange,
         )
 
     def plot_performance_ranking(
-        self, X_test, y_test, y_pred, metric, criterion, colors
+        self, X_test, y_test, y_pred, metric, criterion, colors=None
     ):
         """Plot the performance of the model for the features in `X_test`.
 
