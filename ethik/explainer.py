@@ -30,8 +30,8 @@ def compute_lambdas(x, target_means, max_iterations, tol):
             feature's values.
         max_iterations (int): The maximum number of iterations of gradient descent.
         tol (float): Stopping criterion. The gradient descent will stop if the mean absolute error
-            between the obtained mean and the target mean is lower than tol, even if maximum number
-            has not been reached.
+            between the obtained mean and the target mean is lower than tol, even if the maximum
+            number of iterations has not been reached.
 
     Returns:
         dict: The keys are couples `(name of the variable, target mean)` and the
