@@ -336,6 +336,7 @@ class Explainer:
                 tol=self.tol,
             )
             for feature, part in self.info.groupby("feature")
+            if feature in to_do_features
         )
         lambdas = dict(collections.ChainMap(*lambdas))
         self.info["lambda"] = self.info.apply(
