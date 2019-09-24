@@ -25,6 +25,7 @@
 <pre><code class="python">import collections
 import functools
 import itertools
+import warnings
 
 import joblib
 import numpy as np
@@ -40,15 +41,21 @@ __all__ = [&#34;Explainer&#34;]
 CAT_COL_SEP = &#34; = &#34;
 
 
-def compute_lambdas(x, target_means, iterations=5, use_previous_lambda=False):
+class ConvergenceWarning(UserWarning):
+    &#34;&#34;&#34;Custom warning to capture convergence problems.&#34;&#34;&#34;
+
+
+def compute_lambdas(x, target_means, max_iterations, tol):
     &#34;&#34;&#34;Find good lambdas for a variable and given target means.
 
     Args:
         x (pd.Series): The variable&#39;s values.
         target_means (iterator of floats): The means to reach by weighting the
             feature&#39;s values.
-        iterations (int): The number of iterations to compute the weights for a
-            given target mean. Default is `5`.
+        max_iterations (int): The maximum number of iterations of gradient descent.
+        tol (float): Stopping criterion. The gradient descent will stop if the mean absolute error
+            between the obtained mean and the target mean is lower than tol, even if the maximum
+            number of iterations has not been reached.
 
     Returns:
         dict: The keys are couples `(name of the variable, target mean)` and the
@@ -68,14 +75,18 @@ def compute_lambdas(x, target_means, iterations=5, use_previous_lambda=False):
 
         λ = 0
         current_mean = mean
+        n_iterations = 0
 
-        for _ in range(iterations):
+        while n_iterations &lt; max_iterations:
+            n_iterations += 1
 
             # Stop if the target mean has been reached
             if current_mean == target_mean:
                 break
 
-            # Update the sample weights and see where the mean is
+            # Update the sample weights and obtain the new mean of the distribution
+            # TODO: if λ * x is too large then sample_weights might only contain zeros, which
+            # leads to hess being equal to 0
             sample_weights = special.softmax(λ * x)
             current_mean = np.average(x, weights=sample_weights)
 
@@ -84,14 +95,24 @@ def compute_lambdas(x, target_means, iterations=5, use_previous_lambda=False):
             grad = current_mean - target_mean
             hess = np.average((x - current_mean) ** 2, weights=sample_weights)
 
-            if hess == 0:
-                # We use a magic number based on experience for the step size, this is subject
-                # to change
-                λ -= 1e-5 * grad
+            # We use a magic number for the step size if the hessian is nil
+            step = (1e-5 * grad) if hess == 0 else (grad / hess)
+            λ -= step
+
+            # Stop if the gradient is small enough
+            if abs(grad) &lt; tol:
                 break
 
-            step = grad / hess
-            λ -= step
+        # Warn the user if the algorithm didn&#39;t converge
+        else:
+            warnings.warn(
+                message=(
+                    f&#34;Gradient descent failed to converge after {max_iterations} iterations &#34;
+                    + f&#34;(name={x.name}, mean={mean}, target_mean={target_mean}, &#34;
+                    + f&#34;current_mean={current_mean}, grad={grad}, hess={hess}, step={step}, λ={λ})&#34;
+                ),
+                category=ConvergenceWarning,
+            )
 
         lambdas[(x.name, target_mean)] = λ
 
@@ -166,26 +187,21 @@ class Explainer:
         self,
         alpha=0.05,
         n_taus=41,
-        lambda_iterations=5,
-        n_jobs=1,  # Parallelism is only worth it if the dataset is &#34;large&#34;
-        verbose=False,
         n_samples=1,
         sample_frac=0.8,
         conf_level=0.05,
+        max_iterations=15,
+        tol=1e-3,
+        n_jobs=1,  # Parallelism is only worth it if the dataset is &#34;large&#34;
         memoize=False,
+        verbose=False,
     ):
         if not 0 &lt;= alpha &lt; 0.5:
-            raise ValueError(&#34;alpha must be between 0 and 0.5, got &#34; f&#34;{alpha}&#34;)
+            raise ValueError(f&#34;alpha must be between 0 and 0.5, got {alpha}&#34;)
 
         if not n_taus &gt; 0:
             raise ValueError(
-                &#34;n_taus must be a strictly positive integer, got &#34; f&#34;{n_taus}&#34;
-            )
-
-        if not lambda_iterations &gt; 0:
-            raise ValueError(
-                &#34;lambda_iterations must be a strictly positive &#34;
-                f&#34;integer, got {lambda_iterations}&#34;
+                f&#34;n_taus must be a strictly positive integer, got {n_taus}&#34;
             )
 
         if n_samples &lt; 1:
@@ -197,16 +213,26 @@ class Explainer:
         if not 0 &lt; conf_level &lt; 0.5:
             raise ValueError(f&#34;conf_level must be between 0 and 0.5, got {conf_level}&#34;)
 
+        if not max_iterations &gt; 0:
+            raise ValueError(
+                &#34;max_iterations must be a strictly positive &#34;
+                f&#34;integer, got {max_iterations}&#34;
+            )
+
+        if not tol &gt; 0:
+            raise ValueError(f&#34;tol must be a strictly positive number, got {tol}&#34;)
+
         self.alpha = alpha
         self.n_taus = n_taus
-        self.lambda_iterations = lambda_iterations
-        self.n_jobs = n_jobs
-        self.verbose = verbose
-        self.metric_names = set()
         self.n_samples = n_samples
         self.sample_frac = sample_frac if n_samples &gt; 1 else 1
         self.conf_level = conf_level
+        self.max_iterations = max_iterations
+        self.tol = tol
+        self.n_jobs = n_jobs
         self.memoize = memoize
+        self.verbose = verbose
+        self.metric_names = set()
         self._reset_info()
 
     def _reset_info(self):
@@ -325,7 +351,8 @@ class Explainer:
             joblib.delayed(compute_lambdas)(
                 x=X_test[feature],
                 target_means=part[&#34;value&#34;].unique(),
-                iterations=self.lambda_iterations,
+                max_iterations=self.max_iterations,
+                tol=self.tol,
             )
             for feature, part in self.info.groupby(&#34;feature&#34;)
         )
@@ -446,7 +473,7 @@ class Explainer:
             &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
 
             Regression is similar to binary classification:
-            
+
             &gt;&gt;&gt; X_test = pd.DataFrame([
             ...     [1, 2],
             ...     [1.1, 2.2],
@@ -460,7 +487,7 @@ class Explainer:
             &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
 
             For multi-label classification, we need a dataframe to store predictions:
-            
+
             &gt;&gt;&gt; X_test = pd.DataFrame([
             ...     [1, 2],
             ...     [1.1, 2.2],
@@ -631,32 +658,55 @@ class Explainer:
 
         #  There are multiple features, we plot them together with taus
         if len(features) &gt; 1:
-            fig = go.Figure()
-            for feat in features:
-                x = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;tau&#34;]
+            fig = go.FigureWidget()
+
+            def on_click(trace, points, selector):
+                taus, values = zip(*trace[&#34;customdata&#34;])
+                if not len(points.point_inds):
+                    trace[&#34;x&#34;] = taus
+                    trace[&#34;xaxis&#34;] = &#34;x&#34;
+                    trace[&#34;opacity&#34;] = 0.3
+                    return
+                trace[&#34;x&#34;] = values
+                trace[&#34;xaxis&#34;] = &#34;x2&#34;
+                trace[&#34;opacity&#34;] = 1
+                fig.update_layout(xaxis2=dict(title=trace[&#34;name&#34;]))
+
+            for i, feat in enumerate(features):
+                taus = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;tau&#34;]
+                values = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;value&#34;]
                 y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
                 fig.add_trace(
                     go.Scatter(
-                        x=x,
+                        x=taus if i &gt; 0 else values,
                         y=y,
                         mode=&#34;lines+markers&#34;,
-                        hoverinfo=&#34;x+y+text&#34;,
+                        hoverinfo=&#34;y&#34;,
                         name=feat,
-                        text=[
-                            f&#34;{feat} = {val}&#34;
-                            for val in explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[
-                                &#34;value&#34;
-                            ]
-                        ],
+                        customdata=list(zip(taus, values)),
                         marker=dict(color=colors.get(feat)),
+                        xaxis=&#34;x&#34; if i &gt; 0 else &#34;x2&#34;,
+                        opacity=0.3 if i &gt; 0 else 1,
                     )
                 )
+                fig.data[i].on_click(on_click)
 
             fig.update_layout(
                 margin=dict(t=50, r=50),
-                xaxis=dict(title=&#34;tau&#34;, zeroline=False),
-                yaxis=dict(title=y_label, range=yrange, showline=True),
+                xaxis=dict(title=&#34;tau&#34;, nticks=5),
+                xaxis2=dict(anchor=&#34;y&#34;, side=&#34;top&#34;, overlaying=&#34;x&#34;, title=features[0]),
+                yaxis=dict(title=y_label, range=yrange, showline=True, showgrid=True),
                 plot_bgcolor=&#34;white&#34;,
+            )
+            fig.update_xaxes(
+                showline=True,
+                showgrid=False,
+                zeroline=False,
+                linecolor=&#34;black&#34;,
+                gridcolor=&#34;#eee&#34;,
+            )
+            fig.update_yaxes(
+                showline=True, linecolor=&#34;black&#34;, gridcolor=&#34;#eee&#34;, mirror=True
             )
             return fig
 
@@ -676,8 +726,9 @@ class Explainer:
                     y=np.concatenate((low, high[::-1])),
                     name=f&#34;{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%&#34;,
                     fill=&#34;toself&#34;,
-                    fillcolor=&#34;#eee&#34;,  # TODO: same color as mean line?
+                    fillcolor=colors.get(feat),
                     line_color=&#34;rgba(0, 0, 0, 0)&#34;,
+                    opacity=0.3,
                 )
             )
 
@@ -695,10 +746,12 @@ class Explainer:
             go.Scatter(
                 x=[mean_row[&#34;value&#34;]],
                 y=[mean_row[col]],
+                text=[&#34;Dataset mean&#34;],
+                showlegend=False,
                 mode=&#34;markers&#34;,
                 name=&#34;Original mean&#34;,
-                hoverinfo=&#34;skip&#34;,
-                marker=dict(symbol=&#34;x&#34;, size=9, color=&#34;black&#34;),
+                hoverinfo=&#34;text&#34;,
+                marker=dict(symbol=&#34;x&#34;, size=9, color=colors.get(feat)),
             )
         )
         fig.update_layout(
@@ -706,6 +759,12 @@ class Explainer:
             xaxis=dict(title=f&#34;Average {feat}&#34;, zeroline=False),
             yaxis=dict(title=y_label, range=yrange, showline=True),
             plot_bgcolor=&#34;white&#34;,
+        )
+        fig.update_xaxes(
+            showline=True, showgrid=True, linecolor=&#34;black&#34;, gridcolor=&#34;#eee&#34;
+        )
+        fig.update_yaxes(
+            showline=True, showgrid=True, linecolor=&#34;black&#34;, gridcolor=&#34;#eee&#34;
         )
         return fig
 
@@ -723,16 +782,24 @@ class Explainer:
                 )
             ],
             layout=go.Layout(
-                margin=dict(l=200, b=0, t=40),
+                margin=dict(b=0, t=40),
                 xaxis=dict(
                     title=title,
                     range=[0, 1],
                     showline=True,
                     zeroline=False,
+                    linecolor=&#34;black&#34;,
+                    gridcolor=&#34;#eee&#34;,
                     side=&#34;top&#34;,
                     fixedrange=True,
                 ),
-                yaxis=dict(showline=True, zeroline=False, fixedrange=True),
+                yaxis=dict(
+                    showline=True,
+                    zeroline=False,
+                    fixedrange=True,
+                    linecolor=&#34;black&#34;,
+                    automargin=True,
+                ),
                 plot_bgcolor=&#34;white&#34;,
             ),
         )
@@ -816,16 +883,20 @@ class Explainer:
         explanation = self.explain_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
-        if fig_kwargs.get(&#34;yrange&#34;) is None:
+        if yrange is None:
             if explanation[metric_name].between(0, 1).all():
-                fig_kwargs[&#34;yrange&#34;] = [0, 1]
+                yrange = [0, 1]
 
         return self._plot_explanation(
-            explanation, metric_name, y_label=f&#34;Average {metric_name}&#34;, **fig_kwargs
+            explanation,
+            metric_name,
+            y_label=f&#34;Average {metric_name}&#34;,
+            colors=colors,
+            yrange=yrange,
         )
 
     def plot_performance_ranking(
-        self, X_test, y_test, y_pred, metric, criterion, colors
+        self, X_test, y_test, y_pred, metric, criterion, colors=None
     ):
         &#34;&#34;&#34;Plot the performance of the model for the features in `X_test`.
 
@@ -868,7 +939,7 @@ class Explainer:
 <dl>
 <dt id="ethik.explainer.Explainer"><code class="flex name class">
 <span>class <span class="ident">Explainer</span></span>
-<span>(</span><span>alpha=0.05, n_taus=41, lambda_iterations=5, n_jobs=1, verbose=False, n_samples=1, sample_frac=0.8, conf_level=0.05, memoize=False)</span>
+<span>(</span><span>alpha=0.05, n_taus=41, n_samples=1, sample_frac=0.8, conf_level=0.05, max_iterations=15, tol=0.001, n_jobs=1, memoize=False, verbose=False)</span>
 </code></dt>
 <dd>
 <section class="desc"><p>Explains the bias and reliability of model predictions.</p>
@@ -956,26 +1027,21 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
         self,
         alpha=0.05,
         n_taus=41,
-        lambda_iterations=5,
-        n_jobs=1,  # Parallelism is only worth it if the dataset is &#34;large&#34;
-        verbose=False,
         n_samples=1,
         sample_frac=0.8,
         conf_level=0.05,
+        max_iterations=15,
+        tol=1e-3,
+        n_jobs=1,  # Parallelism is only worth it if the dataset is &#34;large&#34;
         memoize=False,
+        verbose=False,
     ):
         if not 0 &lt;= alpha &lt; 0.5:
-            raise ValueError(&#34;alpha must be between 0 and 0.5, got &#34; f&#34;{alpha}&#34;)
+            raise ValueError(f&#34;alpha must be between 0 and 0.5, got {alpha}&#34;)
 
         if not n_taus &gt; 0:
             raise ValueError(
-                &#34;n_taus must be a strictly positive integer, got &#34; f&#34;{n_taus}&#34;
-            )
-
-        if not lambda_iterations &gt; 0:
-            raise ValueError(
-                &#34;lambda_iterations must be a strictly positive &#34;
-                f&#34;integer, got {lambda_iterations}&#34;
+                f&#34;n_taus must be a strictly positive integer, got {n_taus}&#34;
             )
 
         if n_samples &lt; 1:
@@ -987,16 +1053,26 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
         if not 0 &lt; conf_level &lt; 0.5:
             raise ValueError(f&#34;conf_level must be between 0 and 0.5, got {conf_level}&#34;)
 
+        if not max_iterations &gt; 0:
+            raise ValueError(
+                &#34;max_iterations must be a strictly positive &#34;
+                f&#34;integer, got {max_iterations}&#34;
+            )
+
+        if not tol &gt; 0:
+            raise ValueError(f&#34;tol must be a strictly positive number, got {tol}&#34;)
+
         self.alpha = alpha
         self.n_taus = n_taus
-        self.lambda_iterations = lambda_iterations
-        self.n_jobs = n_jobs
-        self.verbose = verbose
-        self.metric_names = set()
         self.n_samples = n_samples
         self.sample_frac = sample_frac if n_samples &gt; 1 else 1
         self.conf_level = conf_level
+        self.max_iterations = max_iterations
+        self.tol = tol
+        self.n_jobs = n_jobs
         self.memoize = memoize
+        self.verbose = verbose
+        self.metric_names = set()
         self._reset_info()
 
     def _reset_info(self):
@@ -1115,7 +1191,8 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
             joblib.delayed(compute_lambdas)(
                 x=X_test[feature],
                 target_means=part[&#34;value&#34;].unique(),
-                iterations=self.lambda_iterations,
+                max_iterations=self.max_iterations,
+                tol=self.tol,
             )
             for feature, part in self.info.groupby(&#34;feature&#34;)
         )
@@ -1236,7 +1313,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
             &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
 
             Regression is similar to binary classification:
-            
+
             &gt;&gt;&gt; X_test = pd.DataFrame([
             ...     [1, 2],
             ...     [1.1, 2.2],
@@ -1250,7 +1327,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
             &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
 
             For multi-label classification, we need a dataframe to store predictions:
-            
+
             &gt;&gt;&gt; X_test = pd.DataFrame([
             ...     [1, 2],
             ...     [1.1, 2.2],
@@ -1421,32 +1498,55 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
 
         #  There are multiple features, we plot them together with taus
         if len(features) &gt; 1:
-            fig = go.Figure()
-            for feat in features:
-                x = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;tau&#34;]
+            fig = go.FigureWidget()
+
+            def on_click(trace, points, selector):
+                taus, values = zip(*trace[&#34;customdata&#34;])
+                if not len(points.point_inds):
+                    trace[&#34;x&#34;] = taus
+                    trace[&#34;xaxis&#34;] = &#34;x&#34;
+                    trace[&#34;opacity&#34;] = 0.3
+                    return
+                trace[&#34;x&#34;] = values
+                trace[&#34;xaxis&#34;] = &#34;x2&#34;
+                trace[&#34;opacity&#34;] = 1
+                fig.update_layout(xaxis2=dict(title=trace[&#34;name&#34;]))
+
+            for i, feat in enumerate(features):
+                taus = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;tau&#34;]
+                values = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;value&#34;]
                 y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
                 fig.add_trace(
                     go.Scatter(
-                        x=x,
+                        x=taus if i &gt; 0 else values,
                         y=y,
                         mode=&#34;lines+markers&#34;,
-                        hoverinfo=&#34;x+y+text&#34;,
+                        hoverinfo=&#34;y&#34;,
                         name=feat,
-                        text=[
-                            f&#34;{feat} = {val}&#34;
-                            for val in explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[
-                                &#34;value&#34;
-                            ]
-                        ],
+                        customdata=list(zip(taus, values)),
                         marker=dict(color=colors.get(feat)),
+                        xaxis=&#34;x&#34; if i &gt; 0 else &#34;x2&#34;,
+                        opacity=0.3 if i &gt; 0 else 1,
                     )
                 )
+                fig.data[i].on_click(on_click)
 
             fig.update_layout(
                 margin=dict(t=50, r=50),
-                xaxis=dict(title=&#34;tau&#34;, zeroline=False),
-                yaxis=dict(title=y_label, range=yrange, showline=True),
+                xaxis=dict(title=&#34;tau&#34;, nticks=5),
+                xaxis2=dict(anchor=&#34;y&#34;, side=&#34;top&#34;, overlaying=&#34;x&#34;, title=features[0]),
+                yaxis=dict(title=y_label, range=yrange, showline=True, showgrid=True),
                 plot_bgcolor=&#34;white&#34;,
+            )
+            fig.update_xaxes(
+                showline=True,
+                showgrid=False,
+                zeroline=False,
+                linecolor=&#34;black&#34;,
+                gridcolor=&#34;#eee&#34;,
+            )
+            fig.update_yaxes(
+                showline=True, linecolor=&#34;black&#34;, gridcolor=&#34;#eee&#34;, mirror=True
             )
             return fig
 
@@ -1466,8 +1566,9 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
                     y=np.concatenate((low, high[::-1])),
                     name=f&#34;{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%&#34;,
                     fill=&#34;toself&#34;,
-                    fillcolor=&#34;#eee&#34;,  # TODO: same color as mean line?
+                    fillcolor=colors.get(feat),
                     line_color=&#34;rgba(0, 0, 0, 0)&#34;,
+                    opacity=0.3,
                 )
             )
 
@@ -1485,10 +1586,12 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
             go.Scatter(
                 x=[mean_row[&#34;value&#34;]],
                 y=[mean_row[col]],
+                text=[&#34;Dataset mean&#34;],
+                showlegend=False,
                 mode=&#34;markers&#34;,
                 name=&#34;Original mean&#34;,
-                hoverinfo=&#34;skip&#34;,
-                marker=dict(symbol=&#34;x&#34;, size=9, color=&#34;black&#34;),
+                hoverinfo=&#34;text&#34;,
+                marker=dict(symbol=&#34;x&#34;, size=9, color=colors.get(feat)),
             )
         )
         fig.update_layout(
@@ -1496,6 +1599,12 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
             xaxis=dict(title=f&#34;Average {feat}&#34;, zeroline=False),
             yaxis=dict(title=y_label, range=yrange, showline=True),
             plot_bgcolor=&#34;white&#34;,
+        )
+        fig.update_xaxes(
+            showline=True, showgrid=True, linecolor=&#34;black&#34;, gridcolor=&#34;#eee&#34;
+        )
+        fig.update_yaxes(
+            showline=True, showgrid=True, linecolor=&#34;black&#34;, gridcolor=&#34;#eee&#34;
         )
         return fig
 
@@ -1513,16 +1622,24 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
                 )
             ],
             layout=go.Layout(
-                margin=dict(l=200, b=0, t=40),
+                margin=dict(b=0, t=40),
                 xaxis=dict(
                     title=title,
                     range=[0, 1],
                     showline=True,
                     zeroline=False,
+                    linecolor=&#34;black&#34;,
+                    gridcolor=&#34;#eee&#34;,
                     side=&#34;top&#34;,
                     fixedrange=True,
                 ),
-                yaxis=dict(showline=True, zeroline=False, fixedrange=True),
+                yaxis=dict(
+                    showline=True,
+                    zeroline=False,
+                    fixedrange=True,
+                    linecolor=&#34;black&#34;,
+                    automargin=True,
+                ),
                 plot_bgcolor=&#34;white&#34;,
             ),
         )
@@ -1606,16 +1723,20 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
         explanation = self.explain_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
-        if fig_kwargs.get(&#34;yrange&#34;) is None:
+        if yrange is None:
             if explanation[metric_name].between(0, 1).all():
-                fig_kwargs[&#34;yrange&#34;] = [0, 1]
+                yrange = [0, 1]
 
         return self._plot_explanation(
-            explanation, metric_name, y_label=f&#34;Average {metric_name}&#34;, **fig_kwargs
+            explanation,
+            metric_name,
+            y_label=f&#34;Average {metric_name}&#34;,
+            colors=colors,
+            yrange=yrange,
         )
 
     def plot_performance_ranking(
-        self, X_test, y_test, y_pred, metric, criterion, colors
+        self, X_test, y_test, y_pred, metric, criterion, colors=None
     ):
         &#34;&#34;&#34;Plot the performance of the model for the features in `X_test`.
 
@@ -1785,7 +1906,7 @@ The value of <code>label</code> is not important for regression.</dd>
         &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
 
         Regression is similar to binary classification:
-        
+
         &gt;&gt;&gt; X_test = pd.DataFrame([
         ...     [1, 2],
         ...     [1.1, 2.2],
@@ -1799,7 +1920,7 @@ The value of <code>label</code> is not important for regression.</dd>
         &gt;&gt;&gt; explainer.explain_bias(X_test, y_pred)
 
         For multi-label classification, we need a dataframe to store predictions:
-        
+
         &gt;&gt;&gt; X_test = pd.DataFrame([
         ...     [1, 2],
         ...     [1.1, 2.2],
@@ -2167,17 +2288,21 @@ same cell.</dd>
     explanation = self.explain_performance(
         X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
     )
-    if fig_kwargs.get(&#34;yrange&#34;) is None:
+    if yrange is None:
         if explanation[metric_name].between(0, 1).all():
-            fig_kwargs[&#34;yrange&#34;] = [0, 1]
+            yrange = [0, 1]
 
     return self._plot_explanation(
-        explanation, metric_name, y_label=f&#34;Average {metric_name}&#34;, **fig_kwargs
+        explanation,
+        metric_name,
+        y_label=f&#34;Average {metric_name}&#34;,
+        colors=colors,
+        yrange=yrange,
     )</code></pre>
 </details>
 </dd>
 <dt id="ethik.explainer.Explainer.plot_performance_ranking"><code class="name flex">
-<span>def <span class="ident">plot_performance_ranking</span></span>(<span>self, X_test, y_test, y_pred, metric, criterion, colors)</span>
+<span>def <span class="ident">plot_performance_ranking</span></span>(<span>self, X_test, y_test, y_pred, metric, criterion, colors=None)</span>
 </code></dt>
 <dd>
 <section class="desc"><p>Plot the performance of the model for the features in <code>X_test</code>.</p>
@@ -2208,7 +2333,7 @@ same cell.</dd>
 <details class="source">
 <summary>Source code</summary>
 <pre><code class="python">def plot_performance_ranking(
-    self, X_test, y_test, y_pred, metric, criterion, colors
+    self, X_test, y_test, y_pred, metric, criterion, colors=None
 ):
     &#34;&#34;&#34;Plot the performance of the model for the features in `X_test`.
 
