@@ -24,8 +24,15 @@ class ImageClassificationExplainer(explainer.Explainer):
 
     """
 
-    def __init__(self, alpha=0.05, max_iterations=10, tol=1e-3, n_jobs=-1, memoize=True,
-                 verbose=False):
+    def __init__(
+        self,
+        alpha=0.05,
+        max_iterations=10,
+        tol=1e-3,
+        n_jobs=-1,
+        memoize=True,
+        verbose=False,
+    ):
         super().__init__(
             alpha=alpha,
             n_taus=2,
@@ -88,7 +95,7 @@ class ImageClassificationExplainer(explainer.Explainer):
                     showscale=i == 0,
                     name=label,
                     hoverinfo="x+y+z",
-                    reversescale=True
+                    reversescale=True,
                 ),
                 row=i // n_cols + 1,
                 col=i % n_cols + 1,
@@ -125,16 +132,12 @@ class ImageClassificationExplainer(explainer.Explainer):
         return self._plot(values, n_cols=n_cols)
 
     def plot_performance(self, X_test, y_test, y_pred, metric):
-
         perf = self.explain_performance(
-            X_test=X_test,
-            y_test=y_test,
-            y_pred=y_pred,
-            metric=metric
+            X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
         metric_name = self.get_metric_name(metric)
 
-        mask = perf['label'] == perf['label'].iloc[0]
+        mask = perf["label"] == perf["label"].iloc[0]
         diffs = (
             perf[mask].query(f"tau == 1")[metric_name].to_numpy()
             - perf[mask].query(f"tau == -1")[metric_name].to_numpy()
@@ -145,26 +148,31 @@ class ImageClassificationExplainer(explainer.Explainer):
         zmin, zmax = diffs.min(), diffs.max()
         zmin, zmax = min(zmin, -zmax), max(zmax, -zmin)
 
+        height, width = self.img_shape
+
         fig = go.Figure()
         fig.add_trace(
             go.Heatmap(
                 z=diffs[::-1],
-                x=list(range(self.img_shape[1])),
-                y=list(range(self.img_shape[0])),
+                x=list(range(width)),
+                y=list(range(height)),
                 zmin=zmin,
                 zmax=zmax,
                 colorscale="RdBu",
                 zsmooth="best",
                 showscale=True,
                 hoverinfo="x+y+z",
-                reversescale=True
+                reversescale=True,
             )
         )
+
+        fig_width = 500
         fig.update_layout(
             margin=dict(t=20, l=20, b=20),
-            width=400,
-            height=400,
-            autosize=False,
+            width=fig_width,
+            height=fig_width * height / width,
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False, scaleanchor="x", scaleratio=height / width),
             plot_bgcolor="white",
         )
 
