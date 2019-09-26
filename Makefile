@@ -15,7 +15,10 @@ test_syntax:
 
 test: test_nb test_unit test_syntax
 
-nb_to_html:
+update_nb:
+	jupyter nbconvert --execute --to notebook --inplace notebooks/*.ipynb
+
+nb_to_html: update_nb
 	mkdir -p docs/notebooks
 	jupyter nbconvert --to html --output-dir docs/notebooks notebooks/*.ipynb
 
