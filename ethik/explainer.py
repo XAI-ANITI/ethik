@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
 from scipy import special
+from tqdm import tqdm
 
 from .utils import decimal_range, join_with_overlap, to_pandas
 
@@ -157,6 +158,8 @@ class Explainer:
             `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
             `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned off by
             default because it can lead to unexpected behavior depending on your usage.
+        show_progress_bar (bool): Whether or not to show progress bars during
+            computations. Default is `True`.
     """
 
     def __init__(
@@ -171,6 +174,7 @@ class Explainer:
         n_jobs=1,  # Parallelism is only worth it if the dataset is "large"
         memoize=False,
         verbose=False,
+        show_progress_bar=True,
     ):
         if not 0 <= alpha < 0.5:
             raise ValueError(f"alpha must be between 0 and 0.5, got {alpha}")
@@ -208,6 +212,7 @@ class Explainer:
         self.n_jobs = n_jobs
         self.memoize = memoize
         self.verbose = verbose
+        self.show_progress_bar = show_progress_bar
         self.metric_names = set()
         self._reset_info()
 
@@ -331,6 +336,7 @@ class Explainer:
                 tol=self.tol,
             )
             for feature, part in self.info.groupby("feature")
+            if feature in to_do_features
         )
         lambdas = dict(collections.ChainMap(*lambdas))
         self.info["lambda"] = self.info.apply(
@@ -490,15 +496,20 @@ class Explainer:
                             weights=special.softmax(λ * X_test[feature][mask]),
                         ),
                     )
-                    for (sample_index, mask), (feature, label, λ) in itertools.product(
-                        enumerate(
-                            yield_masks(
-                                n_masks=self.n_samples,
-                                n=len(X_test),
-                                p=self.sample_frac,
-                            )
+                    for (sample_index, mask), (feature, label, λ) in tqdm(
+                        itertools.product(
+                            enumerate(
+                                yield_masks(
+                                    n_masks=self.n_samples,
+                                    n=len(X_test),
+                                    p=self.sample_frac,
+                                )
+                            ),
+                            relevant.groupby(
+                                ["feature", "label", "lambda"]
+                            ).groups.keys(),
                         ),
-                        relevant.groupby(["feature", "label", "lambda"]).groups.keys(),
+                        disable=not self.show_progress_bar,
                     )
                 ],
                 columns=["feature", "label", "lambda", "sample_index", "bias"],
@@ -565,15 +576,18 @@ class Explainer:
                             sample_weight=special.softmax(λ * X_test[feature][mask]),
                         ),
                     )
-                    for (sample_index, mask), (feature, λ) in itertools.product(
-                        enumerate(
-                            yield_masks(
-                                n_masks=self.n_samples,
-                                n=len(X_test),
-                                p=self.sample_frac,
-                            )
+                    for (sample_index, mask), (feature, λ) in tqdm(
+                        itertools.product(
+                            enumerate(
+                                yield_masks(
+                                    n_masks=self.n_samples,
+                                    n=len(X_test),
+                                    p=self.sample_frac,
+                                )
+                            ),
+                            relevant.groupby(["feature", "lambda"]).groups.keys(),
                         ),
-                        relevant.groupby(["feature", "lambda"]).groups.keys(),
+                        disable=not self.show_progress_bar,
                     )
                 ],
                 columns=["feature", "lambda", "sample_index", metric_name],
