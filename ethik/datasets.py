@@ -62,3 +62,10 @@ def load_law_school():
     X["sex"] = X["sex"].map({1: "Female", 2: "Male"}).astype("category")
     y = X.pop("first_pf").apply(int).astype(bool)
     return X, y
+
+
+def load_diabetes():
+    """https://www.kaggle.com/uciml/pima-indians-diabetes-database"""
+    X = pd.read_csv(os.path.join(os.path.dirname(__file__), "data", "diabetes.csv"))
+    y = X.pop("Outcome").apply(int).astype(bool).rename("has_diabetes")
+    return X, y
