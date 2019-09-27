@@ -22,5 +22,7 @@ nb_to_html: update_nb
 	mkdir -p docs/notebooks
 	jupyter nbconvert --to html --output-dir docs/notebooks notebooks/*.ipynb
 
-doc: nb_to_html
-	pdoc --html -f -o docs ethik
+api_ref:
+	pdoc --html -c latex_math=1 -f -o docs ethik
+
+doc: nb_to_html api_ref
