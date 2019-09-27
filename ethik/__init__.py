@@ -45,12 +45,12 @@ pre-commit install # For black
 
 # User guide
 
-* [Get started](../notebooks/Binary classification.html)
-* [Binary classification (Adult dataset)](../notebooks/Binary classification.html)
-* [Multi-label classification (Iris dataset)](../notebooks/Multi-label classification.html)
-* [Regression (Boston dataset)](../notebooks/Regression.html)
-* [Images (MNIST dataset)](../notebooks/MNIST_plotly.html)
-* [Comparison with Partial Dependence Plots](../notebooks/Partial Dependence Plot.html)
+* [Get started](notebooks/Binary classification.html)
+* [Binary classification (Adult dataset)](notebooks/Binary classification.html)
+* [Multi-label classification (Iris dataset)](notebooks/Multi-label classification.html)
+* [Regression (Boston dataset)](notebooks/Regression.html)
+* [Images (MNIST dataset)](notebooks/Image.html)
+* [Comparison with Partial Dependence Plots](notebooks/Partial Dependence Plot.html)
 
 # API
 

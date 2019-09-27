@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
 <meta name="generator" content="pdoc 0.6.3" />
-<title>ethik.regression_explainer API documentation</title>
+<title>ethik.classification_explainer API documentation</title>
 <meta name="description" content="" />
 <link href='https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.0/normalize.min.css' rel='stylesheet'>
 <link href='https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/8.0.0/sanitize.min.css' rel='stylesheet'>
@@ -18,18 +18,64 @@
 <main>
 <article id="content">
 <header>
-<h1 class="title">Module <code>ethik.regression_explainer</code></h1>
+<h1 class="title">Module <code>ethik.classification_explainer</code></h1>
 </header>
 <section id="section-intro">
 <details class="source">
 <summary>Source code</summary>
-<pre><code class="python">from .explainer import Explainer
+<pre><code class="python">import colorlover as cl
+import pandas as pd
+from plotly.subplots import make_subplots
 
-__all__ = [&#34;RegressionExplainer&#34;]
+from .explainer import Explainer
+from .utils import to_pandas
+
+__all__ = [&#34;ClassificationExplainer&#34;]
 
 
-class RegressionExplainer(Explainer):
-    pass</code></pre>
+class ClassificationExplainer(Explainer):
+    def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+        &#34;&#34;&#34;Plot the bias for the features in `X_test`.
+
+        See `ethik.explainer.Explainer.plot_bias()`.
+        &#34;&#34;&#34;
+        if yrange is None:
+            yrange = [0, 1]
+
+        X_test = pd.DataFrame(to_pandas(X_test))
+        y_pred = pd.DataFrame(to_pandas(y_pred))
+
+        if len(y_pred.columns) == 1:
+            return super().plot_bias(
+                X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange
+            )
+
+        if colors is None:
+            features = X_test.columns
+            #  Skip the lightest color as it is too light
+            scale = cl.interp(cl.scales[&#34;10&#34;][&#34;qual&#34;][&#34;Paired&#34;], len(features) + 1)[1:]
+            colors = {feat: scale[i] for i, feat in enumerate(features)}
+
+        labels = y_pred.columns
+        plots = []
+        for label in labels:
+            plots.append(
+                super().plot_bias(X_test, y_pred[label], colors=colors, yrange=yrange)
+            )
+
+        fig = make_subplots(rows=len(labels), cols=1, shared_xaxes=True)
+        for ilabel, (label, plot) in enumerate(zip(labels, plots)):
+            fig.update_layout({f&#34;yaxis{ilabel+1}&#34;: dict(title=f&#34;Average {label}&#34;)})
+            for trace in plot[&#34;data&#34;]:
+                trace[&#34;showlegend&#34;] = ilabel == 0 and trace[&#34;showlegend&#34;]
+                trace[&#34;legendgroup&#34;] = trace[&#34;name&#34;]
+                fig.add_trace(trace, row=ilabel + 1, col=1)
+
+        xlabel = &#34;tau&#34; if len(X_test.columns) &gt; 1 else f&#34;Average {X_test.columns[0]}&#34;
+        fig.update_layout(
+            {f&#34;xaxis{len(labels)}&#34;: dict(title=xlabel), &#34;plot_bgcolor&#34;: &#34;white&#34;}
+        )
+        return fig</code></pre>
 </details>
 </section>
 <section>
@@ -41,8 +87,8 @@ class RegressionExplainer(Explainer):
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
-<dt id="ethik.regression_explainer.RegressionExplainer"><code class="flex name class">
-<span>class <span class="ident">RegressionExplainer</span></span>
+<dt id="ethik.classification_explainer.ClassificationExplainer"><code class="flex name class">
+<span>class <span class="ident">ClassificationExplainer</span></span>
 <span>(</span><span>alpha=0.05, n_taus=41, n_samples=1, sample_frac=0.8, conf_level=0.05, max_iterations=15, tol=0.001, n_jobs=1, memoize=False, verbose=False, show_progress_bar=True)</span>
 </code></dt>
 <dd>
@@ -59,15 +105,6 @@ beyond the 5th and 95th quantiles are ignored.</dd>
 higher this value is. However the computation time increases linearly with <code>n_taus</code>.
 The default is <code>41</code> and corresponds to each τ being separated by it's neighbors by
 <code>0.05</code>.</dd>
-<dt><strong><code>lambda_iterations</code></strong> :&ensp;<code>int</code></dt>
-<dd>The number of iterations used when applying the Newton step
-of the optimization procedure. Default is <code>5</code>.</dd>
-<dt><strong><code>n_jobs</code></strong> :&ensp;<code>int</code></dt>
-<dd>The number of jobs to use for parallel computations. See
-<code>joblib.Parallel()</code>. Default is <code>-1</code>.</dd>
-<dt><strong><code>verbose</code></strong> :&ensp;<code>bool</code></dt>
-<dd>Passed to <code>joblib.Parallel()</code> for parallel computations.
-Default is <code>False</code>.</dd>
 <dt><strong><code>n_samples</code></strong> :&ensp;<code>int</code></dt>
 <dd>The number of samples to use for the confidence interval.
 If <code>1</code>, the default, no confidence interval is computed.</dd>
@@ -81,6 +118,17 @@ Default is <code>0.8</code>.</dd>
 quantile used for the confidence interval. Default is <code>0.05</code>, which
 means that the confidence interval contains the data between the 5th
 and 95th quantiles.</dd>
+<dt><strong><code>max_iterations</code></strong> :&ensp;<code>int</code></dt>
+<dd>The maximum number of iterations used when applying the Newton step
+of the optimization procedure. Default is <code>5</code>.</dd>
+<dt><strong><code>tol</code></strong> :&ensp;<code>float</code></dt>
+<dd>The bottom threshold for the gradient of the optimization
+procedure. When reached, the procedure stops. Otherwise, a warning
+is raised about the fact that the optimization did not converge.
+Default is <code>1e-3</code>.</dd>
+<dt><strong><code>n_jobs</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of jobs to use for parallel computations. See
+<code>joblib.Parallel()</code>. Default is <code>-1</code>.</dd>
 <dt><strong><code>memoize</code></strong> :&ensp;<code>bool</code></dt>
 <dd>Indicates whether or not memoization should be used or not. If <code>True</code>, then
 intermediate results will be stored in order to avoid recomputing results that can be
@@ -88,19 +136,118 @@ reused by successively called methods. For example, if you call <code>plot_bias<
 <code>plot_bias_ranking</code> and <code>memoize</code> is <code>True</code>, then the intermediate results required by
 <code>plot_bias</code> will be reused for <code>plot_bias_ranking</code>. Memoization is turned off by
 default because it can lead to unexpected behavior depending on your usage.</dd>
+<dt><strong><code>verbose</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Passed to <code>joblib.Parallel()</code> for parallel computations.
+Default is <code>False</code>.</dd>
 <dt><strong><code>show_progress_bar</code></strong> :&ensp;<code>bool</code></dt>
 <dd>Whether or not to show progress bars during
 computations. Default is <code>True</code>.</dd>
 </dl></section>
 <details class="source">
 <summary>Source code</summary>
-<pre><code class="python">class RegressionExplainer(Explainer):
-    pass</code></pre>
+<pre><code class="python">class ClassificationExplainer(Explainer):
+    def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+        &#34;&#34;&#34;Plot the bias for the features in `X_test`.
+
+        See `ethik.explainer.Explainer.plot_bias()`.
+        &#34;&#34;&#34;
+        if yrange is None:
+            yrange = [0, 1]
+
+        X_test = pd.DataFrame(to_pandas(X_test))
+        y_pred = pd.DataFrame(to_pandas(y_pred))
+
+        if len(y_pred.columns) == 1:
+            return super().plot_bias(
+                X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange
+            )
+
+        if colors is None:
+            features = X_test.columns
+            #  Skip the lightest color as it is too light
+            scale = cl.interp(cl.scales[&#34;10&#34;][&#34;qual&#34;][&#34;Paired&#34;], len(features) + 1)[1:]
+            colors = {feat: scale[i] for i, feat in enumerate(features)}
+
+        labels = y_pred.columns
+        plots = []
+        for label in labels:
+            plots.append(
+                super().plot_bias(X_test, y_pred[label], colors=colors, yrange=yrange)
+            )
+
+        fig = make_subplots(rows=len(labels), cols=1, shared_xaxes=True)
+        for ilabel, (label, plot) in enumerate(zip(labels, plots)):
+            fig.update_layout({f&#34;yaxis{ilabel+1}&#34;: dict(title=f&#34;Average {label}&#34;)})
+            for trace in plot[&#34;data&#34;]:
+                trace[&#34;showlegend&#34;] = ilabel == 0 and trace[&#34;showlegend&#34;]
+                trace[&#34;legendgroup&#34;] = trace[&#34;name&#34;]
+                fig.add_trace(trace, row=ilabel + 1, col=1)
+
+        xlabel = &#34;tau&#34; if len(X_test.columns) &gt; 1 else f&#34;Average {X_test.columns[0]}&#34;
+        fig.update_layout(
+            {f&#34;xaxis{len(labels)}&#34;: dict(title=xlabel), &#34;plot_bgcolor&#34;: &#34;white&#34;}
+        )
+        return fig</code></pre>
 </details>
 <h3>Ancestors</h3>
 <ul class="hlist">
 <li><a title="ethik.explainer.Explainer" href="explainer.html#ethik.explainer.Explainer">Explainer</a></li>
 </ul>
+<h3>Methods</h3>
+<dl>
+<dt id="ethik.classification_explainer.ClassificationExplainer.plot_bias"><code class="name flex">
+<span>def <span class="ident">plot_bias</span></span>(<span>self, X_test, y_pred, colors=None, yrange=None)</span>
+</code></dt>
+<dd>
+<section class="desc"><p>Plot the bias for the features in <code>X_test</code>.</p>
+<p>See <a title="ethik.explainer.Explainer.plot_bias" href="explainer.html#ethik.explainer.Explainer.plot_bias"><code>Explainer.plot_bias()</code></a>.</p></section>
+<details class="source">
+<summary>Source code</summary>
+<pre><code class="python">def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+    &#34;&#34;&#34;Plot the bias for the features in `X_test`.
+
+    See `ethik.explainer.Explainer.plot_bias()`.
+    &#34;&#34;&#34;
+    if yrange is None:
+        yrange = [0, 1]
+
+    X_test = pd.DataFrame(to_pandas(X_test))
+    y_pred = pd.DataFrame(to_pandas(y_pred))
+
+    if len(y_pred.columns) == 1:
+        return super().plot_bias(
+            X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange
+        )
+
+    if colors is None:
+        features = X_test.columns
+        #  Skip the lightest color as it is too light
+        scale = cl.interp(cl.scales[&#34;10&#34;][&#34;qual&#34;][&#34;Paired&#34;], len(features) + 1)[1:]
+        colors = {feat: scale[i] for i, feat in enumerate(features)}
+
+    labels = y_pred.columns
+    plots = []
+    for label in labels:
+        plots.append(
+            super().plot_bias(X_test, y_pred[label], colors=colors, yrange=yrange)
+        )
+
+    fig = make_subplots(rows=len(labels), cols=1, shared_xaxes=True)
+    for ilabel, (label, plot) in enumerate(zip(labels, plots)):
+        fig.update_layout({f&#34;yaxis{ilabel+1}&#34;: dict(title=f&#34;Average {label}&#34;)})
+        for trace in plot[&#34;data&#34;]:
+            trace[&#34;showlegend&#34;] = ilabel == 0 and trace[&#34;showlegend&#34;]
+            trace[&#34;legendgroup&#34;] = trace[&#34;name&#34;]
+            fig.add_trace(trace, row=ilabel + 1, col=1)
+
+    xlabel = &#34;tau&#34; if len(X_test.columns) &gt; 1 else f&#34;Average {X_test.columns[0]}&#34;
+    fig.update_layout(
+        {f&#34;xaxis{len(labels)}&#34;: dict(title=xlabel), &#34;plot_bgcolor&#34;: &#34;white&#34;}
+    )
+    return fig</code></pre>
+</details>
+</dd>
+</dl>
 <h3>Inherited members</h3>
 <ul class="hlist">
 <li><code><b><a title="ethik.explainer.Explainer" href="explainer.html#ethik.explainer.Explainer">Explainer</a></b></code>:
@@ -108,7 +255,6 @@ computations. Default is <code>True</code>.</dd>
 <li><code><a title="ethik.explainer.Explainer.explain_bias" href="explainer.html#ethik.explainer.Explainer.explain_bias">explain_bias</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.explain_performance" href="explainer.html#ethik.explainer.Explainer.explain_performance">explain_performance</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.get_metric_name" href="explainer.html#ethik.explainer.Explainer.get_metric_name">get_metric_name</a></code></li>
-<li><code><a title="ethik.explainer.Explainer.plot_bias" href="explainer.html#ethik.explainer.Explainer.plot_bias">plot_bias</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.plot_bias_ranking" href="explainer.html#ethik.explainer.Explainer.plot_bias_ranking">plot_bias_ranking</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.plot_performance" href="explainer.html#ethik.explainer.Explainer.plot_performance">plot_performance</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.plot_performance_ranking" href="explainer.html#ethik.explainer.Explainer.plot_performance_ranking">plot_performance_ranking</a></code></li>
@@ -135,7 +281,10 @@ computations. Default is <code>True</code>.</dd>
 <li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
 <li>
-<h4><code><a title="ethik.regression_explainer.RegressionExplainer" href="#ethik.regression_explainer.RegressionExplainer">RegressionExplainer</a></code></h4>
+<h4><code><a title="ethik.classification_explainer.ClassificationExplainer" href="#ethik.classification_explainer.ClassificationExplainer">ClassificationExplainer</a></code></h4>
+<ul class="">
+<li><code><a title="ethik.classification_explainer.ClassificationExplainer.plot_bias" href="#ethik.classification_explainer.ClassificationExplainer.plot_bias">plot_bias</a></code></li>
+</ul>
 </li>
 </ul>
 </li>

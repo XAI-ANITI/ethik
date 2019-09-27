@@ -53,12 +53,12 @@ pre-commit install # For black
 </code></pre>
 <h1 id="user-guide">User guide</h1>
 <ul>
-<li><a href="../notebooks/Binary classification.html">Get started</a></li>
-<li><a href="../notebooks/Binary classification.html">Binary classification (Adult dataset)</a></li>
-<li><a href="../notebooks/Multi-label classification.html">Multi-label classification (Iris dataset)</a></li>
-<li><a href="../notebooks/Regression.html">Regression (Boston dataset)</a></li>
-<li><a href="../notebooks/MNIST_plotly.html">Images (MNIST dataset)</a></li>
-<li><a href="../notebooks/Partial Dependence Plot.html">Comparison with Partial Dependence Plots</a></li>
+<li><a href="notebooks/Binary classification.html">Get started</a></li>
+<li><a href="notebooks/Binary classification.html">Binary classification (Adult dataset)</a></li>
+<li><a href="notebooks/Multi-label classification.html">Multi-label classification (Iris dataset)</a></li>
+<li><a href="notebooks/Regression.html">Regression (Boston dataset)</a></li>
+<li><a href="notebooks/Image.html">Images (MNIST dataset)</a></li>
+<li><a href="notebooks/Partial Dependence Plot.html">Comparison with Partial Dependence Plots</a></li>
 </ul>
 <h1 id="api">API</h1>
 <p>Explore the API from the menu on the left.</p>
@@ -124,12 +124,12 @@ pre-commit install # For black
 
 # User guide
 
-* [Get started](../notebooks/Binary classification.html)
-* [Binary classification (Adult dataset)](../notebooks/Binary classification.html)
-* [Multi-label classification (Iris dataset)](../notebooks/Multi-label classification.html)
-* [Regression (Boston dataset)](../notebooks/Regression.html)
-* [Images (MNIST dataset)](../notebooks/MNIST_plotly.html)
-* [Comparison with Partial Dependence Plots](../notebooks/Partial Dependence Plot.html)
+* [Get started](notebooks/Binary classification.html)
+* [Binary classification (Adult dataset)](notebooks/Binary classification.html)
+* [Multi-label classification (Iris dataset)](notebooks/Multi-label classification.html)
+* [Regression (Boston dataset)](notebooks/Regression.html)
+* [Images (MNIST dataset)](notebooks/Image.html)
+* [Comparison with Partial Dependence Plots](notebooks/Partial Dependence Plot.html)
 
 # API
 
@@ -222,15 +222,6 @@ beyond the 5th and 95th quantiles are ignored.</dd>
 higher this value is. However the computation time increases linearly with <code>n_taus</code>.
 The default is <code>41</code> and corresponds to each τ being separated by it's neighbors by
 <code>0.05</code>.</dd>
-<dt><strong><code>lambda_iterations</code></strong> :&ensp;<code>int</code></dt>
-<dd>The number of iterations used when applying the Newton step
-of the optimization procedure. Default is <code>5</code>.</dd>
-<dt><strong><code>n_jobs</code></strong> :&ensp;<code>int</code></dt>
-<dd>The number of jobs to use for parallel computations. See
-<code>joblib.Parallel()</code>. Default is <code>-1</code>.</dd>
-<dt><strong><code>verbose</code></strong> :&ensp;<code>bool</code></dt>
-<dd>Passed to <code>joblib.Parallel()</code> for parallel computations.
-Default is <code>False</code>.</dd>
 <dt><strong><code>n_samples</code></strong> :&ensp;<code>int</code></dt>
 <dd>The number of samples to use for the confidence interval.
 If <code>1</code>, the default, no confidence interval is computed.</dd>
@@ -244,6 +235,17 @@ Default is <code>0.8</code>.</dd>
 quantile used for the confidence interval. Default is <code>0.05</code>, which
 means that the confidence interval contains the data between the 5th
 and 95th quantiles.</dd>
+<dt><strong><code>max_iterations</code></strong> :&ensp;<code>int</code></dt>
+<dd>The maximum number of iterations used when applying the Newton step
+of the optimization procedure. Default is <code>5</code>.</dd>
+<dt><strong><code>tol</code></strong> :&ensp;<code>float</code></dt>
+<dd>The bottom threshold for the gradient of the optimization
+procedure. When reached, the procedure stops. Otherwise, a warning
+is raised about the fact that the optimization did not converge.
+Default is <code>1e-3</code>.</dd>
+<dt><strong><code>n_jobs</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of jobs to use for parallel computations. See
+<code>joblib.Parallel()</code>. Default is <code>-1</code>.</dd>
 <dt><strong><code>memoize</code></strong> :&ensp;<code>bool</code></dt>
 <dd>Indicates whether or not memoization should be used or not. If <code>True</code>, then
 intermediate results will be stored in order to avoid recomputing results that can be
@@ -251,6 +253,9 @@ reused by successively called methods. For example, if you call <code>plot_bias<
 <code>plot_bias_ranking</code> and <code>memoize</code> is <code>True</code>, then the intermediate results required by
 <code>plot_bias</code> will be reused for <code>plot_bias_ranking</code>. Memoization is turned off by
 default because it can lead to unexpected behavior depending on your usage.</dd>
+<dt><strong><code>verbose</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Passed to <code>joblib.Parallel()</code> for parallel computations.
+Default is <code>False</code>.</dd>
 <dt><strong><code>show_progress_bar</code></strong> :&ensp;<code>bool</code></dt>
 <dd>Whether or not to show progress bars during
 computations. Default is <code>True</code>.</dd>
@@ -378,12 +383,45 @@ computations. Default is <code>True</code>.</dd>
 </dd>
 <dt id="ethik.ImageClassificationExplainer"><code class="flex name class">
 <span>class <span class="ident">ImageClassificationExplainer</span></span>
-<span>(</span><span>alpha=0.05, max_iterations=10, tol=0.001, n_jobs=-1, memoize=True, verbose=False)</span>
+<span>(</span><span>alpha=0.05, max_iterations=10, tol=0.001, n_jobs=-1, memoize=True, verbose=False, show_progress_bar=True)</span>
 </code></dt>
 <dd>
 <section class="desc"><p>An explainer specially suited for image classification.</p>
 <p>This has exactly the same API as <code>Explainer</code>, but expects to be provided with an array of
-images instead of a tabular dataset.</p></section>
+images instead of a tabular dataset.</p>
+<p>TODO: add a note about n_taus being 2</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>alpha</code></strong> :&ensp;<code>float</code></dt>
+<dd>A <code>float</code> between <code>0</code> and <code>0.5</code> which indicates by how close the <code>Explainer</code>
+should look at extreme values of a distribution. The closer to zero, the more so
+extreme values will be accounted for. The default is <code>0.05</code> which means that all values
+beyond the 5th and 95th quantiles are ignored.</dd>
+<dt><strong><code>max_iterations</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of iterations used when applying the Newton step
+of the optimization procedure. Default is <code>5</code>.</dd>
+<dt><strong><code>tol</code></strong> :&ensp;<code>float</code></dt>
+<dd>The bottom threshold for the gradient of the optimization
+procedure. When reached, the procedure stops. Otherwise, a warning
+is raised about the fact that the optimization did not converge.
+Default is <code>1e-3</code>.</dd>
+<dt><strong><code>n_jobs</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of jobs to use for parallel computations. See
+<code>joblib.Parallel()</code>. Default is <code>-1</code>.</dd>
+<dt><strong><code>memoize</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Indicates whether or not memoization should be used or not. If <code>True</code>, then
+intermediate results will be stored in order to avoid recomputing results that can be
+reused by successively called methods. For example, if you call <code>plot_bias</code> followed by
+<code>plot_bias_ranking</code> and <code>memoize</code> is <code>True</code>, then the intermediate results required by
+<code>plot_bias</code> will be reused for <code>plot_bias_ranking</code>. Memoization is turned on by
+default because computations are time-consuming for images.</dd>
+<dt><strong><code>verbose</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Passed to <code>joblib.Parallel()</code> for parallel computations.
+Default is <code>False</code>.</dd>
+<dt><strong><code>show_progress_bar</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Whether or not to show progress bars during
+computations. Default is <code>True</code>.</dd>
+</dl></section>
 <details class="source">
 <summary>Source code</summary>
 <pre><code class="python">class ImageClassificationExplainer(explainer.Explainer):
@@ -392,6 +430,31 @@ images instead of a tabular dataset.</p></section>
     This has exactly the same API as `Explainer`, but expects to be provided with an array of
     images instead of a tabular dataset.
 
+    TODO: add a note about n_taus being 2
+    
+    Parameters:
+        alpha (float): A `float` between `0` and `0.5` which indicates by how close the `Explainer`
+            should look at extreme values of a distribution. The closer to zero, the more so
+            extreme values will be accounted for. The default is `0.05` which means that all values
+            beyond the 5th and 95th quantiles are ignored.
+        max_iterations (int): The number of iterations used when applying the Newton step
+            of the optimization procedure. Default is `5`.
+        tol (float): The bottom threshold for the gradient of the optimization
+            procedure. When reached, the procedure stops. Otherwise, a warning
+            is raised about the fact that the optimization did not converge.
+            Default is `1e-3`.
+        n_jobs (int): The number of jobs to use for parallel computations. See
+            `joblib.Parallel()`. Default is `-1`.
+        memoize (bool): Indicates whether or not memoization should be used or not. If `True`, then
+            intermediate results will be stored in order to avoid recomputing results that can be
+            reused by successively called methods. For example, if you call `plot_bias` followed by
+            `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
+            `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned on by
+            default because computations are time-consuming for images.
+        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
+            Default is `False`.
+        show_progress_bar (bool): Whether or not to show progress bars during
+            computations. Default is `True`.
     &#34;&#34;&#34;
 
     def __init__(
@@ -402,6 +465,7 @@ images instead of a tabular dataset.</p></section>
         n_jobs=-1,
         memoize=True,
         verbose=False,
+        show_progress_bar=True,
     ):
         super().__init__(
             alpha=alpha,
@@ -411,6 +475,7 @@ images instead of a tabular dataset.</p></section>
             n_jobs=n_jobs,
             memoize=memoize,
             verbose=verbose,
+            show_progress_bar=show_progress_bar,
         )
 
     def _set_image_shape(self, images):
@@ -419,10 +484,49 @@ images instead of a tabular dataset.</p></section>
             self.img_shape = self.img_shape[:-1]
 
     def explain_bias(self, X_test, y_pred):
+        &#34;&#34;&#34;Compute the bias of the model for the features in `X_test`.
+
+        Args:
+            X_test (np.array): An array of images, i.e. a 3d numpy array of
+                dimension `(n_images, n_rows, n_cols)`.
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                `pd.Series` is expected. For multi-label classification, a
+                pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+
+        Returns:
+            pd.DataFrame:
+                See `ethik.explainer.Explainer.explain_bias()`.
+        &#34;&#34;&#34;
         self._set_image_shape(images=X_test)
         return super().explain_bias(X_test=images_to_dataframe(X_test), y_pred=y_pred)
 
     def explain_performance(self, X_test, y_test, y_pred, metric):
+        &#34;&#34;&#34;Compute the change in model&#39;s performance for the features in `X_test`.
+
+        Args:
+            X_test (np.array): An array of images, i.e. a 3d numpy array of
+                dimension `(n_images, n_rows, n_cols)`.
+            y_test (pd.DataFrame or pd.Series): The true values
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series` is expected. For multi-label classification,
+                a pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. The format is the same as `y_test`.
+            metric (callable): A scikit-learn-like metric
+                `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+                to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+                &#34;the set of labels predicted for a sample must exactly match the
+                corresponding set of labels in `y_true`&#34;.
+
+        Returns:
+            pd.DataFrame:
+                See `ethik.explainer.Explainer.explain_performance()`.
+        &#34;&#34;&#34;
         self._set_image_shape(images=X_test)
         return super().explain_performance(
             X_test=images_to_dataframe(X_test),
@@ -488,6 +592,21 @@ images instead of a tabular dataset.</p></section>
         return fig
 
     def plot_bias(self, X_test, y_pred, n_cols=3):
+        &#34;&#34;&#34;Plot the bias of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `ImageClassificationExplainer.explain_bias()`.
+            y_pred (pd.DataFrame or pd.Series): See `ImageClassificationExplainer.explain_bias()`.
+            n_cols (int): The number of classes to render per row. Default is `3`.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+
+                TODO: explain what is represented on the image.
+        &#34;&#34;&#34;
         biases = self.explain_bias(X_test=X_test, y_pred=y_pred)
         values = {}
 
@@ -502,6 +621,22 @@ images instead of a tabular dataset.</p></section>
         return self._plot(values, n_cols=n_cols)
 
     def plot_performance(self, X_test, y_test, y_pred, metric):
+        &#34;&#34;&#34;Plot the performance of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `ImageClassificationExplainer.explain_performance()`.
+            y_test (pd.DataFrame or pd.Series): See `ImageClassificationExplainer.explain_performance()`.
+            y_pred (pd.DataFrame or pd.Series): See `ImageClassificationExplainer.explain_performance()`.
+            metric (callable): See `ImageClassificationExplainer.explain_performance()`.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+
+                TODO: explain what is represented on the image.
+        &#34;&#34;&#34;
         perf = self.explain_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
@@ -552,16 +687,276 @@ images instead of a tabular dataset.</p></section>
 <ul class="hlist">
 <li><a title="ethik.explainer.Explainer" href="explainer.html#ethik.explainer.Explainer">Explainer</a></li>
 </ul>
+<h3>Methods</h3>
+<dl>
+<dt id="ethik.ImageClassificationExplainer.explain_bias"><code class="name flex">
+<span>def <span class="ident">explain_bias</span></span>(<span>self, X_test, y_pred)</span>
+</code></dt>
+<dd>
+<section class="desc"><p>Compute the bias of the model for the features in <code>X_test</code>.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>X_test</code></strong> :&ensp;<code>np.array</code></dt>
+<dd>An array of images, i.e. a 3d numpy array of
+dimension <code>(n_images, n_rows, n_cols)</code>.</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The model predictions
+for the samples in <code>X_test</code>. For binary classification and regression,
+<code>pd.Series</code> is expected. For multi-label classification, a
+pandas dataframe with one column per label is
+expected. The values can either be probabilities or <code>0/1</code>
+(for a one-hot-encoded output).</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.DataFrame</code>:</dt>
+<dd>See <a title="ethik.explainer.Explainer.explain_bias" href="explainer.html#ethik.explainer.Explainer.explain_bias"><code>Explainer.explain_bias()</code></a>.</dd>
+</dl></section>
+<details class="source">
+<summary>Source code</summary>
+<pre><code class="python">def explain_bias(self, X_test, y_pred):
+    &#34;&#34;&#34;Compute the bias of the model for the features in `X_test`.
+
+    Args:
+        X_test (np.array): An array of images, i.e. a 3d numpy array of
+            dimension `(n_images, n_rows, n_cols)`.
+        y_pred (pd.DataFrame or pd.Series): The model predictions
+            for the samples in `X_test`. For binary classification and regression,
+            `pd.Series` is expected. For multi-label classification, a
+            pandas dataframe with one column per label is
+            expected. The values can either be probabilities or `0/1`
+            (for a one-hot-encoded output).
+
+    Returns:
+        pd.DataFrame:
+            See `ethik.explainer.Explainer.explain_bias()`.
+    &#34;&#34;&#34;
+    self._set_image_shape(images=X_test)
+    return super().explain_bias(X_test=images_to_dataframe(X_test), y_pred=y_pred)</code></pre>
+</details>
+</dd>
+<dt id="ethik.ImageClassificationExplainer.explain_performance"><code class="name flex">
+<span>def <span class="ident">explain_performance</span></span>(<span>self, X_test, y_test, y_pred, metric)</span>
+</code></dt>
+<dd>
+<section class="desc"><p>Compute the change in model's performance for the features in <code>X_test</code>.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>X_test</code></strong> :&ensp;<code>np.array</code></dt>
+<dd>An array of images, i.e. a 3d numpy array of
+dimension <code>(n_images, n_rows, n_cols)</code>.</dd>
+<dt><strong><code>y_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The true values
+for the samples in <code>X_test</code>. For binary classification and regression,
+a <code>pd.Series</code> is expected. For multi-label classification,
+a pandas dataframe with one column per label is
+expected. The values can either be probabilities or <code>0/1</code>
+(for a one-hot-encoded output).</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The model predictions
+for the samples in <code>X_test</code>. The format is the same as <code>y_test</code>.</dd>
+<dt><strong><code>metric</code></strong> :&ensp;<code>callable</code></dt>
+<dd>A scikit-learn-like metric
+<code>f(y_true, y_pred, sample_weight=None)</code>. The metric must be able
+to handle the <code>y</code> data. For instance, for <code>sklearn.metrics.accuracy_score()</code>,
+"the set of labels predicted for a sample must exactly match the
+corresponding set of labels in <code>y_true</code>".</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.DataFrame</code>:</dt>
+<dd>See <a title="ethik.explainer.Explainer.explain_performance" href="explainer.html#ethik.explainer.Explainer.explain_performance"><code>Explainer.explain_performance()</code></a>.</dd>
+</dl></section>
+<details class="source">
+<summary>Source code</summary>
+<pre><code class="python">def explain_performance(self, X_test, y_test, y_pred, metric):
+    &#34;&#34;&#34;Compute the change in model&#39;s performance for the features in `X_test`.
+
+    Args:
+        X_test (np.array): An array of images, i.e. a 3d numpy array of
+            dimension `(n_images, n_rows, n_cols)`.
+        y_test (pd.DataFrame or pd.Series): The true values
+            for the samples in `X_test`. For binary classification and regression,
+            a `pd.Series` is expected. For multi-label classification,
+            a pandas dataframe with one column per label is
+            expected. The values can either be probabilities or `0/1`
+            (for a one-hot-encoded output).
+        y_pred (pd.DataFrame or pd.Series): The model predictions
+            for the samples in `X_test`. The format is the same as `y_test`.
+        metric (callable): A scikit-learn-like metric
+            `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+            to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+            &#34;the set of labels predicted for a sample must exactly match the
+            corresponding set of labels in `y_true`&#34;.
+
+    Returns:
+        pd.DataFrame:
+            See `ethik.explainer.Explainer.explain_performance()`.
+    &#34;&#34;&#34;
+    self._set_image_shape(images=X_test)
+    return super().explain_performance(
+        X_test=images_to_dataframe(X_test),
+        y_test=y_test,
+        y_pred=y_pred,
+        metric=metric,
+    )</code></pre>
+</details>
+</dd>
+<dt id="ethik.ImageClassificationExplainer.plot_bias"><code class="name flex">
+<span>def <span class="ident">plot_bias</span></span>(<span>self, X_test, y_pred, n_cols=3)</span>
+</code></dt>
+<dd>
+<section class="desc"><p>Plot the bias of the model for the features in <code>X_test</code>.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>np.array</code></dt>
+<dd>See <a title="ethik.ImageClassificationExplainer.explain_bias" href="#ethik.ImageClassificationExplainer.explain_bias"><code>ImageClassificationExplainer.explain_bias()</code></a>.</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>See <a title="ethik.ImageClassificationExplainer.explain_bias" href="#ethik.ImageClassificationExplainer.explain_bias"><code>ImageClassificationExplainer.explain_bias()</code></a>.</dd>
+<dt><strong><code>n_cols</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of classes to render per row. Default is <code>3</code>.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>plotly.graph_objs.Figure</code>:</dt>
+<dd>
+<p>A Plotly figure. It shows automatically in notebook cells but you
+can also call the <code>.show()</code> method to plot multiple charts in the
+same cell.</p>
+<p>TODO: explain what is represented on the image.</p>
+</dd>
+</dl></section>
+<details class="source">
+<summary>Source code</summary>
+<pre><code class="python">def plot_bias(self, X_test, y_pred, n_cols=3):
+    &#34;&#34;&#34;Plot the bias of the model for the features in `X_test`.
+
+    Args:
+        X_test (pd.DataFrame or np.array): See `ImageClassificationExplainer.explain_bias()`.
+        y_pred (pd.DataFrame or pd.Series): See `ImageClassificationExplainer.explain_bias()`.
+        n_cols (int): The number of classes to render per row. Default is `3`.
+
+    Returns:
+        plotly.graph_objs.Figure:
+            A Plotly figure. It shows automatically in notebook cells but you
+            can also call the `.show()` method to plot multiple charts in the
+            same cell.
+
+            TODO: explain what is represented on the image.
+    &#34;&#34;&#34;
+    biases = self.explain_bias(X_test=X_test, y_pred=y_pred)
+    values = {}
+
+    for label, group in biases.groupby(&#34;label&#34;):
+        diffs = (
+            group.query(&#34;tau == 1&#34;)[&#34;bias&#34;]
+            - group.query(&#34;tau == -1&#34;)[&#34;bias&#34;].values
+        )
+        diffs = diffs.to_numpy().reshape(self.img_shape)
+        values[label] = diffs
+
+    return self._plot(values, n_cols=n_cols)</code></pre>
+</details>
+</dd>
+<dt id="ethik.ImageClassificationExplainer.plot_performance"><code class="name flex">
+<span>def <span class="ident">plot_performance</span></span>(<span>self, X_test, y_test, y_pred, metric)</span>
+</code></dt>
+<dd>
+<section class="desc"><p>Plot the performance of the model for the features in <code>X_test</code>.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>np.array</code></dt>
+<dd>See <a title="ethik.ImageClassificationExplainer.explain_performance" href="#ethik.ImageClassificationExplainer.explain_performance"><code>ImageClassificationExplainer.explain_performance()</code></a>.</dd>
+<dt><strong><code>y_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>See <a title="ethik.ImageClassificationExplainer.explain_performance" href="#ethik.ImageClassificationExplainer.explain_performance"><code>ImageClassificationExplainer.explain_performance()</code></a>.</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>See <a title="ethik.ImageClassificationExplainer.explain_performance" href="#ethik.ImageClassificationExplainer.explain_performance"><code>ImageClassificationExplainer.explain_performance()</code></a>.</dd>
+<dt><strong><code>metric</code></strong> :&ensp;<code>callable</code></dt>
+<dd>See <a title="ethik.ImageClassificationExplainer.explain_performance" href="#ethik.ImageClassificationExplainer.explain_performance"><code>ImageClassificationExplainer.explain_performance()</code></a>.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>plotly.graph_objs.Figure</code>:</dt>
+<dd>
+<p>A Plotly figure. It shows automatically in notebook cells but you
+can also call the <code>.show()</code> method to plot multiple charts in the
+same cell.</p>
+<p>TODO: explain what is represented on the image.</p>
+</dd>
+</dl></section>
+<details class="source">
+<summary>Source code</summary>
+<pre><code class="python">def plot_performance(self, X_test, y_test, y_pred, metric):
+    &#34;&#34;&#34;Plot the performance of the model for the features in `X_test`.
+
+    Args:
+        X_test (pd.DataFrame or np.array): See `ImageClassificationExplainer.explain_performance()`.
+        y_test (pd.DataFrame or pd.Series): See `ImageClassificationExplainer.explain_performance()`.
+        y_pred (pd.DataFrame or pd.Series): See `ImageClassificationExplainer.explain_performance()`.
+        metric (callable): See `ImageClassificationExplainer.explain_performance()`.
+
+    Returns:
+        plotly.graph_objs.Figure:
+            A Plotly figure. It shows automatically in notebook cells but you
+            can also call the `.show()` method to plot multiple charts in the
+            same cell.
+
+            TODO: explain what is represented on the image.
+    &#34;&#34;&#34;
+    perf = self.explain_performance(
+        X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
+    )
+    metric_name = self.get_metric_name(metric)
+
+    mask = perf[&#34;label&#34;] == perf[&#34;label&#34;].iloc[0]
+    diffs = (
+        perf[mask].query(f&#34;tau == 1&#34;)[metric_name].to_numpy()
+        - perf[mask].query(f&#34;tau == -1&#34;)[metric_name].to_numpy()
+    )
+    diffs = diffs.reshape(self.img_shape)
+
+    # We want to make sure that 0 is at the center of the scale
+    zmin, zmax = diffs.min(), diffs.max()
+    zmin, zmax = min(zmin, -zmax), max(zmax, -zmin)
+
+    height, width = self.img_shape
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Heatmap(
+            z=diffs[::-1],
+            x=list(range(width)),
+            y=list(range(height)),
+            zmin=zmin,
+            zmax=zmax,
+            colorscale=&#34;RdBu&#34;,
+            zsmooth=&#34;best&#34;,
+            showscale=True,
+            hoverinfo=&#34;x+y+z&#34;,
+            reversescale=True,
+        )
+    )
+
+    fig_width = 500
+    fig.update_layout(
+        margin=dict(t=20, l=20, b=20),
+        width=fig_width,
+        height=fig_width * height / width,
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False, scaleanchor=&#34;x&#34;, scaleratio=height / width),
+        plot_bgcolor=&#34;white&#34;,
+    )
+
+    return fig</code></pre>
+</details>
+</dd>
+</dl>
 <h3>Inherited members</h3>
 <ul class="hlist">
 <li><code><b><a title="ethik.explainer.Explainer" href="explainer.html#ethik.explainer.Explainer">Explainer</a></b></code>:
 <ul class="hlist">
-<li><code><a title="ethik.explainer.Explainer.explain_bias" href="explainer.html#ethik.explainer.Explainer.explain_bias">explain_bias</a></code></li>
-<li><code><a title="ethik.explainer.Explainer.explain_performance" href="explainer.html#ethik.explainer.Explainer.explain_performance">explain_performance</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.get_metric_name" href="explainer.html#ethik.explainer.Explainer.get_metric_name">get_metric_name</a></code></li>
-<li><code><a title="ethik.explainer.Explainer.plot_bias" href="explainer.html#ethik.explainer.Explainer.plot_bias">plot_bias</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.plot_bias_ranking" href="explainer.html#ethik.explainer.Explainer.plot_bias_ranking">plot_bias_ranking</a></code></li>
-<li><code><a title="ethik.explainer.Explainer.plot_performance" href="explainer.html#ethik.explainer.Explainer.plot_performance">plot_performance</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.plot_performance_ranking" href="explainer.html#ethik.explainer.Explainer.plot_performance_ranking">plot_performance_ranking</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.rank_by_bias" href="explainer.html#ethik.explainer.Explainer.rank_by_bias">rank_by_bias</a></code></li>
 <li><code><a title="ethik.explainer.Explainer.rank_by_performance" href="explainer.html#ethik.explainer.Explainer.rank_by_performance">rank_by_performance</a></code></li>
@@ -587,15 +982,6 @@ beyond the 5th and 95th quantiles are ignored.</dd>
 higher this value is. However the computation time increases linearly with <code>n_taus</code>.
 The default is <code>41</code> and corresponds to each τ being separated by it's neighbors by
 <code>0.05</code>.</dd>
-<dt><strong><code>lambda_iterations</code></strong> :&ensp;<code>int</code></dt>
-<dd>The number of iterations used when applying the Newton step
-of the optimization procedure. Default is <code>5</code>.</dd>
-<dt><strong><code>n_jobs</code></strong> :&ensp;<code>int</code></dt>
-<dd>The number of jobs to use for parallel computations. See
-<code>joblib.Parallel()</code>. Default is <code>-1</code>.</dd>
-<dt><strong><code>verbose</code></strong> :&ensp;<code>bool</code></dt>
-<dd>Passed to <code>joblib.Parallel()</code> for parallel computations.
-Default is <code>False</code>.</dd>
 <dt><strong><code>n_samples</code></strong> :&ensp;<code>int</code></dt>
 <dd>The number of samples to use for the confidence interval.
 If <code>1</code>, the default, no confidence interval is computed.</dd>
@@ -609,6 +995,17 @@ Default is <code>0.8</code>.</dd>
 quantile used for the confidence interval. Default is <code>0.05</code>, which
 means that the confidence interval contains the data between the 5th
 and 95th quantiles.</dd>
+<dt><strong><code>max_iterations</code></strong> :&ensp;<code>int</code></dt>
+<dd>The maximum number of iterations used when applying the Newton step
+of the optimization procedure. Default is <code>5</code>.</dd>
+<dt><strong><code>tol</code></strong> :&ensp;<code>float</code></dt>
+<dd>The bottom threshold for the gradient of the optimization
+procedure. When reached, the procedure stops. Otherwise, a warning
+is raised about the fact that the optimization did not converge.
+Default is <code>1e-3</code>.</dd>
+<dt><strong><code>n_jobs</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of jobs to use for parallel computations. See
+<code>joblib.Parallel()</code>. Default is <code>-1</code>.</dd>
 <dt><strong><code>memoize</code></strong> :&ensp;<code>bool</code></dt>
 <dd>Indicates whether or not memoization should be used or not. If <code>True</code>, then
 intermediate results will be stored in order to avoid recomputing results that can be
@@ -616,6 +1013,9 @@ reused by successively called methods. For example, if you call <code>plot_bias<
 <code>plot_bias_ranking</code> and <code>memoize</code> is <code>True</code>, then the intermediate results required by
 <code>plot_bias</code> will be reused for <code>plot_bias_ranking</code>. Memoization is turned off by
 default because it can lead to unexpected behavior depending on your usage.</dd>
+<dt><strong><code>verbose</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Passed to <code>joblib.Parallel()</code> for parallel computations.
+Default is <code>False</code>.</dd>
 <dt><strong><code>show_progress_bar</code></strong> :&ensp;<code>bool</code></dt>
 <dd>Whether or not to show progress bars during
 computations. Default is <code>True</code>.</dd>
@@ -682,6 +1082,12 @@ computations. Default is <code>True</code>.</dd>
 </li>
 <li>
 <h4><code><a title="ethik.ImageClassificationExplainer" href="#ethik.ImageClassificationExplainer">ImageClassificationExplainer</a></code></h4>
+<ul class="">
+<li><code><a title="ethik.ImageClassificationExplainer.explain_bias" href="#ethik.ImageClassificationExplainer.explain_bias">explain_bias</a></code></li>
+<li><code><a title="ethik.ImageClassificationExplainer.explain_performance" href="#ethik.ImageClassificationExplainer.explain_performance">explain_performance</a></code></li>
+<li><code><a title="ethik.ImageClassificationExplainer.plot_bias" href="#ethik.ImageClassificationExplainer.plot_bias">plot_bias</a></code></li>
+<li><code><a title="ethik.ImageClassificationExplainer.plot_performance" href="#ethik.ImageClassificationExplainer.plot_performance">plot_performance</a></code></li>
+</ul>
 </li>
 <li>
 <h4><code><a title="ethik.RegressionExplainer" href="#ethik.RegressionExplainer">RegressionExplainer</a></code></h4>
