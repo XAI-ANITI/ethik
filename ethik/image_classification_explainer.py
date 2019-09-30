@@ -22,6 +22,31 @@ class ImageClassificationExplainer(explainer.Explainer):
     This has exactly the same API as `Explainer`, but expects to be provided with an array of
     images instead of a tabular dataset.
 
+    TODO: add a note about n_taus being 2
+    
+    Parameters:
+        alpha (float): A `float` between `0` and `0.5` which indicates by how close the `Explainer`
+            should look at extreme values of a distribution. The closer to zero, the more so
+            extreme values will be accounted for. The default is `0.05` which means that all values
+            beyond the 5th and 95th quantiles are ignored.
+        max_iterations (int): The number of iterations used when applying the Newton step
+            of the optimization procedure. Default is `5`.
+        tol (float): The bottom threshold for the gradient of the optimization
+            procedure. When reached, the procedure stops. Otherwise, a warning
+            is raised about the fact that the optimization did not converge.
+            Default is `1e-3`.
+        n_jobs (int): The number of jobs to use for parallel computations. See
+            `joblib.Parallel()`. Default is `-1`.
+        memoize (bool): Indicates whether or not memoization should be used or not. If `True`, then
+            intermediate results will be stored in order to avoid recomputing results that can be
+            reused by successively called methods. For example, if you call `plot_bias` followed by
+            `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
+            `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned on by
+            default because computations are time-consuming for images.
+        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
+            Default is `False`.
+        show_progress_bar (bool): Whether or not to show progress bars during
+            computations. Default is `True`.
     """
 
     def __init__(
@@ -32,6 +57,7 @@ class ImageClassificationExplainer(explainer.Explainer):
         n_jobs=-1,
         memoize=True,
         verbose=False,
+        show_progress_bar=True,
     ):
         super().__init__(
             alpha=alpha,
@@ -41,6 +67,7 @@ class ImageClassificationExplainer(explainer.Explainer):
             n_jobs=n_jobs,
             memoize=memoize,
             verbose=verbose,
+            show_progress_bar=show_progress_bar,
         )
 
     def _set_image_shape(self, images):
@@ -49,10 +76,49 @@ class ImageClassificationExplainer(explainer.Explainer):
             self.img_shape = self.img_shape[:-1]
 
     def explain_bias(self, X_test, y_pred):
+        """Compute the bias of the model for the features in `X_test`.
+
+        Args:
+            X_test (np.array): An array of images, i.e. a 3d numpy array of
+                dimension `(n_images, n_rows, n_cols)`.
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                `pd.Series` is expected. For multi-label classification, a
+                pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+
+        Returns:
+            pd.DataFrame:
+                See `ethik.explainer.Explainer.explain_bias()`.
+        """
         self._set_image_shape(images=X_test)
         return super().explain_bias(X_test=images_to_dataframe(X_test), y_pred=y_pred)
 
     def explain_performance(self, X_test, y_test, y_pred, metric):
+        """Compute the change in model's performance for the features in `X_test`.
+
+        Args:
+            X_test (np.array): An array of images, i.e. a 3d numpy array of
+                dimension `(n_images, n_rows, n_cols)`.
+            y_test (pd.DataFrame or pd.Series): The true values
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series` is expected. For multi-label classification,
+                a pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. The format is the same as `y_test`.
+            metric (callable): A scikit-learn-like metric
+                `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+                to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+                "the set of labels predicted for a sample must exactly match the
+                corresponding set of labels in `y_true`".
+
+        Returns:
+            pd.DataFrame:
+                See `ethik.explainer.Explainer.explain_performance()`.
+        """
         self._set_image_shape(images=X_test)
         return super().explain_performance(
             X_test=images_to_dataframe(X_test),
@@ -118,6 +184,21 @@ class ImageClassificationExplainer(explainer.Explainer):
         return fig
 
     def plot_bias(self, X_test, y_pred, n_cols=3):
+        """Plot the bias of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `ImageClassificationExplainer.explain_bias()`.
+            y_pred (pd.DataFrame or pd.Series): See `ImageClassificationExplainer.explain_bias()`.
+            n_cols (int): The number of classes to render per row. Default is `3`.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+
+                TODO: explain what is represented on the image.
+        """
         biases = self.explain_bias(X_test=X_test, y_pred=y_pred)
         values = {}
 
@@ -132,6 +213,22 @@ class ImageClassificationExplainer(explainer.Explainer):
         return self._plot(values, n_cols=n_cols)
 
     def plot_performance(self, X_test, y_test, y_pred, metric):
+        """Plot the performance of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `ImageClassificationExplainer.explain_performance()`.
+            y_test (pd.DataFrame or pd.Series): See `ImageClassificationExplainer.explain_performance()`.
+            y_pred (pd.DataFrame or pd.Series): See `ImageClassificationExplainer.explain_performance()`.
+            metric (callable): See `ImageClassificationExplainer.explain_performance()`.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+
+                TODO: explain what is represented on the image.
+        """
         perf = self.explain_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )

@@ -19,8 +19,13 @@ update_nb:
 	jupyter nbconvert --execute --to notebook --inplace notebooks/*.ipynb
 
 nb_to_html: update_nb
+	rm -rf docs/notebooks
 	mkdir -p docs/notebooks
 	jupyter nbconvert --to html --output-dir docs/notebooks notebooks/*.ipynb
 
-doc: nb_to_html
-	pdoc --html -f -o docs ethik
+api_ref:
+	pdoc --html -c latex_math=1 -f -o docs ethik
+	mv docs/ethik/* docs/
+	rm -r docs/ethik/
+
+doc: nb_to_html api_ref

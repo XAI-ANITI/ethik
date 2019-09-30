@@ -136,12 +136,6 @@ class Explainer:
             higher this value is. However the computation time increases linearly with `n_taus`.
             The default is `41` and corresponds to each τ being separated by it's neighbors by
             `0.05`.
-        lambda_iterations (int): The number of iterations used when applying the Newton step
-            of the optimization procedure. Default is `5`.
-        n_jobs (int): The number of jobs to use for parallel computations. See
-            `joblib.Parallel()`. Default is `-1`.
-        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
-            Default is `False`.
         n_samples (int): The number of samples to use for the confidence interval.
             If `1`, the default, no confidence interval is computed.
         sample_frac (float): The proportion of lines in the dataset sampled to
@@ -152,12 +146,22 @@ class Explainer:
             quantile used for the confidence interval. Default is `0.05`, which
             means that the confidence interval contains the data between the 5th
             and 95th quantiles.
+        max_iterations (int): The maximum number of iterations used when applying the Newton step
+            of the optimization procedure. Default is `5`.
+        tol (float): The bottom threshold for the gradient of the optimization
+            procedure. When reached, the procedure stops. Otherwise, a warning
+            is raised about the fact that the optimization did not converge.
+            Default is `1e-3`.
+        n_jobs (int): The number of jobs to use for parallel computations. See
+            `joblib.Parallel()`. Default is `-1`.
         memoize (bool): Indicates whether or not memoization should be used or not. If `True`, then
             intermediate results will be stored in order to avoid recomputing results that can be
             reused by successively called methods. For example, if you call `plot_bias` followed by
             `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
             `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned off by
             default because it can lead to unexpected behavior depending on your usage.
+        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
+            Default is `False`.
         show_progress_bar (bool): Whether or not to show progress bars during
             computations. Default is `True`.
     """
@@ -602,8 +606,44 @@ class Explainer:
         )
 
     def rank_by_bias(self, X_test, y_pred):
-        """Returns a DataFrame containing the importance of each feature.
+        """Returns a pandas DataFrame containing the importance of each feature
+        per label.
 
+        Args:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series` is expected. For multi-label classification,
+                a pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+
+        Returns:
+            pd.DataFrame:
+                A dataframe with columns `(label, feature, importance)`. The row
+                `(setosa, petal length (cm), 0.282507)` means that the feature
+                `petal length` of the Iris dataset has an importance of about
+                30% in the prediction of the class `setosa`. 
+
+                The importance is a real number between 0 and 1. Intuitively,
+                if the model bias for the feature `X` is a flat curve (the average
+                model prediction is not impacted by the mean of `X`) then we
+                can conclude that `X` has no importance for predictions. This
+                flat curve is the baseline and satisfies \(y = bias_{\\tau(0)}\).
+                To compute the importance of a feature, we look at the average
+                distance of the bias curve to this baseline:
+
+                $$
+                I(X) = \\frac{1}{n_\\tau} \sum_{i=1}^{n_\\tau} \mid bias_{\\tau(i)}(X) - bias_{\\tau(0)}(X) \mid
+                $$
+
+                The bias curve is first normalized so that the importance is
+                between 0 and 1 (which may not be the case originally for regression
+                problems).
+
+                For regression problems, there's one label only and its name
+                doesn't matter (it's just to have a consistent output).
         """
 
         def get_importance(group):
@@ -624,6 +664,38 @@ class Explainer:
         )
 
     def rank_by_performance(self, X_test, y_test, y_pred, metric):
+        """Returns a pandas DataFrame containing 
+        per label.
+
+        Args:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_test (pd.DataFrame or pd.Series): The true output
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series` is expected. For multi-label classification,
+                a pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. The format is the same as `y_test`.
+            metric (callable): A scikit-learn-like metric
+                `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+                to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+                "the set of labels predicted for a sample must exactly match the
+                corresponding set of labels in `y_true`".
+
+        Returns:
+            pd.DataFrame:
+                A dataframe with columns `(feature, min, max)`. The row
+                `(age, 0.862010, 0.996360)` means that the score measured by the
+                given metric (e.g. `sklearn.metrics.accuracy_score`) stays bewteen
+                86.2% and 99.6% on average when we make the mean age change. With
+                such information, we can find the features for which the model
+                performs the worst or the best.
+
+                For regression problems, there's one label only and its name
+                doesn't matter (it's just to have a consistent output).
+        """
         metric_name = self.get_metric_name(metric)
 
         def get_aggregates(df):
@@ -897,7 +969,7 @@ class Explainer:
             metric (callable): See `Explainer.explain_performance()`.
             criterion (str): Either "min" or "max" to determine whether, for a
                 given feature, we keep the worst or the best performance for all
-                the values taken by the mean.
+                the values taken by the mean. See `Explainer.rank_by_performance()`.
             colors (dict, optional): See `Explainer.plot_bias_ranking()`.
 
         Returns:

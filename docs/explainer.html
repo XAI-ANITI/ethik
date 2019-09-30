@@ -12,6 +12,7 @@
 <style>.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{font-weight:bold}#index h4 + ul{margin-bottom:.6em}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase;cursor:pointer}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
 <style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
 <style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script async src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_CHTML'></script>
 </head>
 <body>
 <main>
@@ -32,6 +33,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
 from scipy import special
+from tqdm import tqdm
 
 from .utils import decimal_range, join_with_overlap, to_pandas
 
@@ -159,12 +161,6 @@ class Explainer:
             higher this value is. However the computation time increases linearly with `n_taus`.
             The default is `41` and corresponds to each τ being separated by it&#39;s neighbors by
             `0.05`.
-        lambda_iterations (int): The number of iterations used when applying the Newton step
-            of the optimization procedure. Default is `5`.
-        n_jobs (int): The number of jobs to use for parallel computations. See
-            `joblib.Parallel()`. Default is `-1`.
-        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
-            Default is `False`.
         n_samples (int): The number of samples to use for the confidence interval.
             If `1`, the default, no confidence interval is computed.
         sample_frac (float): The proportion of lines in the dataset sampled to
@@ -175,12 +171,24 @@ class Explainer:
             quantile used for the confidence interval. Default is `0.05`, which
             means that the confidence interval contains the data between the 5th
             and 95th quantiles.
+        max_iterations (int): The maximum number of iterations used when applying the Newton step
+            of the optimization procedure. Default is `5`.
+        tol (float): The bottom threshold for the gradient of the optimization
+            procedure. When reached, the procedure stops. Otherwise, a warning
+            is raised about the fact that the optimization did not converge.
+            Default is `1e-3`.
+        n_jobs (int): The number of jobs to use for parallel computations. See
+            `joblib.Parallel()`. Default is `-1`.
         memoize (bool): Indicates whether or not memoization should be used or not. If `True`, then
             intermediate results will be stored in order to avoid recomputing results that can be
             reused by successively called methods. For example, if you call `plot_bias` followed by
             `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
             `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned off by
             default because it can lead to unexpected behavior depending on your usage.
+        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
+            Default is `False`.
+        show_progress_bar (bool): Whether or not to show progress bars during
+            computations. Default is `True`.
     &#34;&#34;&#34;
 
     def __init__(
@@ -195,6 +203,7 @@ class Explainer:
         n_jobs=1,  # Parallelism is only worth it if the dataset is &#34;large&#34;
         memoize=False,
         verbose=False,
+        show_progress_bar=True,
     ):
         if not 0 &lt;= alpha &lt; 0.5:
             raise ValueError(f&#34;alpha must be between 0 and 0.5, got {alpha}&#34;)
@@ -232,6 +241,7 @@ class Explainer:
         self.n_jobs = n_jobs
         self.memoize = memoize
         self.verbose = verbose
+        self.show_progress_bar = show_progress_bar
         self.metric_names = set()
         self._reset_info()
 
@@ -355,6 +365,7 @@ class Explainer:
                 tol=self.tol,
             )
             for feature, part in self.info.groupby(&#34;feature&#34;)
+            if feature in to_do_features
         )
         lambdas = dict(collections.ChainMap(*lambdas))
         self.info[&#34;lambda&#34;] = self.info.apply(
@@ -514,15 +525,20 @@ class Explainer:
                             weights=special.softmax(λ * X_test[feature][mask]),
                         ),
                     )
-                    for (sample_index, mask), (feature, label, λ) in itertools.product(
-                        enumerate(
-                            yield_masks(
-                                n_masks=self.n_samples,
-                                n=len(X_test),
-                                p=self.sample_frac,
-                            )
+                    for (sample_index, mask), (feature, label, λ) in tqdm(
+                        itertools.product(
+                            enumerate(
+                                yield_masks(
+                                    n_masks=self.n_samples,
+                                    n=len(X_test),
+                                    p=self.sample_frac,
+                                )
+                            ),
+                            relevant.groupby(
+                                [&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;]
+                            ).groups.keys(),
                         ),
-                        relevant.groupby([&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;]).groups.keys(),
+                        disable=not self.show_progress_bar,
                     )
                 ],
                 columns=[&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, &#34;bias&#34;],
@@ -589,15 +605,18 @@ class Explainer:
                             sample_weight=special.softmax(λ * X_test[feature][mask]),
                         ),
                     )
-                    for (sample_index, mask), (feature, λ) in itertools.product(
-                        enumerate(
-                            yield_masks(
-                                n_masks=self.n_samples,
-                                n=len(X_test),
-                                p=self.sample_frac,
-                            )
+                    for (sample_index, mask), (feature, λ) in tqdm(
+                        itertools.product(
+                            enumerate(
+                                yield_masks(
+                                    n_masks=self.n_samples,
+                                    n=len(X_test),
+                                    p=self.sample_frac,
+                                )
+                            ),
+                            relevant.groupby([&#34;feature&#34;, &#34;lambda&#34;]).groups.keys(),
                         ),
-                        relevant.groupby([&#34;feature&#34;, &#34;lambda&#34;]).groups.keys(),
+                        disable=not self.show_progress_bar,
                     )
                 ],
                 columns=[&#34;feature&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, metric_name],
@@ -612,8 +631,44 @@ class Explainer:
         )
 
     def rank_by_bias(self, X_test, y_pred):
-        &#34;&#34;&#34;Returns a DataFrame containing the importance of each feature.
+        &#34;&#34;&#34;Returns a pandas DataFrame containing the importance of each feature
+        per label.
 
+        Args:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series` is expected. For multi-label classification,
+                a pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+
+        Returns:
+            pd.DataFrame:
+                A dataframe with columns `(label, feature, importance)`. The row
+                `(setosa, petal length (cm), 0.282507)` means that the feature
+                `petal length` of the Iris dataset has an importance of about
+                30% in the prediction of the class `setosa`. 
+
+                The importance is a real number between 0 and 1. Intuitively,
+                if the model bias for the feature `X` is a flat curve (the average
+                model prediction is not impacted by the mean of `X`) then we
+                can conclude that `X` has no importance for predictions. This
+                flat curve is the baseline and satisfies \(y = bias_{\\tau(0)}\).
+                To compute the importance of a feature, we look at the average
+                distance of the bias curve to this baseline:
+
+                $$
+                I(X) = \\frac{1}{n_\\tau} \sum_{i=1}^{n_\\tau} \mid bias_{\\tau(i)}(X) - bias_{\\tau(0)}(X) \mid
+                $$
+
+                The bias curve is first normalized so that the importance is
+                between 0 and 1 (which may not be the case originally for regression
+                problems).
+
+                For regression problems, there&#39;s one label only and its name
+                doesn&#39;t matter (it&#39;s just to have a consistent output).
         &#34;&#34;&#34;
 
         def get_importance(group):
@@ -634,6 +689,38 @@ class Explainer:
         )
 
     def rank_by_performance(self, X_test, y_test, y_pred, metric):
+        &#34;&#34;&#34;Returns a pandas DataFrame containing 
+        per label.
+
+        Args:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_test (pd.DataFrame or pd.Series): The true output
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series` is expected. For multi-label classification,
+                a pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. The format is the same as `y_test`.
+            metric (callable): A scikit-learn-like metric
+                `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+                to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+                &#34;the set of labels predicted for a sample must exactly match the
+                corresponding set of labels in `y_true`&#34;.
+
+        Returns:
+            pd.DataFrame:
+                A dataframe with columns `(feature, min, max)`. The row
+                `(age, 0.862010, 0.996360)` means that the score measured by the
+                given metric (e.g. `sklearn.metrics.accuracy_score`) stays bewteen
+                86.2% and 99.6% on average when we make the mean age change. With
+                such information, we can find the features for which the model
+                performs the worst or the best.
+
+                For regression problems, there&#39;s one label only and its name
+                doesn&#39;t matter (it&#39;s just to have a consistent output).
+        &#34;&#34;&#34;
         metric_name = self.get_metric_name(metric)
 
         def get_aggregates(df):
@@ -907,7 +994,7 @@ class Explainer:
             metric (callable): See `Explainer.explain_performance()`.
             criterion (str): Either &#34;min&#34; or &#34;max&#34; to determine whether, for a
                 given feature, we keep the worst or the best performance for all
-                the values taken by the mean.
+                the values taken by the mean. See `Explainer.rank_by_performance()`.
             colors (dict, optional): See `Explainer.plot_bias_ranking()`.
 
         Returns:
@@ -939,7 +1026,7 @@ class Explainer:
 <dl>
 <dt id="ethik.explainer.Explainer"><code class="flex name class">
 <span>class <span class="ident">Explainer</span></span>
-<span>(</span><span>alpha=0.05, n_taus=41, n_samples=1, sample_frac=0.8, conf_level=0.05, max_iterations=15, tol=0.001, n_jobs=1, memoize=False, verbose=False)</span>
+<span>(</span><span>alpha=0.05, n_taus=41, n_samples=1, sample_frac=0.8, conf_level=0.05, max_iterations=15, tol=0.001, n_jobs=1, memoize=False, verbose=False, show_progress_bar=True)</span>
 </code></dt>
 <dd>
 <section class="desc"><p>Explains the bias and reliability of model predictions.</p>
@@ -955,15 +1042,6 @@ beyond the 5th and 95th quantiles are ignored.</dd>
 higher this value is. However the computation time increases linearly with <code>n_taus</code>.
 The default is <code>41</code> and corresponds to each τ being separated by it's neighbors by
 <code>0.05</code>.</dd>
-<dt><strong><code>lambda_iterations</code></strong> :&ensp;<code>int</code></dt>
-<dd>The number of iterations used when applying the Newton step
-of the optimization procedure. Default is <code>5</code>.</dd>
-<dt><strong><code>n_jobs</code></strong> :&ensp;<code>int</code></dt>
-<dd>The number of jobs to use for parallel computations. See
-<code>joblib.Parallel()</code>. Default is <code>-1</code>.</dd>
-<dt><strong><code>verbose</code></strong> :&ensp;<code>bool</code></dt>
-<dd>Passed to <code>joblib.Parallel()</code> for parallel computations.
-Default is <code>False</code>.</dd>
 <dt><strong><code>n_samples</code></strong> :&ensp;<code>int</code></dt>
 <dd>The number of samples to use for the confidence interval.
 If <code>1</code>, the default, no confidence interval is computed.</dd>
@@ -977,6 +1055,17 @@ Default is <code>0.8</code>.</dd>
 quantile used for the confidence interval. Default is <code>0.05</code>, which
 means that the confidence interval contains the data between the 5th
 and 95th quantiles.</dd>
+<dt><strong><code>max_iterations</code></strong> :&ensp;<code>int</code></dt>
+<dd>The maximum number of iterations used when applying the Newton step
+of the optimization procedure. Default is <code>5</code>.</dd>
+<dt><strong><code>tol</code></strong> :&ensp;<code>float</code></dt>
+<dd>The bottom threshold for the gradient of the optimization
+procedure. When reached, the procedure stops. Otherwise, a warning
+is raised about the fact that the optimization did not converge.
+Default is <code>1e-3</code>.</dd>
+<dt><strong><code>n_jobs</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of jobs to use for parallel computations. See
+<code>joblib.Parallel()</code>. Default is <code>-1</code>.</dd>
 <dt><strong><code>memoize</code></strong> :&ensp;<code>bool</code></dt>
 <dd>Indicates whether or not memoization should be used or not. If <code>True</code>, then
 intermediate results will be stored in order to avoid recomputing results that can be
@@ -984,6 +1073,12 @@ reused by successively called methods. For example, if you call <code>plot_bias<
 <code>plot_bias_ranking</code> and <code>memoize</code> is <code>True</code>, then the intermediate results required by
 <code>plot_bias</code> will be reused for <code>plot_bias_ranking</code>. Memoization is turned off by
 default because it can lead to unexpected behavior depending on your usage.</dd>
+<dt><strong><code>verbose</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Passed to <code>joblib.Parallel()</code> for parallel computations.
+Default is <code>False</code>.</dd>
+<dt><strong><code>show_progress_bar</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Whether or not to show progress bars during
+computations. Default is <code>True</code>.</dd>
 </dl></section>
 <details class="source">
 <summary>Source code</summary>
@@ -999,12 +1094,6 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
             higher this value is. However the computation time increases linearly with `n_taus`.
             The default is `41` and corresponds to each τ being separated by it&#39;s neighbors by
             `0.05`.
-        lambda_iterations (int): The number of iterations used when applying the Newton step
-            of the optimization procedure. Default is `5`.
-        n_jobs (int): The number of jobs to use for parallel computations. See
-            `joblib.Parallel()`. Default is `-1`.
-        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
-            Default is `False`.
         n_samples (int): The number of samples to use for the confidence interval.
             If `1`, the default, no confidence interval is computed.
         sample_frac (float): The proportion of lines in the dataset sampled to
@@ -1015,12 +1104,24 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
             quantile used for the confidence interval. Default is `0.05`, which
             means that the confidence interval contains the data between the 5th
             and 95th quantiles.
+        max_iterations (int): The maximum number of iterations used when applying the Newton step
+            of the optimization procedure. Default is `5`.
+        tol (float): The bottom threshold for the gradient of the optimization
+            procedure. When reached, the procedure stops. Otherwise, a warning
+            is raised about the fact that the optimization did not converge.
+            Default is `1e-3`.
+        n_jobs (int): The number of jobs to use for parallel computations. See
+            `joblib.Parallel()`. Default is `-1`.
         memoize (bool): Indicates whether or not memoization should be used or not. If `True`, then
             intermediate results will be stored in order to avoid recomputing results that can be
             reused by successively called methods. For example, if you call `plot_bias` followed by
             `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
             `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned off by
             default because it can lead to unexpected behavior depending on your usage.
+        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
+            Default is `False`.
+        show_progress_bar (bool): Whether or not to show progress bars during
+            computations. Default is `True`.
     &#34;&#34;&#34;
 
     def __init__(
@@ -1035,6 +1136,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
         n_jobs=1,  # Parallelism is only worth it if the dataset is &#34;large&#34;
         memoize=False,
         verbose=False,
+        show_progress_bar=True,
     ):
         if not 0 &lt;= alpha &lt; 0.5:
             raise ValueError(f&#34;alpha must be between 0 and 0.5, got {alpha}&#34;)
@@ -1072,6 +1174,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
         self.n_jobs = n_jobs
         self.memoize = memoize
         self.verbose = verbose
+        self.show_progress_bar = show_progress_bar
         self.metric_names = set()
         self._reset_info()
 
@@ -1195,6 +1298,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
                 tol=self.tol,
             )
             for feature, part in self.info.groupby(&#34;feature&#34;)
+            if feature in to_do_features
         )
         lambdas = dict(collections.ChainMap(*lambdas))
         self.info[&#34;lambda&#34;] = self.info.apply(
@@ -1354,15 +1458,20 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
                             weights=special.softmax(λ * X_test[feature][mask]),
                         ),
                     )
-                    for (sample_index, mask), (feature, label, λ) in itertools.product(
-                        enumerate(
-                            yield_masks(
-                                n_masks=self.n_samples,
-                                n=len(X_test),
-                                p=self.sample_frac,
-                            )
+                    for (sample_index, mask), (feature, label, λ) in tqdm(
+                        itertools.product(
+                            enumerate(
+                                yield_masks(
+                                    n_masks=self.n_samples,
+                                    n=len(X_test),
+                                    p=self.sample_frac,
+                                )
+                            ),
+                            relevant.groupby(
+                                [&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;]
+                            ).groups.keys(),
                         ),
-                        relevant.groupby([&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;]).groups.keys(),
+                        disable=not self.show_progress_bar,
                     )
                 ],
                 columns=[&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, &#34;bias&#34;],
@@ -1429,15 +1538,18 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
                             sample_weight=special.softmax(λ * X_test[feature][mask]),
                         ),
                     )
-                    for (sample_index, mask), (feature, λ) in itertools.product(
-                        enumerate(
-                            yield_masks(
-                                n_masks=self.n_samples,
-                                n=len(X_test),
-                                p=self.sample_frac,
-                            )
+                    for (sample_index, mask), (feature, λ) in tqdm(
+                        itertools.product(
+                            enumerate(
+                                yield_masks(
+                                    n_masks=self.n_samples,
+                                    n=len(X_test),
+                                    p=self.sample_frac,
+                                )
+                            ),
+                            relevant.groupby([&#34;feature&#34;, &#34;lambda&#34;]).groups.keys(),
                         ),
-                        relevant.groupby([&#34;feature&#34;, &#34;lambda&#34;]).groups.keys(),
+                        disable=not self.show_progress_bar,
                     )
                 ],
                 columns=[&#34;feature&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, metric_name],
@@ -1452,8 +1564,44 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
         )
 
     def rank_by_bias(self, X_test, y_pred):
-        &#34;&#34;&#34;Returns a DataFrame containing the importance of each feature.
+        &#34;&#34;&#34;Returns a pandas DataFrame containing the importance of each feature
+        per label.
 
+        Args:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series` is expected. For multi-label classification,
+                a pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+
+        Returns:
+            pd.DataFrame:
+                A dataframe with columns `(label, feature, importance)`. The row
+                `(setosa, petal length (cm), 0.282507)` means that the feature
+                `petal length` of the Iris dataset has an importance of about
+                30% in the prediction of the class `setosa`. 
+
+                The importance is a real number between 0 and 1. Intuitively,
+                if the model bias for the feature `X` is a flat curve (the average
+                model prediction is not impacted by the mean of `X`) then we
+                can conclude that `X` has no importance for predictions. This
+                flat curve is the baseline and satisfies \(y = bias_{\\tau(0)}\).
+                To compute the importance of a feature, we look at the average
+                distance of the bias curve to this baseline:
+
+                $$
+                I(X) = \\frac{1}{n_\\tau} \sum_{i=1}^{n_\\tau} \mid bias_{\\tau(i)}(X) - bias_{\\tau(0)}(X) \mid
+                $$
+
+                The bias curve is first normalized so that the importance is
+                between 0 and 1 (which may not be the case originally for regression
+                problems).
+
+                For regression problems, there&#39;s one label only and its name
+                doesn&#39;t matter (it&#39;s just to have a consistent output).
         &#34;&#34;&#34;
 
         def get_importance(group):
@@ -1474,6 +1622,38 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
         )
 
     def rank_by_performance(self, X_test, y_test, y_pred, metric):
+        &#34;&#34;&#34;Returns a pandas DataFrame containing 
+        per label.
+
+        Args:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_test (pd.DataFrame or pd.Series): The true output
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series` is expected. For multi-label classification,
+                a pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. The format is the same as `y_test`.
+            metric (callable): A scikit-learn-like metric
+                `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+                to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+                &#34;the set of labels predicted for a sample must exactly match the
+                corresponding set of labels in `y_true`&#34;.
+
+        Returns:
+            pd.DataFrame:
+                A dataframe with columns `(feature, min, max)`. The row
+                `(age, 0.862010, 0.996360)` means that the score measured by the
+                given metric (e.g. `sklearn.metrics.accuracy_score`) stays bewteen
+                86.2% and 99.6% on average when we make the mean age change. With
+                such information, we can find the features for which the model
+                performs the worst or the best.
+
+                For regression problems, there&#39;s one label only and its name
+                doesn&#39;t matter (it&#39;s just to have a consistent output).
+        &#34;&#34;&#34;
         metric_name = self.get_metric_name(metric)
 
         def get_aggregates(df):
@@ -1747,7 +1927,7 @@ default because it can lead to unexpected behavior depending on your usage.</dd>
             metric (callable): See `Explainer.explain_performance()`.
             criterion (str): Either &#34;min&#34; or &#34;max&#34; to determine whether, for a
                 given feature, we keep the worst or the best performance for all
-                the values taken by the mean.
+                the values taken by the mean. See `Explainer.rank_by_performance()`.
             colors (dict, optional): See `Explainer.plot_bias_ranking()`.
 
         Returns:
@@ -1947,15 +2127,20 @@ The value of <code>label</code> is not important for regression.</dd>
                         weights=special.softmax(λ * X_test[feature][mask]),
                     ),
                 )
-                for (sample_index, mask), (feature, label, λ) in itertools.product(
-                    enumerate(
-                        yield_masks(
-                            n_masks=self.n_samples,
-                            n=len(X_test),
-                            p=self.sample_frac,
-                        )
+                for (sample_index, mask), (feature, label, λ) in tqdm(
+                    itertools.product(
+                        enumerate(
+                            yield_masks(
+                                n_masks=self.n_samples,
+                                n=len(X_test),
+                                p=self.sample_frac,
+                            )
+                        ),
+                        relevant.groupby(
+                            [&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;]
+                        ).groups.keys(),
                     ),
-                    relevant.groupby([&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;]).groups.keys(),
+                    disable=not self.show_progress_bar,
                 )
             ],
             columns=[&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, &#34;bias&#34;],
@@ -2063,15 +2248,18 @@ The value of <code>label</code> is not important for regression.</dd>
                         sample_weight=special.softmax(λ * X_test[feature][mask]),
                     ),
                 )
-                for (sample_index, mask), (feature, λ) in itertools.product(
-                    enumerate(
-                        yield_masks(
-                            n_masks=self.n_samples,
-                            n=len(X_test),
-                            p=self.sample_frac,
-                        )
+                for (sample_index, mask), (feature, λ) in tqdm(
+                    itertools.product(
+                        enumerate(
+                            yield_masks(
+                                n_masks=self.n_samples,
+                                n=len(X_test),
+                                p=self.sample_frac,
+                            )
+                        ),
+                        relevant.groupby([&#34;feature&#34;, &#34;lambda&#34;]).groups.keys(),
                     ),
-                    relevant.groupby([&#34;feature&#34;, &#34;lambda&#34;]).groups.keys(),
+                    disable=not self.show_progress_bar,
                 )
             ],
             columns=[&#34;feature&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, metric_name],
@@ -2319,7 +2507,7 @@ same cell.</dd>
 <dt><strong><code>criterion</code></strong> :&ensp;<code>str</code></dt>
 <dd>Either "min" or "max" to determine whether, for a
 given feature, we keep the worst or the best performance for all
-the values taken by the mean.</dd>
+the values taken by the mean. See <a title="ethik.explainer.Explainer.rank_by_performance" href="#ethik.explainer.Explainer.rank_by_performance"><code>Explainer.rank_by_performance()</code></a>.</dd>
 <dt><strong><code>colors</code></strong> :&ensp;<code>dict</code>, optional</dt>
 <dd>See <a title="ethik.explainer.Explainer.plot_bias_ranking" href="#ethik.explainer.Explainer.plot_bias_ranking"><code>Explainer.plot_bias_ranking()</code></a>.</dd>
 </dl>
@@ -2344,7 +2532,7 @@ same cell.</dd>
         metric (callable): See `Explainer.explain_performance()`.
         criterion (str): Either &#34;min&#34; or &#34;max&#34; to determine whether, for a
             given feature, we keep the worst or the best performance for all
-            the values taken by the mean.
+            the values taken by the mean. See `Explainer.rank_by_performance()`.
         colors (dict, optional): See `Explainer.plot_bias_ranking()`.
 
     Returns:
@@ -2369,12 +2557,89 @@ same cell.</dd>
 <span>def <span class="ident">rank_by_bias</span></span>(<span>self, X_test, y_pred)</span>
 </code></dt>
 <dd>
-<section class="desc"><p>Returns a DataFrame containing the importance of each feature.</p></section>
+<section class="desc"><p>Returns a pandas DataFrame containing the importance of each feature
+per label.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The dataset as a pandas dataframe
+with one column per feature or a pandas series for a single feature.</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The model predictions
+for the samples in <code>X_test</code>. For binary classification and regression,
+a <code>pd.Series</code> is expected. For multi-label classification,
+a pandas dataframe with one column per label is
+expected. The values can either be probabilities or <code>0/1</code>
+(for a one-hot-encoded output).</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.DataFrame</code>:</dt>
+<dd>
+<p>A dataframe with columns <code>(label, feature, importance)</code>. The row
+<code>(setosa, petal length (cm), 0.282507)</code> means that the feature
+<code>petal length</code> of the Iris dataset has an importance of about
+30% in the prediction of the class <code>setosa</code>. </p>
+<p>The importance is a real number between 0 and 1. Intuitively,
+if the model bias for the feature <code>X</code> is a flat curve (the average
+model prediction is not impacted by the mean of <code>X</code>) then we
+can conclude that <code>X</code> has no importance for predictions. This
+flat curve is the baseline and satisfies <span><span class="MathJax_Preview">y = bias_{\tau(0)}</span><script type="math/tex">y = bias_{\tau(0)}</script></span>.
+To compute the importance of a feature, we look at the average
+distance of the bias curve to this baseline:</p>
+<p><span><span class="MathJax_Preview">
+I(X) = \frac{1}{n_\tau} \sum_{i=1}^{n_\tau} \mid bias_{\tau(i)}(X) - bias_{\tau(0)}(X) \mid
+</span><script type="math/tex; mode=display">
+I(X) = \frac{1}{n_\tau} \sum_{i=1}^{n_\tau} \mid bias_{\tau(i)}(X) - bias_{\tau(0)}(X) \mid
+</script></span></p>
+<p>The bias curve is first normalized so that the importance is
+between 0 and 1 (which may not be the case originally for regression
+problems).</p>
+<p>For regression problems, there's one label only and its name
+doesn't matter (it's just to have a consistent output).</p>
+</dd>
+</dl></section>
 <details class="source">
 <summary>Source code</summary>
 <pre><code class="python">def rank_by_bias(self, X_test, y_pred):
-    &#34;&#34;&#34;Returns a DataFrame containing the importance of each feature.
+    &#34;&#34;&#34;Returns a pandas DataFrame containing the importance of each feature
+    per label.
 
+    Args:
+        X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+            with one column per feature or a pandas series for a single feature.
+        y_pred (pd.DataFrame or pd.Series): The model predictions
+            for the samples in `X_test`. For binary classification and regression,
+            a `pd.Series` is expected. For multi-label classification,
+            a pandas dataframe with one column per label is
+            expected. The values can either be probabilities or `0/1`
+            (for a one-hot-encoded output).
+
+    Returns:
+        pd.DataFrame:
+            A dataframe with columns `(label, feature, importance)`. The row
+            `(setosa, petal length (cm), 0.282507)` means that the feature
+            `petal length` of the Iris dataset has an importance of about
+            30% in the prediction of the class `setosa`. 
+
+            The importance is a real number between 0 and 1. Intuitively,
+            if the model bias for the feature `X` is a flat curve (the average
+            model prediction is not impacted by the mean of `X`) then we
+            can conclude that `X` has no importance for predictions. This
+            flat curve is the baseline and satisfies \(y = bias_{\\tau(0)}\).
+            To compute the importance of a feature, we look at the average
+            distance of the bias curve to this baseline:
+
+            $$
+            I(X) = \\frac{1}{n_\\tau} \sum_{i=1}^{n_\\tau} \mid bias_{\\tau(i)}(X) - bias_{\\tau(0)}(X) \mid
+            $$
+
+            The bias curve is first normalized so that the importance is
+            between 0 and 1 (which may not be the case originally for regression
+            problems).
+
+            For regression problems, there&#39;s one label only and its name
+            doesn&#39;t matter (it&#39;s just to have a consistent output).
     &#34;&#34;&#34;
 
     def get_importance(group):
@@ -2399,10 +2664,79 @@ same cell.</dd>
 <span>def <span class="ident">rank_by_performance</span></span>(<span>self, X_test, y_test, y_pred, metric)</span>
 </code></dt>
 <dd>
-<section class="desc"></section>
+<section class="desc"><p>Returns a pandas DataFrame containing
+per label.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The dataset as a pandas dataframe
+with one column per feature or a pandas series for a single feature.</dd>
+<dt><strong><code>y_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The true output
+for the samples in <code>X_test</code>. For binary classification and regression,
+a <code>pd.Series</code> is expected. For multi-label classification,
+a pandas dataframe with one column per label is
+expected. The values can either be probabilities or <code>0/1</code>
+(for a one-hot-encoded output).</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The model predictions
+for the samples in <code>X_test</code>. The format is the same as <code>y_test</code>.</dd>
+<dt><strong><code>metric</code></strong> :&ensp;<code>callable</code></dt>
+<dd>A scikit-learn-like metric
+<code>f(y_true, y_pred, sample_weight=None)</code>. The metric must be able
+to handle the <code>y</code> data. For instance, for <code>sklearn.metrics.accuracy_score()</code>,
+"the set of labels predicted for a sample must exactly match the
+corresponding set of labels in <code>y_true</code>".</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.DataFrame</code>:</dt>
+<dd>
+<p>A dataframe with columns <code>(feature, min, max)</code>. The row
+<code>(age, 0.862010, 0.996360)</code> means that the score measured by the
+given metric (e.g. <code>sklearn.metrics.accuracy_score</code>) stays bewteen
+86.2% and 99.6% on average when we make the mean age change. With
+such information, we can find the features for which the model
+performs the worst or the best.</p>
+<p>For regression problems, there's one label only and its name
+doesn't matter (it's just to have a consistent output).</p>
+</dd>
+</dl></section>
 <details class="source">
 <summary>Source code</summary>
 <pre><code class="python">def rank_by_performance(self, X_test, y_test, y_pred, metric):
+    &#34;&#34;&#34;Returns a pandas DataFrame containing 
+    per label.
+
+    Args:
+        X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+            with one column per feature or a pandas series for a single feature.
+        y_test (pd.DataFrame or pd.Series): The true output
+            for the samples in `X_test`. For binary classification and regression,
+            a `pd.Series` is expected. For multi-label classification,
+            a pandas dataframe with one column per label is
+            expected. The values can either be probabilities or `0/1`
+            (for a one-hot-encoded output).
+        y_pred (pd.DataFrame or pd.Series): The model predictions
+            for the samples in `X_test`. The format is the same as `y_test`.
+        metric (callable): A scikit-learn-like metric
+            `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+            to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+            &#34;the set of labels predicted for a sample must exactly match the
+            corresponding set of labels in `y_true`&#34;.
+
+    Returns:
+        pd.DataFrame:
+            A dataframe with columns `(feature, min, max)`. The row
+            `(age, 0.862010, 0.996360)` means that the score measured by the
+            given metric (e.g. `sklearn.metrics.accuracy_score`) stays bewteen
+            86.2% and 99.6% on average when we make the mean age change. With
+            such information, we can find the features for which the model
+            performs the worst or the best.
+
+            For regression problems, there&#39;s one label only and its name
+            doesn&#39;t matter (it&#39;s just to have a consistent output).
+    &#34;&#34;&#34;
     metric_name = self.get_metric_name(metric)
 
     def get_aggregates(df):
