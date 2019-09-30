@@ -830,14 +830,18 @@ class Explainer:
         )
         return fig
 
-    def _plot_ranking(self, ranking, score_column, title, colors=None):
-        ranking = ranking.sort_values(by=[score_column])
+    def _plot_ranking(self, ranking, score_column, title, n_features=None, colors=None):
+        if n_features is None:
+            n_features = len(ranking)
+        ascending = n_features >= 0
+        ranking = ranking.sort_values(by=[score_column], ascending=ascending)
+        n_features = -1 * abs(n_features)
 
         return go.Figure(
             data=[
                 go.Bar(
-                    x=ranking[score_column],
-                    y=ranking["feature"],
+                    x=ranking[score_column][n_features:],
+                    y=ranking["feature"][n_features:],
                     orientation="h",
                     hoverinfo="x",
                     marker=dict(color=colors),
@@ -900,12 +904,16 @@ class Explainer:
             explanation, "bias", y_label, colors=colors, yrange=yrange
         )
 
-    def plot_bias_ranking(self, X_test, y_pred, colors=None):
+    def plot_bias_ranking(self, X_test, y_pred, n_features=None, colors=None):
         """Plot the ranking of the features based on their bias.
 
         Args:
             X_test (pd.DataFrame or np.array): See `Explainer.explain_bias()`.
             y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_bias()`.
+            n_features (int, optional): The number of features to plot. With the
+                default (`None`), all of them are shown. For a positive value,
+                we keep the `n_features` first features (the most impactful). For
+                a negative value, we keep the `n_features` last features.
             colors (dict, optional): See `Explainer.plot_bias()`.
 
         Returns:
@@ -919,6 +927,7 @@ class Explainer:
             ranking=ranking,
             score_column="importance",
             title="Importance",
+            n_features=n_features,
             colors=colors,
         )
 
@@ -958,7 +967,7 @@ class Explainer:
         )
 
     def plot_performance_ranking(
-        self, X_test, y_test, y_pred, metric, criterion, colors=None
+        self, X_test, y_test, y_pred, metric, criterion, n_features=None, colors=None
     ):
         """Plot the performance of the model for the features in `X_test`.
 
@@ -970,6 +979,10 @@ class Explainer:
             criterion (str): Either "min" or "max" to determine whether, for a
                 given feature, we keep the worst or the best performance for all
                 the values taken by the mean. See `Explainer.rank_by_performance()`.
+            n_features (int, optional): The number of features to plot. With the
+                default (`None`), all of them are shown. For a positive value,
+                we keep the `n_features` first features (the most impactful). For
+                a negative value, we keep the `n_features` last features.
             colors (dict, optional): See `Explainer.plot_bias_ranking()`.
 
         Returns:
@@ -986,5 +999,6 @@ class Explainer:
             ranking=ranking,
             score_column=criterion,
             title=f"{criterion} {metric_name}",
+            n_features=n_features,
             colors=colors,
         )
