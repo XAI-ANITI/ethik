@@ -12,7 +12,7 @@ import ethik
 def load_boston():
     boston = datasets.load_boston()
     X = pd.DataFrame(boston.data, columns=boston.feature_names)
-    y = pd.Series(boston.target, name='House price')
+    y = pd.Series(boston.target, name="House price")
     return X, y
 
 
@@ -48,7 +48,7 @@ def test_check_sample_frac():
 
 
 def test_check_conf_level():
-    for conf_level in (-1, 0, .5):
+    for conf_level in (-1, 0, 0.5):
         with pytest.raises(ValueError):
             ethik.ClassificationExplainer(conf_level=conf_level)
 
@@ -69,39 +69,42 @@ def test_memoization():
     X, y = load_boston()
 
     # Train a model and make predictions
-    X_train, X_test, y_train, y_test = model_selection.train_test_split(X, y, shuffle=True)
+    X_train, X_test, y_train, y_test = model_selection.train_test_split(
+        X, y, shuffle=True
+    )
     model = pipeline.make_pipeline(
-        preprocessing.StandardScaler(),
-        linear_model.LinearRegression()
+        preprocessing.StandardScaler(), linear_model.LinearRegression()
     )
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
 
     # Without memoization
     explainer = ethik.RegressionExplainer(memoize=False, n_jobs=1)
-    explainer.explain_bias(X_test[['INDUS', 'NOX']], y_pred)
-    assert explainer.info['feature'].unique().tolist() == ['INDUS', 'NOX']
-    explainer.explain_bias(X_test[['INDUS']], y_pred)
-    assert explainer.info['feature'].unique().tolist() == ['INDUS']
+    explainer.explain_bias(X_test[["INDUS", "NOX"]], y_pred)
+    assert explainer.info["feature"].unique().tolist() == ["INDUS", "NOX"]
+    explainer.explain_bias(X_test[["INDUS"]], y_pred)
+    assert explainer.info["feature"].unique().tolist() == ["INDUS"]
 
     # With memoization
     explainer = ethik.RegressionExplainer(memoize=True, n_jobs=1)
-    bias = explainer.explain_bias(X_test[['INDUS', 'NOX']], y_pred)
-    assert bias['feature'].unique().tolist() == ['INDUS', 'NOX']
-    assert explainer.info['feature'].unique().tolist() == ['INDUS', 'NOX']
-    bias = explainer.explain_bias(X_test[['INDUS']], y_pred)
-    assert bias['feature'].unique().tolist() == ['INDUS']
-    assert explainer.info['feature'].unique().tolist() == ['INDUS', 'NOX']
+    bias = explainer.explain_bias(X_test[["INDUS", "NOX"]], y_pred)
+    assert bias["feature"].unique().tolist() == ["INDUS", "NOX"]
+    assert explainer.info["feature"].unique().tolist() == ["INDUS", "NOX"]
+    bias = explainer.explain_bias(X_test[["INDUS"]], y_pred)
+    assert bias["feature"].unique().tolist() == ["INDUS"]
+    assert explainer.info["feature"].unique().tolist() == ["INDUS", "NOX"]
 
 
 def test_determine_pairs_to_do():
     X, y = load_iris()
 
     # Train a model and make predictions
-    X_train, X_test, y_train, y_test = model_selection.train_test_split(X, y, shuffle=True)
+    X_train, X_test, y_train, y_test = model_selection.train_test_split(
+        X, y, shuffle=True
+    )
     model = pipeline.make_pipeline(
         preprocessing.StandardScaler(),
-        linear_model.LogisticRegression(solver='lbfgs', multi_class='auto')
+        linear_model.LogisticRegression(solver="lbfgs", multi_class="auto"),
     )
     model.fit(X_train, y_train)
     y_pred = model.predict_proba(X_test)
@@ -111,19 +114,18 @@ def test_determine_pairs_to_do():
 
     explainer = ethik.ClassificationExplainer(memoize=True, n_jobs=1)
 
-    to_do = explainer._determine_pairs_to_do(['sepal length (cm)'], ['setosa'])
-    assert to_do == {'sepal length (cm)': ['setosa']}
+    to_do = explainer._determine_pairs_to_do(["sepal length (cm)"], ["setosa"])
+    assert to_do == {"sepal length (cm)": ["setosa"]}
 
-    explainer.explain_bias(X_test['sepal length (cm)'], y_pred['setosa'])
+    explainer.explain_bias(X_test["sepal length (cm)"], y_pred["setosa"])
 
-    to_do = explainer._determine_pairs_to_do(['sepal length (cm)'], ['setosa'])
+    to_do = explainer._determine_pairs_to_do(["sepal length (cm)"], ["setosa"])
     assert to_do == {}
 
     to_do = explainer._determine_pairs_to_do(
-        ['sepal length (cm)', 'petal width (cm)'],
-        ['setosa', 'virginica']
+        ["sepal length (cm)", "petal width (cm)"], ["setosa", "virginica"]
     )
     assert to_do == {
-        'petal width (cm)': ['setosa', 'virginica'],
-        'sepal length (cm)': ['virginica']
+        "petal width (cm)": ["setosa", "virginica"],
+        "sepal length (cm)": ["virginica"],
     }

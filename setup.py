@@ -13,12 +13,12 @@ from setuptools import find_packages, setup, Command
 
 # Package meta-data.
 NAME = 'ethik'
-DESCRIPTION = 'Fair machine learning'
+DESCRIPTION = 'A toolbox for fair and explainable machine learning'
 LONG_DESCRIPTION_CONTENT_TYPE = 'text/markdown'
 URL = 'https://github.com/MaxHalford/ethik'
 EMAIL = 'maxhalford25@gmail.com'
 AUTHOR = 'Max Halford'
-REQUIRES_PYTHON = '>=3.5.0'
+REQUIRES_PYTHON = '>=3.6.0'
 VERSION = None
 
 # The rest you shouldn't have to touch too much :)

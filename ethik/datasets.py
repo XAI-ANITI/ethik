@@ -57,7 +57,7 @@ def load_law_school():
     X = pd.read_csv(
         os.path.join(os.path.dirname(__file__), "data", "law_data.csv"),
         dtype={"race": "category", "region_first": "category"},
-        index_col=0
+        index_col=0,
     )
     X["sex"] = X["sex"].map({1: "Female", 2: "Male"}).astype("category")
     y = X.pop("first_pf").apply(int).astype(bool)
