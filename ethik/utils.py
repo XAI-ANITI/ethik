@@ -3,7 +3,11 @@ import decimal
 import numpy as np
 import pandas as pd
 
-__all__ = ["decimal_range", "join_with_overlap", "to_pandas"]
+__all__ = ["decimal_range", "extract_category", "join_with_overlap", "to_pandas"]
+
+
+def extract_category(X, cat):
+    return pd.get_dummies(X)[cat].rename(f"{X.name}={cat}")
 
 
 def decimal_range(start: float, stop: float, step: float):

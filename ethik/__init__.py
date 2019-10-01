@@ -78,6 +78,7 @@ from .__version__ import __version__
 from .classification_explainer import ClassificationExplainer
 from .regression_explainer import RegressionExplainer
 from .image_classification_explainer import ImageClassificationExplainer
+from .utils import extract_category
 
 
 __all__ = [
@@ -86,4 +87,5 @@ __all__ = [
     "RegressionExplainer",
     "ClassificationExplainer",
     "ImageClassificationExplainer",
+    "extract_category",
 ]
