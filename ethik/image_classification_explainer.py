@@ -31,7 +31,7 @@ class ImageClassificationExplainer(explainer.Explainer):
         tol=1e-3,
         n_jobs=-1,
         memoize=True,
-        verbose=False,
+        verbose=True,
     ):
         super().__init__(
             alpha=alpha,

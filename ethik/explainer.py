@@ -140,8 +140,6 @@ class Explainer:
             of the optimization procedure. Default is `5`.
         n_jobs (int): The number of jobs to use for parallel computations. See
             `joblib.Parallel()`. Default is `-1`.
-        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
-            Default is `False`.
         n_samples (int): The number of samples to use for the confidence interval.
             If `1`, the default, no confidence interval is computed.
         sample_frac (float): The proportion of lines in the dataset sampled to
@@ -158,7 +156,7 @@ class Explainer:
             `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
             `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned off by
             default because it can lead to unexpected behavior depending on your usage.
-        show_progress_bar (bool): Whether or not to show progress bars during
+        verbose (bool): Whether or not to show progress bars during
             computations. Default is `True`.
     """
 
@@ -173,8 +171,7 @@ class Explainer:
         tol=1e-3,
         n_jobs=1,  # Parallelism is only worth it if the dataset is "large"
         memoize=False,
-        verbose=False,
-        show_progress_bar=True,
+        verbose=True,
     ):
         if not 0 <= alpha < 0.5:
             raise ValueError(f"alpha must be between 0 and 0.5, got {alpha}")
@@ -212,7 +209,6 @@ class Explainer:
         self.n_jobs = n_jobs
         self.memoize = memoize
         self.verbose = verbose
-        self.show_progress_bar = show_progress_bar
         self.metric_names = set()
         self._reset_info()
 
@@ -326,9 +322,7 @@ class Explainer:
         self.info = self.info.append(additional_info, ignore_index=True, sort=False)
 
         # Find a lambda for each (feature, espilon) pair
-        lambdas = joblib.Parallel(
-            n_jobs=self.n_jobs, verbose=10 if self.verbose else 0
-        )(
+        lambdas = joblib.Parallel(n_jobs=self.n_jobs)(
             joblib.delayed(compute_lambdas)(
                 x=X_test[feature],
                 target_means=part["value"].unique(),
@@ -484,6 +478,7 @@ class Explainer:
         """
 
         def compute(X_test, y_pred, relevant):
+            keys = relevant.groupby(["feature", "label", "lambda"]).groups.keys()
             return pd.DataFrame(
                 [
                     (
@@ -505,11 +500,10 @@ class Explainer:
                                     p=self.sample_frac,
                                 )
                             ),
-                            relevant.groupby(
-                                ["feature", "label", "lambda"]
-                            ).groups.keys(),
+                            keys,
                         ),
-                        disable=not self.show_progress_bar,
+                        disable=not self.verbose,
+                        total=len(keys) * self.n_samples,
                     )
                 ],
                 columns=["feature", "label", "lambda", "sample_index", "bias"],
@@ -564,6 +558,7 @@ class Explainer:
         y_test = np.asarray(y_test)
 
         def compute(X_test, y_pred, relevant):
+            keys = relevant.groupby(["feature", "lambda"]).groups.keys()
             return pd.DataFrame(
                 [
                     (
@@ -585,9 +580,10 @@ class Explainer:
                                     p=self.sample_frac,
                                 )
                             ),
-                            relevant.groupby(["feature", "lambda"]).groups.keys(),
+                            keys,
                         ),
-                        disable=not self.show_progress_bar,
+                        disable=not self.verbose,
+                        total=len(keys) * self.n_samples,
                     )
                 ],
                 columns=["feature", "lambda", "sample_index", metric_name],
