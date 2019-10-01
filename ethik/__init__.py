@@ -4,7 +4,7 @@
 `ethik` is a Python package for performing [fair](https://www.microsoft.com/en-us/research/blog/machine-learning-for-fair-decisions/) and [explainable](https://www.wikiwand.com/en/Explainable_artificial_intelligence) machine learning.
 
 <div align="center">
-  <img src="../figures/overview.svg" width="660px" alt="overview"/>
+  <img src="figures/overview.svg" width="660px" alt="overview"/>
 </div>
 
 `ethik` can be used to:
@@ -45,12 +45,12 @@ pre-commit install # For black
 
 # User guide
 
-* [Get started](../notebooks/Binary classification.html)
-* [Binary classification (Adult dataset)](../notebooks/Binary classification.html)
-* [Multi-label classification (Iris dataset)](../notebooks/Multi-label classification.html)
-* [Regression (Boston dataset)](../notebooks/Regression.html)
-* [Images (MNIST dataset)](../notebooks/MNIST_plotly.html)
-* [Comparison with Partial Dependence Plots](../notebooks/Partial Dependence Plot.html)
+* [Get started](notebooks/Binary classification.html)
+* [Binary classification (Adult dataset)](notebooks/Binary classification.html)
+* [Multi-label classification (Iris dataset)](notebooks/Multi-label classification.html)
+* [Regression (Boston dataset)](notebooks/Regression.html)
+* [Images (MNIST dataset)](notebooks/Image.html)
+* [Comparison with Partial Dependence Plots](notebooks/Partial Dependence Plot.html)
 
 # API
 
@@ -78,6 +78,7 @@ from .__version__ import __version__
 from .classification_explainer import ClassificationExplainer
 from .regression_explainer import RegressionExplainer
 from .image_classification_explainer import ImageClassificationExplainer
+from .utils import extract_category
 
 
 __all__ = [
@@ -86,4 +87,5 @@ __all__ = [
     "RegressionExplainer",
     "ClassificationExplainer",
     "ImageClassificationExplainer",
+    "extract_category",
 ]
