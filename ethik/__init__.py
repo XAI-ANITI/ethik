@@ -1,7 +1,7 @@
 """
 # Introduction
 
-`ethik` is a Python package for performing [fair](https://www.microsoft.com/en-us/research/blog/machine-learning-for-fair-decisions/) and [explainable](https://www.wikiwand.com/en/Explainable_artificial_intelligence) machine learning.
+`ethik` is a Python package for performing [fair](https://www.microsoft.com/en-us/research/blog/machine-learning-for-fair-decisions/) and [explainable](https://www.wikiwand.com/en/Explainable_artificial_intelligence) machine learning. At it's core, the approach of `ethik` is to build *counterfactual distributions* that permit answering "what if?" scenarios. The idea is that we are able to stress one or more variables and observe how a machine learning model reacts to the stress. The stress is based on a statistical re-weighting scheme called *entropic variable projection*. The main benefit of our method is that it will only consider realistic scenarios, and will not build fake examples. You may find more information by reading [this paper](https://arxiv.org/abs/1810.07924) as well as the ["How It Works" notebook](notebooks/How%20It%20Works.ipynb).
 
 <div align="center">
   <img src="figures/overview.svg" width="660px" alt="overview"/>
@@ -17,13 +17,11 @@
 
 **Python 3.6 or above is required!**
 
-<!---
 **Via [PyPI](https://pypi.org/project/ethik/)**
 
 ```shell
 pip install ethik
 ```
--->
 
 Via GitHub for the latest development version:
 
@@ -48,7 +46,7 @@ pre-commit install # For black
 * [Get started](notebooks/Binary classification.html)
 * [Binary classification (Adult dataset)](notebooks/Binary classification.html)
 * [How It Works](notebooks/How It Works.html)
-* [Multi-label classification (Iris dataset)](notebooks/Multi-label classification.html)
+* [Multi-class classification (Iris dataset)](notebooks/Multi-class classification.html)
 * [Regression (Boston dataset)](notebooks/Regression.html)
 * [Images (MNIST dataset)](notebooks/Image.html)
 * [Comparison with Partial Dependence Plots](notebooks/Partial Dependence Plot.html)
@@ -68,7 +66,7 @@ This work is led by members of the [Toulouse Institute of Mathematics](https://w
 - [Jean-Michel Loubes](https://perso.math.univ-toulouse.fr/loubes/)
 - [Laurent Risser](http://laurent.risser.free.fr/menuEng.html)
 
-This work is financed by the [Centre National de la Recherche Scientifique (CNRS)](http://www.cnrs.fr/) and is done in the context of the [Artificial and Natural Intelligence Toulouse Institute (ANITI)](https://en.univ-toulouse.fr/aniti) project.
+This work is supported by the [Centre National de la Recherche Scientifique (CNRS)](http://www.cnrs.fr/) and is done in the context of the [Artificial and Natural Intelligence Toulouse Institute (ANITI)](https://en.univ-toulouse.fr/aniti) project.
 
 # License
 

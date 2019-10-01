@@ -30,7 +30,7 @@
 
 ## Introduction
 
-`ethik` is a Python package for performing [fair](https://www.microsoft.com/en-us/research/blog/machine-learning-for-fair-decisions/) and [explainable](https://www.wikiwand.com/en/Explainable_artificial_intelligence) machine learning. At it's core, the approach of `ethik` is to build *counterfactual distributions* that permit answering "what if?" scenarios. The idea is that we are able to stress one or more variables and observe how a machine learning model reacts to the stress. The stress is based on a statistical re-weighting scheme called *entropic variable projection*. The main benefit of our method is that it will only consider realistic scenarios, and will not build fake examples. You may find more information by reading [this paper](https://arxiv.org/abs/1810.07924) as well as the ["How It Works" notebook](notebooks/How It Works.ipynb).
+`ethik` is a Python package for performing [fair](https://www.microsoft.com/en-us/research/blog/machine-learning-for-fair-decisions/) and [explainable](https://www.wikiwand.com/en/Explainable_artificial_intelligence) machine learning. At it's core, the approach of `ethik` is to build *counterfactual distributions* that permit answering "what if?" scenarios. The idea is that we are able to stress one or more variables and observe how a machine learning model reacts to the stress. The stress is based on a statistical re-weighting scheme called *entropic variable projection*. The main benefit of our method is that it will only consider realistic scenarios, and will not build fake examples. You may find more information by reading [this paper](https://arxiv.org/abs/1810.07924) as well as the ["How It Works" notebook](notebooks/How%20It%20Works.ipynb).
 
 <div align="center">
   <img src="docs/figures/overview.svg" width="660px" alt="overview"/>
@@ -72,7 +72,7 @@ Currently, `ethik` can be used for:
 
 ## User guide
 
-:point_up: Please check out [this notebook](notebooks/Adult.ipynb) for more detailed code.
+:point_up: Please check out [this notebook](notebooks/Binary%20classification.ipynb) for more detailed code.
 
 In the following example we'll be using the ["Adult" dataset](https://archive.ics.uci.edu/ml/datasets/adult). This dataset contains a binary label indicating if a person's annual income is larger than $50k. `ethik` can diagnose a model by looking at the predictions the model makes on a test set. Consequently, you first have to split your dataset in two (train and test).
 
@@ -111,7 +111,7 @@ explainer.plot_bias(X_test=X_test['age'], y_pred=y_pred)
 ```
 
 <div align="center">
-  <img src="docs/figures/age_bias.png" alt="Age bias" />
+  <img src="docs/figures/age_bias.svg" alt="Age bias" />
 </div>
 
 Recall that the target indicates if a person's annual salary is above $50k. **We can see that the model predicts higher probabilities for older people**. This isn't a surprising result, and could have just as well been observed by looking at the data. However, we can see that the predictions plateau at around 50 years old. Indeed, although salary is correlated with age, some people may retire early or lose their job. Furthermore we can see that the model understands the fact that salaries shrink once people get in age of retiring. This up-and-down relationship is in nature non-linear, and isn't picked up by summary statistics such as correlation coefficients, [odds ratios](https://www.wikiwand.com/en/Odds_ratio), and feature importances in general. Although the observations we made are quite obvious and rather intuitive, it's always good to confirm what the model is thinking. The point is that the curves produced by `plot_predictions` represent the relationship between a variable and the target according to the model, rather than the data.
@@ -123,7 +123,7 @@ explainer.plot_bias(X_test=X_test['age', 'education-num'], y_pred=y_pred)
 ```
 
 <div align="center">
-  <img src="docs/figures/age_education_bias.png" alt="Age and education bias" />
+  <img src="docs/figures/age_education_bias.svg" alt="Age and education bias" />
 </div>
 
 We can observe that the model assigns higher probabilities to people with higher degrees, which makes perfect sense. Again, this conveys much more of a story than summary statistics.
@@ -159,7 +159,7 @@ explainer.plot_performance(
 ```
 
 <div align="center">
-  <img src="docs/figures/age_education_accuracy.png" alt="Age and education accuracy" />
+  <img src="docs/figures/age_education_accuracy.svg" alt="Age and education accuracy" />
 </div>
 
 ### Support for image classification
@@ -183,7 +183,7 @@ explainer.plot_bias(x_test, y_pred)
 ```
 
 <div align="center">
-  <img src="docs/figures/image_bias_explanation.png" alt="Image bias explanation" />
+  <img src="docs/figures/mnist_bias_explanation.svg" alt="Image bias explanation" />
 </div>
 
 This takes around 15 seconds to run on a mid-tier laptop. The previous plot highlights the regions of importance for identifying each digit. More precisely, the intensity of each pixel corresponds to the probability increase of saturating or not the pixel. A value of 0.28 means that saturating the pixel increases the probability predicted by the model by 0.28. Note that we do not saturate and desaturate the pixels independently. Instead, our method understands which pixels are linked together and saturates them in a realistic manner. The previous images show that the CNN seems to be using the same visual cues as a human. However, we can see that is uses very specific regions on images to identify particular digits. For instance, the top-right region of an image seems to trigger the "5" digit, whereas the bottom parts of the images seem to be linked with the "7" digit.
@@ -199,7 +199,7 @@ This work is led by members of the [Toulouse Institute of Mathematics](https://w
 - [Jean-Michel Loubes](https://perso.math.univ-toulouse.fr/loubes/)
 - [Laurent Risser](http://laurent.risser.free.fr/menuEng.html)
 
-This work is financed by the [Centre National de la Recherche Scientifique (CNRS)](http://www.cnrs.fr/) and is done in the context of the [Artificial and Natural Intelligence Toulouse Institute (ANITI)](https://en.univ-toulouse.fr/aniti) project.
+This work is supported by the [Centre National de la Recherche Scientifique (CNRS)](http://www.cnrs.fr/) and is done in the context of the [Artificial and Natural Intelligence Toulouse Institute (ANITI)](https://en.univ-toulouse.fr/aniti) project.
 
 ## License
 
