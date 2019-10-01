@@ -444,7 +444,7 @@ class Explainer:
             ...     [1.1, 2.2],
             ...     [1.3, 2.3],
             ... ], columns=["x0", "x1"])
-            >>> y_pred = model(X_test)
+            >>> y_pred = model.predict(X_test)
             >>> y_pred
             [0, 1, 1]  # Can also be probabilities: [0.3, 0.65, 0.8]
             >>> # For readibility reasons, we give a name to the predictions
@@ -458,7 +458,7 @@ class Explainer:
             ...     [1.1, 2.2],
             ...     [1.3, 2.3],
             ... ], columns=["x0", "x1"])
-            >>> y_pred = model(X_test)
+            >>> y_pred = model.predict(X_test)
             >>> y_pred
             [22, 24, 19]
             >>> # For readibility reasons, we give a name to the predictions
@@ -472,7 +472,7 @@ class Explainer:
             ...     [1.1, 2.2],
             ...     [1.3, 2.3],
             ... ], columns=["x0", "x1"])
-            >>> y_pred = model(X_test)
+            >>> y_pred = model.predict(X_test)
             >>> y_pred.columns
             ["class0", "class1", "class2"]
             >>> y_pred.iloc[0]
@@ -619,7 +619,7 @@ class Explainer:
                 A dataframe with columns `(label, feature, importance)`. The row
                 `(setosa, petal length (cm), 0.282507)` means that the feature
                 `petal length` of the Iris dataset has an importance of about
-                30% in the prediction of the class `setosa`. 
+                30% in the prediction of the class `setosa`.
 
                 The importance is a real number between 0 and 1. Intuitively,
                 if the model bias for the feature `X` is a flat curve (the average
@@ -659,7 +659,7 @@ class Explainer:
         )
 
     def rank_by_performance(self, X_test, y_test, y_pred, metric):
-        """Returns a pandas DataFrame containing 
+        """Returns a pandas DataFrame containing
         per label.
 
         Args:

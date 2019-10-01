@@ -1,7 +1,5 @@
 colorlover>=0.3.0
-ipywidgets>=7.5.1
 joblib>=0.13.2
-nbformat>=4.4.0
 numpy>=1.16.1
 pandas>=0.24.0
 plotly>=4.1.1

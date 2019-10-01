@@ -5,10 +5,10 @@ install_dev: install
 	pip install -r requirements-dev.txt
 
 test_nb:
-	pytest --nbval-lax notebooks
+	pytest --nbval-lax --current-env notebooks
 
 test_unit:
-	pytest --doctest-modules
+	pytest
 
 test_syntax:
 	black --check ethik tests
