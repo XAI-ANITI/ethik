@@ -15,11 +15,10 @@ script: make -j 4 test
 jobs:
   include:
 
-  - stage: doc
+  - stage: push_doc
     python: 3.7
     install: make install_dev
     script: make doc
-    if: tag IS present
 
   - stage: pypi
     python: 3.7
