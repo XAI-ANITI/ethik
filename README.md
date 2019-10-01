@@ -142,7 +142,7 @@ explainer.plot_performance(
 ```
 
 <div align="center">
-  <img src="docs/figures/age_accuracy.png" alt="Age accuracy" />
+  <img src="docs/figures/age_accuracy.svg" alt="Age accuracy" />
 </div>
 
 In the above figure **we can see that the model is more reliable for younger people than for older ones**. Having a fine-grained understanding of the accuracy of a model can be of extreme help in real-life scenarios. Moreover this can help you understand from where the error of the model is coming from and guide your data science process.
