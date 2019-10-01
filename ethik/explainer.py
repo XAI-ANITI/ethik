@@ -638,7 +638,9 @@ class Explainer:
             .reset_index()
         )
 
-    def _plot_explanation(self, explanation, col, y_label, colors=None, yrange=None):
+    def _plot_explanation(
+        self, explanation, col, y_label, colors=None, yrange=None, size=None
+    ):
         features = explanation["feature"].unique()
 
         if colors is None:
@@ -646,21 +648,13 @@ class Explainer:
         elif type(colors) is str:
             colors = {feat: colors for feat in features}
 
+        width = height = None
+        if size is not None:
+            width, height = size
+
         #  There are multiple features, we plot them together with taus
         if len(features) > 1:
-            fig = go.FigureWidget()
-
-            def on_click(trace, points, selector):
-                taus, values = zip(*trace["customdata"])
-                if not len(points.point_inds):
-                    trace["x"] = taus
-                    trace["xaxis"] = "x"
-                    trace["opacity"] = 0.3
-                    return
-                trace["x"] = values
-                trace["xaxis"] = "x2"
-                trace["opacity"] = 1
-                fig.update_layout(xaxis2=dict(title=trace["name"]))
+            fig = go.Figure()
 
             for i, feat in enumerate(features):
                 taus = explanation.query(f'feature == "{feat}"')["tau"]
@@ -668,35 +662,38 @@ class Explainer:
                 y = explanation.query(f'feature == "{feat}"')[col]
                 fig.add_trace(
                     go.Scatter(
-                        x=taus if i > 0 else values,
+                        x=taus,
                         y=y,
                         mode="lines+markers",
                         hoverinfo="y",
                         name=feat,
                         customdata=list(zip(taus, values)),
                         marker=dict(color=colors.get(feat)),
-                        xaxis="x" if i > 0 else "x2",
-                        opacity=0.3 if i > 0 else 1,
                     )
                 )
-                fig.data[i].on_click(on_click)
 
             fig.update_layout(
                 margin=dict(t=50, r=50),
-                xaxis=dict(title="tau", nticks=5),
-                xaxis2=dict(anchor="y", side="top", overlaying="x", title=features[0]),
-                yaxis=dict(title=y_label, range=yrange, showline=True, showgrid=True),
+                xaxis=dict(
+                    title="tau",
+                    nticks=5,
+                    showline=True,
+                    showgrid=True,
+                    zeroline=False,
+                    linecolor="black",
+                    gridcolor="#eee",
+                ),
+                yaxis=dict(
+                    title=y_label,
+                    range=yrange,
+                    showline=True,
+                    showgrid=True,
+                    linecolor="black",
+                    gridcolor="#eee",
+                ),
                 plot_bgcolor="white",
-            )
-            fig.update_xaxes(
-                showline=True,
-                showgrid=False,
-                zeroline=False,
-                linecolor="black",
-                gridcolor="#eee",
-            )
-            fig.update_yaxes(
-                showline=True, linecolor="black", gridcolor="#eee", mirror=True
+                width=width,
+                height=height,
             )
             return fig
 
@@ -749,6 +746,8 @@ class Explainer:
             xaxis=dict(title=f"Average {feat}", zeroline=False),
             yaxis=dict(title=y_label, range=yrange, showline=True),
             plot_bgcolor="white",
+            width=width,
+            height=height,
         )
         fig.update_xaxes(
             showline=True, showgrid=True, linecolor="black", gridcolor="#eee"
@@ -794,7 +793,7 @@ class Explainer:
             ),
         )
 
-    def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+    def plot_bias(self, X_test, y_pred, colors=None, yrange=None, size=None):
         """Plot the bias of the model for the features in `X_test`.
 
         Args:
@@ -825,7 +824,7 @@ class Explainer:
             raise ValueError("Cannot plot multiple labels")
         y_label = f'Average "{labels[0]}"'
         return self._plot_explanation(
-            explanation, "bias", y_label, colors=colors, yrange=yrange
+            explanation, "bias", y_label, colors=colors, yrange=yrange, size=size
         )
 
     def plot_bias_ranking(self, X_test, y_pred, colors=None):
@@ -851,7 +850,7 @@ class Explainer:
         )
 
     def plot_performance(
-        self, X_test, y_test, y_pred, metric, colors=None, yrange=None
+        self, X_test, y_test, y_pred, metric, colors=None, yrange=None, size=None
     ):
         """Plot the performance of the model for the features in `X_test`.
 
@@ -883,6 +882,7 @@ class Explainer:
             y_label=f"Average {metric_name}",
             colors=colors,
             yrange=yrange,
+            size=size,
         )
 
     def plot_performance_ranking(
