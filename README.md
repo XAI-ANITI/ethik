@@ -1,3 +1,18 @@
+<div align="center">
+  <h1>ethik</h1>
+</div>
+
+<div align="center">
+  <!-- Travis -->
+  <a href="https://travis-ci.org/MaxHalford/ethik">
+    <img src="https://img.shields.io/travis/MaxHalford/ethik/master.svg?style=for-the-badge" alt="travis" />
+  </a>
+  <!-- License -->
+  <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">
+    <img src="https://img.shields.io/badge/License-GPL%20v3-blue.svg?style=for-the-badge" alt="gpl_3_license"/>
+  </a>
+</div>
+
 # Ethik
 
 * [Introduction](#introduction)
