@@ -22,8 +22,8 @@ class ConvergenceWarning(UserWarning):
     """Custom warning to capture convergence problems."""
 
 
-def compute_lambdas(x, target_means, max_iterations, tol):
-    """Find good lambdas for a variable and given target means.
+def compute_ksis(x, target_means, max_iterations, tol):
+    """Find good ksis for a variable and given target means.
 
     Args:
         x (pd.Series): The variable's values.
@@ -36,7 +36,7 @@ def compute_lambdas(x, target_means, max_iterations, tol):
 
     Returns:
         dict: The keys are couples `(name of the variable, target mean)` and the
-            values are the lambdas. For instance:
+            values are the ksis. For instance:
 
                 {
                     ("age", 20): 1.5,
@@ -46,11 +46,11 @@ def compute_lambdas(x, target_means, max_iterations, tol):
     """
 
     mean = x.mean()
-    lambdas = {}
+    ksis = {}
 
     for target_mean in target_means:
 
-        λ = 0
+        ksi = 0
         current_mean = mean
         n_iterations = 0
 
@@ -62,19 +62,19 @@ def compute_lambdas(x, target_means, max_iterations, tol):
                 break
 
             # Update the sample weights and obtain the new mean of the distribution
-            # TODO: if λ * x is too large then sample_weights might only contain zeros, which
+            # TODO: if ksi * x is too large then sample_weights might only contain zeros, which
             # leads to hess being equal to 0
-            sample_weights = special.softmax(λ * x)
-            current_mean = np.average(x, weights=sample_weights)
+            lambdas = special.softmax(ksi * x)
+            current_mean = np.average(x, weights=lambdas)
 
             # Do a Newton step using the difference between the mean and the
             # target mean
             grad = current_mean - target_mean
-            hess = np.average((x - current_mean) ** 2, weights=sample_weights)
+            hess = np.average((x - current_mean) ** 2, weights=lambdas)
 
             # We use a magic number for the step size if the hessian is nil
             step = (1e-5 * grad) if hess == 0 else (grad / hess)
-            λ -= step
+            ksi -= step
 
             # Stop if the gradient is small enough
             if abs(grad) < tol:
@@ -86,14 +86,14 @@ def compute_lambdas(x, target_means, max_iterations, tol):
                 message=(
                     f"Gradient descent failed to converge after {max_iterations} iterations "
                     + f"(name={x.name}, mean={mean}, target_mean={target_mean}, "
-                    + f"current_mean={current_mean}, grad={grad}, hess={hess}, step={step}, λ={λ})"
+                    + f"current_mean={current_mean}, grad={grad}, hess={hess}, step={step}, ksi={ksi})"
                 ),
                 category=ConvergenceWarning,
             )
 
-        lambdas[(x.name, target_mean)] = λ
+        ksis[(x.name, target_mean)] = ksi
 
-    return lambdas
+    return ksis
 
 
 def yield_masks(n_masks, n, p):
@@ -160,9 +160,7 @@ class Explainer:
             `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
             `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned off by
             default because it can lead to unexpected behavior depending on your usage.
-        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
-            Default is `False`.
-        show_progress_bar (bool): Whether or not to show progress bars during
+        verbose (bool): Whether or not to show progress bars during
             computations. Default is `True`.
     """
 
@@ -177,8 +175,7 @@ class Explainer:
         tol=1e-3,
         n_jobs=1,  # Parallelism is only worth it if the dataset is "large"
         memoize=False,
-        verbose=False,
-        show_progress_bar=True,
+        verbose=True,
     ):
         if not 0 <= alpha < 0.5:
             raise ValueError(f"alpha must be between 0 and 0.5, got {alpha}")
@@ -216,7 +213,6 @@ class Explainer:
         self.n_jobs = n_jobs
         self.memoize = memoize
         self.verbose = verbose
-        self.show_progress_bar = show_progress_bar
         self.metric_names = set()
         self._reset_info()
 
@@ -227,7 +223,7 @@ class Explainer:
                 "feature",
                 "tau",
                 "value",
-                "lambda",
+                "ksi",
                 "label",
                 "bias",
                 "bias_low",
@@ -268,12 +264,12 @@ class Explainer:
             to_do_map[feat].append(label)
         return {feat: list(sorted(labels)) for feat, labels in to_do_map.items()}
 
-    def _find_lambdas(self, X_test, y_pred):
-        """Finds lambda values for each (feature, tau, label) triplet.
+    def _find_ksis(self, X_test, y_pred):
+        """Finds ksi values for each (feature, tau, label) triplet.
 
         1. A list of $\tau$ values is generated using `n_taus`. The $\tau$ values range from -1 to 1.
         2. A grid of $\eps$ values is generated for each $\tau$ and for each variable. Each $\eps$ represents a shift from a variable's mean towards a particular quantile.
-        3. A grid of $\lambda$ values is generated for each $\eps$. Each $\lambda$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\eps$ shift.
+        3. A grid of $\ksi$ values is generated for each $\eps$. Each $\ksi$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\eps$ shift.
 
         Args:
             X_test (pandas.DataFrame or numpy.ndarray): a
@@ -329,11 +325,9 @@ class Explainer:
         )
         self.info = self.info.append(additional_info, ignore_index=True, sort=False)
 
-        # Find a lambda for each (feature, espilon) pair
-        lambdas = joblib.Parallel(
-            n_jobs=self.n_jobs, verbose=10 if self.verbose else 0
-        )(
-            joblib.delayed(compute_lambdas)(
+        # Find a ksi for each (feature, espilon) pair
+        ksis = joblib.Parallel(n_jobs=self.n_jobs)(
+            joblib.delayed(compute_ksis)(
                 x=X_test[feature],
                 target_means=part["value"].unique(),
                 max_iterations=self.max_iterations,
@@ -342,12 +336,11 @@ class Explainer:
             for feature, part in self.info.groupby("feature")
             if feature in to_do_features
         )
-        lambdas = dict(collections.ChainMap(*lambdas))
-        self.info["lambda"] = self.info.apply(
-            lambda r: lambdas.get((r["feature"], r["value"]), r["lambda"]),
-            axis="columns",
+        ksis = dict(collections.ChainMap(*ksis))
+        self.info["ksi"] = self.info.apply(
+            lambda r: ksis.get((r["feature"], r["value"]), r["ksi"]), axis="columns"
         )
-        self.info["lambda"] = self.info["lambda"].fillna(0.0)
+        self.info["ksi"] = self.info["ksi"].fillna(0.0)
 
         return self
 
@@ -369,14 +362,14 @@ class Explainer:
         if len(X_test) != len(y_pred):
             raise ValueError("X_test and y_pred are not of the same length")
 
-        # Find the lambda values for each (feature, tau, label) triplet
-        self._find_lambdas(X_test, y_pred)
+        # Find the ksi values for each (feature, tau, label) triplet
+        self._find_ksis(X_test, y_pred)
 
         # One-hot encode the categorical variables
         X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
 
         # Determine which features are missing explanations; that is they have null biases for at
-        # least one lambda value
+        # least one ksi value
         relevant = self.info[
             self.info["feature"].isin(X_test.columns)
             & self.info["label"].isin(y_pred.columns)
@@ -436,7 +429,7 @@ class Explainer:
 
         Returns:
             pd.DataFrame:
-                A dataframe with columns `(feature, tau, value, lambda, label,
+                A dataframe with columns `(feature, tau, value, ksi, label,
                 bias, bias_low, bias_high)`. If `explainer.n_samples` is `1`,
                 no confidence interval is computed and `bias = bias_low = bias_high`.
                 The value of `label` is not important for regression.
@@ -488,19 +481,20 @@ class Explainer:
         """
 
         def compute(X_test, y_pred, relevant):
+            keys = relevant.groupby(["feature", "label", "ksi"]).groups.keys()
             return pd.DataFrame(
                 [
                     (
                         feature,
                         label,
-                        λ,
+                        ksi,
                         sample_index,
                         np.average(
                             y_pred[label][mask],
-                            weights=special.softmax(λ * X_test[feature][mask]),
+                            weights=special.softmax(ksi * X_test[feature][mask]),
                         ),
                     )
-                    for (sample_index, mask), (feature, label, λ) in tqdm(
+                    for (sample_index, mask), (feature, label, ksi) in tqdm(
                         itertools.product(
                             enumerate(
                                 yield_masks(
@@ -509,21 +503,20 @@ class Explainer:
                                     p=self.sample_frac,
                                 )
                             ),
-                            relevant.groupby(
-                                ["feature", "label", "lambda"]
-                            ).groups.keys(),
+                            keys,
                         ),
-                        disable=not self.show_progress_bar,
+                        disable=not self.verbose,
+                        total=len(keys) * self.n_samples,
                     )
                 ],
-                columns=["feature", "label", "lambda", "sample_index", "bias"],
+                columns=["feature", "label", "ksi", "sample_index", "bias"],
             )
 
         return self._explain(
             X_test=X_test,
             y_pred=y_pred,
             dest_col="bias",
-            key_cols=["feature", "label", "lambda"],
+            key_cols=["feature", "label", "ksi"],
             compute=compute,
         )
 
@@ -549,7 +542,7 @@ class Explainer:
 
         Returns:
             pd.DataFrame:
-                A dataframe with columns `(feature, tau, value, lambda, label,
+                A dataframe with columns `(feature, tau, value, ksi, label,
                 bias, bias_low, bias_high, <metric_name>, <metric_name_low>, <metric_name_high>)`.
                 If `explainer.n_samples` is `1`, no confidence interval is computed
                 and `<metric_name> = <metric_name_low> = <metric_name_high>`.
@@ -568,19 +561,20 @@ class Explainer:
         y_test = np.asarray(y_test)
 
         def compute(X_test, y_pred, relevant):
+            keys = relevant.groupby(["feature", "ksi"]).groups.keys()
             return pd.DataFrame(
                 [
                     (
                         feature,
-                        λ,
+                        ksi,
                         sample_index,
                         metric(
                             y_test[mask],
                             y_pred[mask],
-                            sample_weight=special.softmax(λ * X_test[feature][mask]),
+                            sample_weight=special.softmax(ksi * X_test[feature][mask]),
                         ),
                     )
-                    for (sample_index, mask), (feature, λ) in tqdm(
+                    for (sample_index, mask), (feature, ksi) in tqdm(
                         itertools.product(
                             enumerate(
                                 yield_masks(
@@ -589,19 +583,20 @@ class Explainer:
                                     p=self.sample_frac,
                                 )
                             ),
-                            relevant.groupby(["feature", "lambda"]).groups.keys(),
+                            keys,
                         ),
-                        disable=not self.show_progress_bar,
+                        disable=not self.verbose,
+                        total=len(keys) * self.n_samples,
                     )
                 ],
-                columns=["feature", "lambda", "sample_index", metric_name],
+                columns=["feature", "ksi", "sample_index", metric_name],
             )
 
         return self._explain(
             X_test=X_test,
             y_pred=y_pred,
             dest_col=metric_name,
-            key_cols=["feature", "lambda"],
+            key_cols=["feature", "ksi"],
             compute=compute,
         )
 
@@ -710,7 +705,9 @@ class Explainer:
             .reset_index()
         )
 
-    def _plot_explanation(self, explanation, col, y_label, colors=None, yrange=None):
+    def _plot_explanation(
+        self, explanation, col, y_label, colors=None, yrange=None, size=None
+    ):
         features = explanation["feature"].unique()
 
         if colors is None:
@@ -718,21 +715,13 @@ class Explainer:
         elif type(colors) is str:
             colors = {feat: colors for feat in features}
 
+        width = height = None
+        if size is not None:
+            width, height = size
+
         #  There are multiple features, we plot them together with taus
         if len(features) > 1:
-            fig = go.FigureWidget()
-
-            def on_click(trace, points, selector):
-                taus, values = zip(*trace["customdata"])
-                if not len(points.point_inds):
-                    trace["x"] = taus
-                    trace["xaxis"] = "x"
-                    trace["opacity"] = 0.3
-                    return
-                trace["x"] = values
-                trace["xaxis"] = "x2"
-                trace["opacity"] = 1
-                fig.update_layout(xaxis2=dict(title=trace["name"]))
+            fig = go.Figure()
 
             for i, feat in enumerate(features):
                 taus = explanation.query(f'feature == "{feat}"')["tau"]
@@ -740,35 +729,38 @@ class Explainer:
                 y = explanation.query(f'feature == "{feat}"')[col]
                 fig.add_trace(
                     go.Scatter(
-                        x=taus if i > 0 else values,
+                        x=taus,
                         y=y,
                         mode="lines+markers",
                         hoverinfo="y",
                         name=feat,
                         customdata=list(zip(taus, values)),
                         marker=dict(color=colors.get(feat)),
-                        xaxis="x" if i > 0 else "x2",
-                        opacity=0.3 if i > 0 else 1,
                     )
                 )
-                fig.data[i].on_click(on_click)
 
             fig.update_layout(
                 margin=dict(t=50, r=50),
-                xaxis=dict(title="tau", nticks=5),
-                xaxis2=dict(anchor="y", side="top", overlaying="x", title=features[0]),
-                yaxis=dict(title=y_label, range=yrange, showline=True, showgrid=True),
+                xaxis=dict(
+                    title="tau",
+                    nticks=5,
+                    showline=True,
+                    showgrid=True,
+                    zeroline=False,
+                    linecolor="black",
+                    gridcolor="#eee",
+                ),
+                yaxis=dict(
+                    title=y_label,
+                    range=yrange,
+                    showline=True,
+                    showgrid=True,
+                    linecolor="black",
+                    gridcolor="#eee",
+                ),
                 plot_bgcolor="white",
-            )
-            fig.update_xaxes(
-                showline=True,
-                showgrid=False,
-                zeroline=False,
-                linecolor="black",
-                gridcolor="#eee",
-            )
-            fig.update_yaxes(
-                showline=True, linecolor="black", gridcolor="#eee", mirror=True
+                width=width,
+                height=height,
             )
             return fig
 
@@ -821,6 +813,8 @@ class Explainer:
             xaxis=dict(title=f"Average {feat}", zeroline=False),
             yaxis=dict(title=y_label, range=yrange, showline=True),
             plot_bgcolor="white",
+            width=width,
+            height=height,
         )
         fig.update_xaxes(
             showline=True, showgrid=True, linecolor="black", gridcolor="#eee"
@@ -870,7 +864,7 @@ class Explainer:
             ),
         )
 
-    def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+    def plot_bias(self, X_test, y_pred, colors=None, yrange=None, size=None):
         """Plot the bias of the model for the features in `X_test`.
 
         Args:
@@ -901,7 +895,7 @@ class Explainer:
             raise ValueError("Cannot plot multiple labels")
         y_label = f'Average "{labels[0]}"'
         return self._plot_explanation(
-            explanation, "bias", y_label, colors=colors, yrange=yrange
+            explanation, "bias", y_label, colors=colors, yrange=yrange, size=size
         )
 
     def plot_bias_ranking(self, X_test, y_pred, n_features=None, colors=None):
@@ -932,7 +926,7 @@ class Explainer:
         )
 
     def plot_performance(
-        self, X_test, y_test, y_pred, metric, colors=None, yrange=None
+        self, X_test, y_test, y_pred, metric, colors=None, yrange=None, size=None
     ):
         """Plot the performance of the model for the features in `X_test`.
 
@@ -964,6 +958,7 @@ class Explainer:
             y_label=f"Average {metric_name}",
             colors=colors,
             yrange=yrange,
+            size=size,
         )
 
     def plot_performance_ranking(

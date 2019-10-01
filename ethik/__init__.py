@@ -47,6 +47,7 @@ pre-commit install # For black
 
 * [Get started](notebooks/Binary classification.html)
 * [Binary classification (Adult dataset)](notebooks/Binary classification.html)
+* [How It Works](notebooks/How It Works.html)
 * [Multi-label classification (Iris dataset)](notebooks/Multi-label classification.html)
 * [Regression (Boston dataset)](notebooks/Regression.html)
 * [Images (MNIST dataset)](notebooks/Image.html)

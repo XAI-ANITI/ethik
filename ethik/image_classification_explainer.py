@@ -43,9 +43,7 @@ class ImageClassificationExplainer(explainer.Explainer):
             `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
             `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned on by
             default because computations are time-consuming for images.
-        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
-            Default is `False`.
-        show_progress_bar (bool): Whether or not to show progress bars during
+        verbose (bool): Whether or not to show progress bars during
             computations. Default is `True`.
     """
 
@@ -56,8 +54,7 @@ class ImageClassificationExplainer(explainer.Explainer):
         tol=1e-3,
         n_jobs=-1,
         memoize=True,
-        verbose=False,
-        show_progress_bar=True,
+        verbose=True,
     ):
         super().__init__(
             alpha=alpha,
@@ -67,7 +64,6 @@ class ImageClassificationExplainer(explainer.Explainer):
             n_jobs=n_jobs,
             memoize=memoize,
             verbose=verbose,
-            show_progress_bar=show_progress_bar,
         )
 
     def _set_image_shape(self, images):

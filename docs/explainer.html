@@ -47,8 +47,8 @@ class ConvergenceWarning(UserWarning):
     &#34;&#34;&#34;Custom warning to capture convergence problems.&#34;&#34;&#34;
 
 
-def compute_lambdas(x, target_means, max_iterations, tol):
-    &#34;&#34;&#34;Find good lambdas for a variable and given target means.
+def compute_ksis(x, target_means, max_iterations, tol):
+    &#34;&#34;&#34;Find good ksis for a variable and given target means.
 
     Args:
         x (pd.Series): The variable&#39;s values.
@@ -61,7 +61,7 @@ def compute_lambdas(x, target_means, max_iterations, tol):
 
     Returns:
         dict: The keys are couples `(name of the variable, target mean)` and the
-            values are the lambdas. For instance:
+            values are the ksis. For instance:
 
                 {
                     (&#34;age&#34;, 20): 1.5,
@@ -71,11 +71,11 @@ def compute_lambdas(x, target_means, max_iterations, tol):
     &#34;&#34;&#34;
 
     mean = x.mean()
-    lambdas = {}
+    ksis = {}
 
     for target_mean in target_means:
 
-        λ = 0
+        ksi = 0
         current_mean = mean
         n_iterations = 0
 
@@ -87,19 +87,19 @@ def compute_lambdas(x, target_means, max_iterations, tol):
                 break
 
             # Update the sample weights and obtain the new mean of the distribution
-            # TODO: if λ * x is too large then sample_weights might only contain zeros, which
+            # TODO: if ksi * x is too large then sample_weights might only contain zeros, which
             # leads to hess being equal to 0
-            sample_weights = special.softmax(λ * x)
-            current_mean = np.average(x, weights=sample_weights)
+            lambdas = special.softmax(ksi * x)
+            current_mean = np.average(x, weights=lambdas)
 
             # Do a Newton step using the difference between the mean and the
             # target mean
             grad = current_mean - target_mean
-            hess = np.average((x - current_mean) ** 2, weights=sample_weights)
+            hess = np.average((x - current_mean) ** 2, weights=lambdas)
 
             # We use a magic number for the step size if the hessian is nil
             step = (1e-5 * grad) if hess == 0 else (grad / hess)
-            λ -= step
+            ksi -= step
 
             # Stop if the gradient is small enough
             if abs(grad) &lt; tol:
@@ -111,14 +111,14 @@ def compute_lambdas(x, target_means, max_iterations, tol):
                 message=(
                     f&#34;Gradient descent failed to converge after {max_iterations} iterations &#34;
                     + f&#34;(name={x.name}, mean={mean}, target_mean={target_mean}, &#34;
-                    + f&#34;current_mean={current_mean}, grad={grad}, hess={hess}, step={step}, λ={λ})&#34;
+                    + f&#34;current_mean={current_mean}, grad={grad}, hess={hess}, step={step}, ksi={ksi})&#34;
                 ),
                 category=ConvergenceWarning,
             )
 
-        lambdas[(x.name, target_mean)] = λ
+        ksis[(x.name, target_mean)] = ksi
 
-    return lambdas
+    return ksis
 
 
 def yield_masks(n_masks, n, p):
@@ -185,9 +185,7 @@ class Explainer:
             `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
             `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned off by
             default because it can lead to unexpected behavior depending on your usage.
-        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
-            Default is `False`.
-        show_progress_bar (bool): Whether or not to show progress bars during
+        verbose (bool): Whether or not to show progress bars during
             computations. Default is `True`.
     &#34;&#34;&#34;
 
@@ -202,8 +200,7 @@ class Explainer:
         tol=1e-3,
         n_jobs=1,  # Parallelism is only worth it if the dataset is &#34;large&#34;
         memoize=False,
-        verbose=False,
-        show_progress_bar=True,
+        verbose=True,
     ):
         if not 0 &lt;= alpha &lt; 0.5:
             raise ValueError(f&#34;alpha must be between 0 and 0.5, got {alpha}&#34;)
@@ -241,7 +238,6 @@ class Explainer:
         self.n_jobs = n_jobs
         self.memoize = memoize
         self.verbose = verbose
-        self.show_progress_bar = show_progress_bar
         self.metric_names = set()
         self._reset_info()
 
@@ -252,7 +248,7 @@ class Explainer:
                 &#34;feature&#34;,
                 &#34;tau&#34;,
                 &#34;value&#34;,
-                &#34;lambda&#34;,
+                &#34;ksi&#34;,
                 &#34;label&#34;,
                 &#34;bias&#34;,
                 &#34;bias_low&#34;,
@@ -293,12 +289,12 @@ class Explainer:
             to_do_map[feat].append(label)
         return {feat: list(sorted(labels)) for feat, labels in to_do_map.items()}
 
-    def _find_lambdas(self, X_test, y_pred):
-        &#34;&#34;&#34;Finds lambda values for each (feature, tau, label) triplet.
+    def _find_ksis(self, X_test, y_pred):
+        &#34;&#34;&#34;Finds ksi values for each (feature, tau, label) triplet.
 
         1. A list of $\tau$ values is generated using `n_taus`. The $\tau$ values range from -1 to 1.
         2. A grid of $\eps$ values is generated for each $\tau$ and for each variable. Each $\eps$ represents a shift from a variable&#39;s mean towards a particular quantile.
-        3. A grid of $\lambda$ values is generated for each $\eps$. Each $\lambda$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\eps$ shift.
+        3. A grid of $\ksi$ values is generated for each $\eps$. Each $\ksi$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\eps$ shift.
 
         Args:
             X_test (pandas.DataFrame or numpy.ndarray): a
@@ -354,11 +350,9 @@ class Explainer:
         )
         self.info = self.info.append(additional_info, ignore_index=True, sort=False)
 
-        # Find a lambda for each (feature, espilon) pair
-        lambdas = joblib.Parallel(
-            n_jobs=self.n_jobs, verbose=10 if self.verbose else 0
-        )(
-            joblib.delayed(compute_lambdas)(
+        # Find a ksi for each (feature, espilon) pair
+        ksis = joblib.Parallel(n_jobs=self.n_jobs)(
+            joblib.delayed(compute_ksis)(
                 x=X_test[feature],
                 target_means=part[&#34;value&#34;].unique(),
                 max_iterations=self.max_iterations,
@@ -367,12 +361,11 @@ class Explainer:
             for feature, part in self.info.groupby(&#34;feature&#34;)
             if feature in to_do_features
         )
-        lambdas = dict(collections.ChainMap(*lambdas))
-        self.info[&#34;lambda&#34;] = self.info.apply(
-            lambda r: lambdas.get((r[&#34;feature&#34;], r[&#34;value&#34;]), r[&#34;lambda&#34;]),
-            axis=&#34;columns&#34;,
+        ksis = dict(collections.ChainMap(*ksis))
+        self.info[&#34;ksi&#34;] = self.info.apply(
+            lambda r: ksis.get((r[&#34;feature&#34;], r[&#34;value&#34;]), r[&#34;ksi&#34;]), axis=&#34;columns&#34;
         )
-        self.info[&#34;lambda&#34;] = self.info[&#34;lambda&#34;].fillna(0.0)
+        self.info[&#34;ksi&#34;] = self.info[&#34;ksi&#34;].fillna(0.0)
 
         return self
 
@@ -394,14 +387,14 @@ class Explainer:
         if len(X_test) != len(y_pred):
             raise ValueError(&#34;X_test and y_pred are not of the same length&#34;)
 
-        # Find the lambda values for each (feature, tau, label) triplet
-        self._find_lambdas(X_test, y_pred)
+        # Find the ksi values for each (feature, tau, label) triplet
+        self._find_ksis(X_test, y_pred)
 
         # One-hot encode the categorical variables
         X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
 
         # Determine which features are missing explanations; that is they have null biases for at
-        # least one lambda value
+        # least one ksi value
         relevant = self.info[
             self.info[&#34;feature&#34;].isin(X_test.columns)
             &amp; self.info[&#34;label&#34;].isin(y_pred.columns)
@@ -461,7 +454,7 @@ class Explainer:
 
         Returns:
             pd.DataFrame:
-                A dataframe with columns `(feature, tau, value, lambda, label,
+                A dataframe with columns `(feature, tau, value, ksi, label,
                 bias, bias_low, bias_high)`. If `explainer.n_samples` is `1`,
                 no confidence interval is computed and `bias = bias_low = bias_high`.
                 The value of `label` is not important for regression.
@@ -513,19 +506,20 @@ class Explainer:
         &#34;&#34;&#34;
 
         def compute(X_test, y_pred, relevant):
+            keys = relevant.groupby([&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;]).groups.keys()
             return pd.DataFrame(
                 [
                     (
                         feature,
                         label,
-                        λ,
+                        ksi,
                         sample_index,
                         np.average(
                             y_pred[label][mask],
-                            weights=special.softmax(λ * X_test[feature][mask]),
+                            weights=special.softmax(ksi * X_test[feature][mask]),
                         ),
                     )
-                    for (sample_index, mask), (feature, label, λ) in tqdm(
+                    for (sample_index, mask), (feature, label, ksi) in tqdm(
                         itertools.product(
                             enumerate(
                                 yield_masks(
@@ -534,21 +528,20 @@ class Explainer:
                                     p=self.sample_frac,
                                 )
                             ),
-                            relevant.groupby(
-                                [&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;]
-                            ).groups.keys(),
+                            keys,
                         ),
-                        disable=not self.show_progress_bar,
+                        disable=not self.verbose,
+                        total=len(keys) * self.n_samples,
                     )
                 ],
-                columns=[&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, &#34;bias&#34;],
+                columns=[&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;, &#34;sample_index&#34;, &#34;bias&#34;],
             )
 
         return self._explain(
             X_test=X_test,
             y_pred=y_pred,
             dest_col=&#34;bias&#34;,
-            key_cols=[&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;],
+            key_cols=[&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;],
             compute=compute,
         )
 
@@ -574,7 +567,7 @@ class Explainer:
 
         Returns:
             pd.DataFrame:
-                A dataframe with columns `(feature, tau, value, lambda, label,
+                A dataframe with columns `(feature, tau, value, ksi, label,
                 bias, bias_low, bias_high, &lt;metric_name&gt;, &lt;metric_name_low&gt;, &lt;metric_name_high&gt;)`.
                 If `explainer.n_samples` is `1`, no confidence interval is computed
                 and `&lt;metric_name&gt; = &lt;metric_name_low&gt; = &lt;metric_name_high&gt;`.
@@ -593,19 +586,20 @@ class Explainer:
         y_test = np.asarray(y_test)
 
         def compute(X_test, y_pred, relevant):
+            keys = relevant.groupby([&#34;feature&#34;, &#34;ksi&#34;]).groups.keys()
             return pd.DataFrame(
                 [
                     (
                         feature,
-                        λ,
+                        ksi,
                         sample_index,
                         metric(
                             y_test[mask],
                             y_pred[mask],
-                            sample_weight=special.softmax(λ * X_test[feature][mask]),
+                            sample_weight=special.softmax(ksi * X_test[feature][mask]),
                         ),
                     )
-                    for (sample_index, mask), (feature, λ) in tqdm(
+                    for (sample_index, mask), (feature, ksi) in tqdm(
                         itertools.product(
                             enumerate(
                                 yield_masks(
@@ -614,19 +608,20 @@ class Explainer:
                                     p=self.sample_frac,
                                 )
                             ),
-                            relevant.groupby([&#34;feature&#34;, &#34;lambda&#34;]).groups.keys(),
+                            keys,
                         ),
-                        disable=not self.show_progress_bar,
+                        disable=not self.verbose,
+                        total=len(keys) * self.n_samples,
                     )
                 ],
-                columns=[&#34;feature&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, metric_name],
+                columns=[&#34;feature&#34;, &#34;ksi&#34;, &#34;sample_index&#34;, metric_name],
             )
 
         return self._explain(
             X_test=X_test,
             y_pred=y_pred,
             dest_col=metric_name,
-            key_cols=[&#34;feature&#34;, &#34;lambda&#34;],
+            key_cols=[&#34;feature&#34;, &#34;ksi&#34;],
             compute=compute,
         )
 
@@ -735,7 +730,9 @@ class Explainer:
             .reset_index()
         )
 
-    def _plot_explanation(self, explanation, col, y_label, colors=None, yrange=None):
+    def _plot_explanation(
+        self, explanation, col, y_label, colors=None, yrange=None, size=None
+    ):
         features = explanation[&#34;feature&#34;].unique()
 
         if colors is None:
@@ -743,21 +740,13 @@ class Explainer:
         elif type(colors) is str:
             colors = {feat: colors for feat in features}
 
+        width = height = None
+        if size is not None:
+            width, height = size
+
         #  There are multiple features, we plot them together with taus
         if len(features) &gt; 1:
-            fig = go.FigureWidget()
-
-            def on_click(trace, points, selector):
-                taus, values = zip(*trace[&#34;customdata&#34;])
-                if not len(points.point_inds):
-                    trace[&#34;x&#34;] = taus
-                    trace[&#34;xaxis&#34;] = &#34;x&#34;
-                    trace[&#34;opacity&#34;] = 0.3
-                    return
-                trace[&#34;x&#34;] = values
-                trace[&#34;xaxis&#34;] = &#34;x2&#34;
-                trace[&#34;opacity&#34;] = 1
-                fig.update_layout(xaxis2=dict(title=trace[&#34;name&#34;]))
+            fig = go.Figure()
 
             for i, feat in enumerate(features):
                 taus = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;tau&#34;]
@@ -765,35 +754,38 @@ class Explainer:
                 y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
                 fig.add_trace(
                     go.Scatter(
-                        x=taus if i &gt; 0 else values,
+                        x=taus,
                         y=y,
                         mode=&#34;lines+markers&#34;,
                         hoverinfo=&#34;y&#34;,
                         name=feat,
                         customdata=list(zip(taus, values)),
                         marker=dict(color=colors.get(feat)),
-                        xaxis=&#34;x&#34; if i &gt; 0 else &#34;x2&#34;,
-                        opacity=0.3 if i &gt; 0 else 1,
                     )
                 )
-                fig.data[i].on_click(on_click)
 
             fig.update_layout(
                 margin=dict(t=50, r=50),
-                xaxis=dict(title=&#34;tau&#34;, nticks=5),
-                xaxis2=dict(anchor=&#34;y&#34;, side=&#34;top&#34;, overlaying=&#34;x&#34;, title=features[0]),
-                yaxis=dict(title=y_label, range=yrange, showline=True, showgrid=True),
+                xaxis=dict(
+                    title=&#34;tau&#34;,
+                    nticks=5,
+                    showline=True,
+                    showgrid=True,
+                    zeroline=False,
+                    linecolor=&#34;black&#34;,
+                    gridcolor=&#34;#eee&#34;,
+                ),
+                yaxis=dict(
+                    title=y_label,
+                    range=yrange,
+                    showline=True,
+                    showgrid=True,
+                    linecolor=&#34;black&#34;,
+                    gridcolor=&#34;#eee&#34;,
+                ),
                 plot_bgcolor=&#34;white&#34;,
-            )
-            fig.update_xaxes(
-                showline=True,
-                showgrid=False,
-                zeroline=False,
-                linecolor=&#34;black&#34;,
-                gridcolor=&#34;#eee&#34;,
-            )
-            fig.update_yaxes(
-                showline=True, linecolor=&#34;black&#34;, gridcolor=&#34;#eee&#34;, mirror=True
+                width=width,
+                height=height,
             )
             return fig
 
@@ -846,6 +838,8 @@ class Explainer:
             xaxis=dict(title=f&#34;Average {feat}&#34;, zeroline=False),
             yaxis=dict(title=y_label, range=yrange, showline=True),
             plot_bgcolor=&#34;white&#34;,
+            width=width,
+            height=height,
         )
         fig.update_xaxes(
             showline=True, showgrid=True, linecolor=&#34;black&#34;, gridcolor=&#34;#eee&#34;
@@ -855,14 +849,18 @@ class Explainer:
         )
         return fig
 
-    def _plot_ranking(self, ranking, score_column, title, colors=None):
-        ranking = ranking.sort_values(by=[score_column])
+    def _plot_ranking(self, ranking, score_column, title, n_features=None, colors=None):
+        if n_features is None:
+            n_features = len(ranking)
+        ascending = n_features &gt;= 0
+        ranking = ranking.sort_values(by=[score_column], ascending=ascending)
+        n_features = abs(n_features)
 
         return go.Figure(
             data=[
                 go.Bar(
-                    x=ranking[score_column],
-                    y=ranking[&#34;feature&#34;],
+                    x=ranking[score_column][-n_features:],
+                    y=ranking[&#34;feature&#34;][-n_features:],
                     orientation=&#34;h&#34;,
                     hoverinfo=&#34;x&#34;,
                     marker=dict(color=colors),
@@ -891,7 +889,7 @@ class Explainer:
             ),
         )
 
-    def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+    def plot_bias(self, X_test, y_pred, colors=None, yrange=None, size=None):
         &#34;&#34;&#34;Plot the bias of the model for the features in `X_test`.
 
         Args:
@@ -922,15 +920,19 @@ class Explainer:
             raise ValueError(&#34;Cannot plot multiple labels&#34;)
         y_label = f&#39;Average &#34;{labels[0]}&#34;&#39;
         return self._plot_explanation(
-            explanation, &#34;bias&#34;, y_label, colors=colors, yrange=yrange
+            explanation, &#34;bias&#34;, y_label, colors=colors, yrange=yrange, size=size
         )
 
-    def plot_bias_ranking(self, X_test, y_pred, colors=None):
+    def plot_bias_ranking(self, X_test, y_pred, n_features=None, colors=None):
         &#34;&#34;&#34;Plot the ranking of the features based on their bias.
 
         Args:
             X_test (pd.DataFrame or np.array): See `Explainer.explain_bias()`.
             y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_bias()`.
+            n_features (int, optional): The number of features to plot. With the
+                default (`None`), all of them are shown. For a positive value,
+                we keep the `n_features` first features (the most impactful). For
+                a negative value, we keep the `n_features` last features.
             colors (dict, optional): See `Explainer.plot_bias()`.
 
         Returns:
@@ -944,11 +946,12 @@ class Explainer:
             ranking=ranking,
             score_column=&#34;importance&#34;,
             title=&#34;Importance&#34;,
+            n_features=n_features,
             colors=colors,
         )
 
     def plot_performance(
-        self, X_test, y_test, y_pred, metric, colors=None, yrange=None
+        self, X_test, y_test, y_pred, metric, colors=None, yrange=None, size=None
     ):
         &#34;&#34;&#34;Plot the performance of the model for the features in `X_test`.
 
@@ -980,10 +983,11 @@ class Explainer:
             y_label=f&#34;Average {metric_name}&#34;,
             colors=colors,
             yrange=yrange,
+            size=size,
         )
 
     def plot_performance_ranking(
-        self, X_test, y_test, y_pred, metric, criterion, colors=None
+        self, X_test, y_test, y_pred, metric, criterion, n_features=None, colors=None
     ):
         &#34;&#34;&#34;Plot the performance of the model for the features in `X_test`.
 
@@ -995,6 +999,10 @@ class Explainer:
             criterion (str): Either &#34;min&#34; or &#34;max&#34; to determine whether, for a
                 given feature, we keep the worst or the best performance for all
                 the values taken by the mean. See `Explainer.rank_by_performance()`.
+            n_features (int, optional): The number of features to plot. With the
+                default (`None`), all of them are shown. For a positive value,
+                we keep the `n_features` first features (the most impactful). For
+                a negative value, we keep the `n_features` last features.
             colors (dict, optional): See `Explainer.plot_bias_ranking()`.
 
         Returns:
@@ -1011,6 +1019,7 @@ class Explainer:
             ranking=ranking,
             score_column=criterion,
             title=f&#34;{criterion} {metric_name}&#34;,
+            n_features=n_features,
             colors=colors,
         )</code></pre>
 </details>
@@ -1026,7 +1035,7 @@ class Explainer:
 <dl>
 <dt id="ethik.explainer.Explainer"><code class="flex name class">
 <span>class <span class="ident">Explainer</span></span>
-<span>(</span><span>alpha=0.05, n_taus=41, n_samples=1, sample_frac=0.8, conf_level=0.05, max_iterations=15, tol=0.001, n_jobs=1, memoize=False, verbose=False, show_progress_bar=True)</span>
+<span>(</span><span>alpha=0.05, n_taus=41, n_samples=1, sample_frac=0.8, conf_level=0.05, max_iterations=15, tol=0.001, n_jobs=1, memoize=False, verbose=True)</span>
 </code></dt>
 <dd>
 <section class="desc"><p>Explains the bias and reliability of model predictions.</p>
@@ -1074,9 +1083,6 @@ reused by successively called methods. For example, if you call <code>plot_bias<
 <code>plot_bias</code> will be reused for <code>plot_bias_ranking</code>. Memoization is turned off by
 default because it can lead to unexpected behavior depending on your usage.</dd>
 <dt><strong><code>verbose</code></strong> :&ensp;<code>bool</code></dt>
-<dd>Passed to <code>joblib.Parallel()</code> for parallel computations.
-Default is <code>False</code>.</dd>
-<dt><strong><code>show_progress_bar</code></strong> :&ensp;<code>bool</code></dt>
 <dd>Whether or not to show progress bars during
 computations. Default is <code>True</code>.</dd>
 </dl></section>
@@ -1118,9 +1124,7 @@ computations. Default is <code>True</code>.</dd>
             `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
             `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned off by
             default because it can lead to unexpected behavior depending on your usage.
-        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
-            Default is `False`.
-        show_progress_bar (bool): Whether or not to show progress bars during
+        verbose (bool): Whether or not to show progress bars during
             computations. Default is `True`.
     &#34;&#34;&#34;
 
@@ -1135,8 +1139,7 @@ computations. Default is <code>True</code>.</dd>
         tol=1e-3,
         n_jobs=1,  # Parallelism is only worth it if the dataset is &#34;large&#34;
         memoize=False,
-        verbose=False,
-        show_progress_bar=True,
+        verbose=True,
     ):
         if not 0 &lt;= alpha &lt; 0.5:
             raise ValueError(f&#34;alpha must be between 0 and 0.5, got {alpha}&#34;)
@@ -1174,7 +1177,6 @@ computations. Default is <code>True</code>.</dd>
         self.n_jobs = n_jobs
         self.memoize = memoize
         self.verbose = verbose
-        self.show_progress_bar = show_progress_bar
         self.metric_names = set()
         self._reset_info()
 
@@ -1185,7 +1187,7 @@ computations. Default is <code>True</code>.</dd>
                 &#34;feature&#34;,
                 &#34;tau&#34;,
                 &#34;value&#34;,
-                &#34;lambda&#34;,
+                &#34;ksi&#34;,
                 &#34;label&#34;,
                 &#34;bias&#34;,
                 &#34;bias_low&#34;,
@@ -1226,12 +1228,12 @@ computations. Default is <code>True</code>.</dd>
             to_do_map[feat].append(label)
         return {feat: list(sorted(labels)) for feat, labels in to_do_map.items()}
 
-    def _find_lambdas(self, X_test, y_pred):
-        &#34;&#34;&#34;Finds lambda values for each (feature, tau, label) triplet.
+    def _find_ksis(self, X_test, y_pred):
+        &#34;&#34;&#34;Finds ksi values for each (feature, tau, label) triplet.
 
         1. A list of $\tau$ values is generated using `n_taus`. The $\tau$ values range from -1 to 1.
         2. A grid of $\eps$ values is generated for each $\tau$ and for each variable. Each $\eps$ represents a shift from a variable&#39;s mean towards a particular quantile.
-        3. A grid of $\lambda$ values is generated for each $\eps$. Each $\lambda$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\eps$ shift.
+        3. A grid of $\ksi$ values is generated for each $\eps$. Each $\ksi$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\eps$ shift.
 
         Args:
             X_test (pandas.DataFrame or numpy.ndarray): a
@@ -1287,11 +1289,9 @@ computations. Default is <code>True</code>.</dd>
         )
         self.info = self.info.append(additional_info, ignore_index=True, sort=False)
 
-        # Find a lambda for each (feature, espilon) pair
-        lambdas = joblib.Parallel(
-            n_jobs=self.n_jobs, verbose=10 if self.verbose else 0
-        )(
-            joblib.delayed(compute_lambdas)(
+        # Find a ksi for each (feature, espilon) pair
+        ksis = joblib.Parallel(n_jobs=self.n_jobs)(
+            joblib.delayed(compute_ksis)(
                 x=X_test[feature],
                 target_means=part[&#34;value&#34;].unique(),
                 max_iterations=self.max_iterations,
@@ -1300,12 +1300,11 @@ computations. Default is <code>True</code>.</dd>
             for feature, part in self.info.groupby(&#34;feature&#34;)
             if feature in to_do_features
         )
-        lambdas = dict(collections.ChainMap(*lambdas))
-        self.info[&#34;lambda&#34;] = self.info.apply(
-            lambda r: lambdas.get((r[&#34;feature&#34;], r[&#34;value&#34;]), r[&#34;lambda&#34;]),
-            axis=&#34;columns&#34;,
+        ksis = dict(collections.ChainMap(*ksis))
+        self.info[&#34;ksi&#34;] = self.info.apply(
+            lambda r: ksis.get((r[&#34;feature&#34;], r[&#34;value&#34;]), r[&#34;ksi&#34;]), axis=&#34;columns&#34;
         )
-        self.info[&#34;lambda&#34;] = self.info[&#34;lambda&#34;].fillna(0.0)
+        self.info[&#34;ksi&#34;] = self.info[&#34;ksi&#34;].fillna(0.0)
 
         return self
 
@@ -1327,14 +1326,14 @@ computations. Default is <code>True</code>.</dd>
         if len(X_test) != len(y_pred):
             raise ValueError(&#34;X_test and y_pred are not of the same length&#34;)
 
-        # Find the lambda values for each (feature, tau, label) triplet
-        self._find_lambdas(X_test, y_pred)
+        # Find the ksi values for each (feature, tau, label) triplet
+        self._find_ksis(X_test, y_pred)
 
         # One-hot encode the categorical variables
         X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
 
         # Determine which features are missing explanations; that is they have null biases for at
-        # least one lambda value
+        # least one ksi value
         relevant = self.info[
             self.info[&#34;feature&#34;].isin(X_test.columns)
             &amp; self.info[&#34;label&#34;].isin(y_pred.columns)
@@ -1394,7 +1393,7 @@ computations. Default is <code>True</code>.</dd>
 
         Returns:
             pd.DataFrame:
-                A dataframe with columns `(feature, tau, value, lambda, label,
+                A dataframe with columns `(feature, tau, value, ksi, label,
                 bias, bias_low, bias_high)`. If `explainer.n_samples` is `1`,
                 no confidence interval is computed and `bias = bias_low = bias_high`.
                 The value of `label` is not important for regression.
@@ -1446,19 +1445,20 @@ computations. Default is <code>True</code>.</dd>
         &#34;&#34;&#34;
 
         def compute(X_test, y_pred, relevant):
+            keys = relevant.groupby([&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;]).groups.keys()
             return pd.DataFrame(
                 [
                     (
                         feature,
                         label,
-                        λ,
+                        ksi,
                         sample_index,
                         np.average(
                             y_pred[label][mask],
-                            weights=special.softmax(λ * X_test[feature][mask]),
+                            weights=special.softmax(ksi * X_test[feature][mask]),
                         ),
                     )
-                    for (sample_index, mask), (feature, label, λ) in tqdm(
+                    for (sample_index, mask), (feature, label, ksi) in tqdm(
                         itertools.product(
                             enumerate(
                                 yield_masks(
@@ -1467,21 +1467,20 @@ computations. Default is <code>True</code>.</dd>
                                     p=self.sample_frac,
                                 )
                             ),
-                            relevant.groupby(
-                                [&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;]
-                            ).groups.keys(),
+                            keys,
                         ),
-                        disable=not self.show_progress_bar,
+                        disable=not self.verbose,
+                        total=len(keys) * self.n_samples,
                     )
                 ],
-                columns=[&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, &#34;bias&#34;],
+                columns=[&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;, &#34;sample_index&#34;, &#34;bias&#34;],
             )
 
         return self._explain(
             X_test=X_test,
             y_pred=y_pred,
             dest_col=&#34;bias&#34;,
-            key_cols=[&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;],
+            key_cols=[&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;],
             compute=compute,
         )
 
@@ -1507,7 +1506,7 @@ computations. Default is <code>True</code>.</dd>
 
         Returns:
             pd.DataFrame:
-                A dataframe with columns `(feature, tau, value, lambda, label,
+                A dataframe with columns `(feature, tau, value, ksi, label,
                 bias, bias_low, bias_high, &lt;metric_name&gt;, &lt;metric_name_low&gt;, &lt;metric_name_high&gt;)`.
                 If `explainer.n_samples` is `1`, no confidence interval is computed
                 and `&lt;metric_name&gt; = &lt;metric_name_low&gt; = &lt;metric_name_high&gt;`.
@@ -1526,19 +1525,20 @@ computations. Default is <code>True</code>.</dd>
         y_test = np.asarray(y_test)
 
         def compute(X_test, y_pred, relevant):
+            keys = relevant.groupby([&#34;feature&#34;, &#34;ksi&#34;]).groups.keys()
             return pd.DataFrame(
                 [
                     (
                         feature,
-                        λ,
+                        ksi,
                         sample_index,
                         metric(
                             y_test[mask],
                             y_pred[mask],
-                            sample_weight=special.softmax(λ * X_test[feature][mask]),
+                            sample_weight=special.softmax(ksi * X_test[feature][mask]),
                         ),
                     )
-                    for (sample_index, mask), (feature, λ) in tqdm(
+                    for (sample_index, mask), (feature, ksi) in tqdm(
                         itertools.product(
                             enumerate(
                                 yield_masks(
@@ -1547,19 +1547,20 @@ computations. Default is <code>True</code>.</dd>
                                     p=self.sample_frac,
                                 )
                             ),
-                            relevant.groupby([&#34;feature&#34;, &#34;lambda&#34;]).groups.keys(),
+                            keys,
                         ),
-                        disable=not self.show_progress_bar,
+                        disable=not self.verbose,
+                        total=len(keys) * self.n_samples,
                     )
                 ],
-                columns=[&#34;feature&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, metric_name],
+                columns=[&#34;feature&#34;, &#34;ksi&#34;, &#34;sample_index&#34;, metric_name],
             )
 
         return self._explain(
             X_test=X_test,
             y_pred=y_pred,
             dest_col=metric_name,
-            key_cols=[&#34;feature&#34;, &#34;lambda&#34;],
+            key_cols=[&#34;feature&#34;, &#34;ksi&#34;],
             compute=compute,
         )
 
@@ -1668,7 +1669,9 @@ computations. Default is <code>True</code>.</dd>
             .reset_index()
         )
 
-    def _plot_explanation(self, explanation, col, y_label, colors=None, yrange=None):
+    def _plot_explanation(
+        self, explanation, col, y_label, colors=None, yrange=None, size=None
+    ):
         features = explanation[&#34;feature&#34;].unique()
 
         if colors is None:
@@ -1676,21 +1679,13 @@ computations. Default is <code>True</code>.</dd>
         elif type(colors) is str:
             colors = {feat: colors for feat in features}
 
+        width = height = None
+        if size is not None:
+            width, height = size
+
         #  There are multiple features, we plot them together with taus
         if len(features) &gt; 1:
-            fig = go.FigureWidget()
-
-            def on_click(trace, points, selector):
-                taus, values = zip(*trace[&#34;customdata&#34;])
-                if not len(points.point_inds):
-                    trace[&#34;x&#34;] = taus
-                    trace[&#34;xaxis&#34;] = &#34;x&#34;
-                    trace[&#34;opacity&#34;] = 0.3
-                    return
-                trace[&#34;x&#34;] = values
-                trace[&#34;xaxis&#34;] = &#34;x2&#34;
-                trace[&#34;opacity&#34;] = 1
-                fig.update_layout(xaxis2=dict(title=trace[&#34;name&#34;]))
+            fig = go.Figure()
 
             for i, feat in enumerate(features):
                 taus = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;tau&#34;]
@@ -1698,35 +1693,38 @@ computations. Default is <code>True</code>.</dd>
                 y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
                 fig.add_trace(
                     go.Scatter(
-                        x=taus if i &gt; 0 else values,
+                        x=taus,
                         y=y,
                         mode=&#34;lines+markers&#34;,
                         hoverinfo=&#34;y&#34;,
                         name=feat,
                         customdata=list(zip(taus, values)),
                         marker=dict(color=colors.get(feat)),
-                        xaxis=&#34;x&#34; if i &gt; 0 else &#34;x2&#34;,
-                        opacity=0.3 if i &gt; 0 else 1,
                     )
                 )
-                fig.data[i].on_click(on_click)
 
             fig.update_layout(
                 margin=dict(t=50, r=50),
-                xaxis=dict(title=&#34;tau&#34;, nticks=5),
-                xaxis2=dict(anchor=&#34;y&#34;, side=&#34;top&#34;, overlaying=&#34;x&#34;, title=features[0]),
-                yaxis=dict(title=y_label, range=yrange, showline=True, showgrid=True),
+                xaxis=dict(
+                    title=&#34;tau&#34;,
+                    nticks=5,
+                    showline=True,
+                    showgrid=True,
+                    zeroline=False,
+                    linecolor=&#34;black&#34;,
+                    gridcolor=&#34;#eee&#34;,
+                ),
+                yaxis=dict(
+                    title=y_label,
+                    range=yrange,
+                    showline=True,
+                    showgrid=True,
+                    linecolor=&#34;black&#34;,
+                    gridcolor=&#34;#eee&#34;,
+                ),
                 plot_bgcolor=&#34;white&#34;,
-            )
-            fig.update_xaxes(
-                showline=True,
-                showgrid=False,
-                zeroline=False,
-                linecolor=&#34;black&#34;,
-                gridcolor=&#34;#eee&#34;,
-            )
-            fig.update_yaxes(
-                showline=True, linecolor=&#34;black&#34;, gridcolor=&#34;#eee&#34;, mirror=True
+                width=width,
+                height=height,
             )
             return fig
 
@@ -1779,6 +1777,8 @@ computations. Default is <code>True</code>.</dd>
             xaxis=dict(title=f&#34;Average {feat}&#34;, zeroline=False),
             yaxis=dict(title=y_label, range=yrange, showline=True),
             plot_bgcolor=&#34;white&#34;,
+            width=width,
+            height=height,
         )
         fig.update_xaxes(
             showline=True, showgrid=True, linecolor=&#34;black&#34;, gridcolor=&#34;#eee&#34;
@@ -1788,14 +1788,18 @@ computations. Default is <code>True</code>.</dd>
         )
         return fig
 
-    def _plot_ranking(self, ranking, score_column, title, colors=None):
-        ranking = ranking.sort_values(by=[score_column])
+    def _plot_ranking(self, ranking, score_column, title, n_features=None, colors=None):
+        if n_features is None:
+            n_features = len(ranking)
+        ascending = n_features &gt;= 0
+        ranking = ranking.sort_values(by=[score_column], ascending=ascending)
+        n_features = abs(n_features)
 
         return go.Figure(
             data=[
                 go.Bar(
-                    x=ranking[score_column],
-                    y=ranking[&#34;feature&#34;],
+                    x=ranking[score_column][-n_features:],
+                    y=ranking[&#34;feature&#34;][-n_features:],
                     orientation=&#34;h&#34;,
                     hoverinfo=&#34;x&#34;,
                     marker=dict(color=colors),
@@ -1824,7 +1828,7 @@ computations. Default is <code>True</code>.</dd>
             ),
         )
 
-    def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+    def plot_bias(self, X_test, y_pred, colors=None, yrange=None, size=None):
         &#34;&#34;&#34;Plot the bias of the model for the features in `X_test`.
 
         Args:
@@ -1855,15 +1859,19 @@ computations. Default is <code>True</code>.</dd>
             raise ValueError(&#34;Cannot plot multiple labels&#34;)
         y_label = f&#39;Average &#34;{labels[0]}&#34;&#39;
         return self._plot_explanation(
-            explanation, &#34;bias&#34;, y_label, colors=colors, yrange=yrange
+            explanation, &#34;bias&#34;, y_label, colors=colors, yrange=yrange, size=size
         )
 
-    def plot_bias_ranking(self, X_test, y_pred, colors=None):
+    def plot_bias_ranking(self, X_test, y_pred, n_features=None, colors=None):
         &#34;&#34;&#34;Plot the ranking of the features based on their bias.
 
         Args:
             X_test (pd.DataFrame or np.array): See `Explainer.explain_bias()`.
             y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_bias()`.
+            n_features (int, optional): The number of features to plot. With the
+                default (`None`), all of them are shown. For a positive value,
+                we keep the `n_features` first features (the most impactful). For
+                a negative value, we keep the `n_features` last features.
             colors (dict, optional): See `Explainer.plot_bias()`.
 
         Returns:
@@ -1877,11 +1885,12 @@ computations. Default is <code>True</code>.</dd>
             ranking=ranking,
             score_column=&#34;importance&#34;,
             title=&#34;Importance&#34;,
+            n_features=n_features,
             colors=colors,
         )
 
     def plot_performance(
-        self, X_test, y_test, y_pred, metric, colors=None, yrange=None
+        self, X_test, y_test, y_pred, metric, colors=None, yrange=None, size=None
     ):
         &#34;&#34;&#34;Plot the performance of the model for the features in `X_test`.
 
@@ -1913,10 +1922,11 @@ computations. Default is <code>True</code>.</dd>
             y_label=f&#34;Average {metric_name}&#34;,
             colors=colors,
             yrange=yrange,
+            size=size,
         )
 
     def plot_performance_ranking(
-        self, X_test, y_test, y_pred, metric, criterion, colors=None
+        self, X_test, y_test, y_pred, metric, criterion, n_features=None, colors=None
     ):
         &#34;&#34;&#34;Plot the performance of the model for the features in `X_test`.
 
@@ -1928,6 +1938,10 @@ computations. Default is <code>True</code>.</dd>
             criterion (str): Either &#34;min&#34; or &#34;max&#34; to determine whether, for a
                 given feature, we keep the worst or the best performance for all
                 the values taken by the mean. See `Explainer.rank_by_performance()`.
+            n_features (int, optional): The number of features to plot. With the
+                default (`None`), all of them are shown. For a positive value,
+                we keep the `n_features` first features (the most impactful). For
+                a negative value, we keep the `n_features` last features.
             colors (dict, optional): See `Explainer.plot_bias_ranking()`.
 
         Returns:
@@ -1944,6 +1958,7 @@ computations. Default is <code>True</code>.</dd>
             ranking=ranking,
             score_column=criterion,
             title=f&#34;{criterion} {metric_name}&#34;,
+            n_features=n_features,
             colors=colors,
         )</code></pre>
 </details>
@@ -2000,7 +2015,7 @@ expected. The values can either be probabilities or <code>0/1</code>
 <h2 id="returns">Returns</h2>
 <dl>
 <dt><code>pd.DataFrame</code>:</dt>
-<dd>A dataframe with columns <code>(feature, tau, value, lambda, label,
+<dd>A dataframe with columns <code>(feature, tau, value, ksi, label,
 bias, bias_low, bias_high)</code>. If <code>explainer.n_samples</code> is <code>1</code>,
 no confidence interval is computed and <code>bias = bias_low = bias_high</code>.
 The value of <code>label</code> is not important for regression.</dd>
@@ -2063,7 +2078,7 @@ The value of <code>label</code> is not important for regression.</dd>
 
     Returns:
         pd.DataFrame:
-            A dataframe with columns `(feature, tau, value, lambda, label,
+            A dataframe with columns `(feature, tau, value, ksi, label,
             bias, bias_low, bias_high)`. If `explainer.n_samples` is `1`,
             no confidence interval is computed and `bias = bias_low = bias_high`.
             The value of `label` is not important for regression.
@@ -2115,19 +2130,20 @@ The value of <code>label</code> is not important for regression.</dd>
     &#34;&#34;&#34;
 
     def compute(X_test, y_pred, relevant):
+        keys = relevant.groupby([&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;]).groups.keys()
         return pd.DataFrame(
             [
                 (
                     feature,
                     label,
-                    λ,
+                    ksi,
                     sample_index,
                     np.average(
                         y_pred[label][mask],
-                        weights=special.softmax(λ * X_test[feature][mask]),
+                        weights=special.softmax(ksi * X_test[feature][mask]),
                     ),
                 )
-                for (sample_index, mask), (feature, label, λ) in tqdm(
+                for (sample_index, mask), (feature, label, ksi) in tqdm(
                     itertools.product(
                         enumerate(
                             yield_masks(
@@ -2136,21 +2152,20 @@ The value of <code>label</code> is not important for regression.</dd>
                                 p=self.sample_frac,
                             )
                         ),
-                        relevant.groupby(
-                            [&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;]
-                        ).groups.keys(),
+                        keys,
                     ),
-                    disable=not self.show_progress_bar,
+                    disable=not self.verbose,
+                    total=len(keys) * self.n_samples,
                 )
             ],
-            columns=[&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, &#34;bias&#34;],
+            columns=[&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;, &#34;sample_index&#34;, &#34;bias&#34;],
         )
 
     return self._explain(
         X_test=X_test,
         y_pred=y_pred,
         dest_col=&#34;bias&#34;,
-        key_cols=[&#34;feature&#34;, &#34;label&#34;, &#34;lambda&#34;],
+        key_cols=[&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;],
         compute=compute,
     )</code></pre>
 </details>
@@ -2185,7 +2200,7 @@ corresponding set of labels in <code>y_true</code>".</dd>
 <h2 id="returns">Returns</h2>
 <dl>
 <dt><code>pd.DataFrame</code>:</dt>
-<dd>A dataframe with columns <code>(feature, tau, value, lambda, label,
+<dd>A dataframe with columns <code>(feature, tau, value, ksi, label,
 bias, bias_low, bias_high, &lt;metric_name&gt;, &lt;metric_name_low&gt;, &lt;metric_name_high&gt;)</code>.
 If <code>explainer.n_samples</code> is <code>1</code>, no confidence interval is computed
 and <code>&lt;metric_name&gt; = &lt;metric_name_low&gt; = &lt;metric_name_high&gt;</code>.
@@ -2217,7 +2232,7 @@ The value of <code>label</code> is not important for regression.</dd>
 
     Returns:
         pd.DataFrame:
-            A dataframe with columns `(feature, tau, value, lambda, label,
+            A dataframe with columns `(feature, tau, value, ksi, label,
             bias, bias_low, bias_high, &lt;metric_name&gt;, &lt;metric_name_low&gt;, &lt;metric_name_high&gt;)`.
             If `explainer.n_samples` is `1`, no confidence interval is computed
             and `&lt;metric_name&gt; = &lt;metric_name_low&gt; = &lt;metric_name_high&gt;`.
@@ -2236,19 +2251,20 @@ The value of <code>label</code> is not important for regression.</dd>
     y_test = np.asarray(y_test)
 
     def compute(X_test, y_pred, relevant):
+        keys = relevant.groupby([&#34;feature&#34;, &#34;ksi&#34;]).groups.keys()
         return pd.DataFrame(
             [
                 (
                     feature,
-                    λ,
+                    ksi,
                     sample_index,
                     metric(
                         y_test[mask],
                         y_pred[mask],
-                        sample_weight=special.softmax(λ * X_test[feature][mask]),
+                        sample_weight=special.softmax(ksi * X_test[feature][mask]),
                     ),
                 )
-                for (sample_index, mask), (feature, λ) in tqdm(
+                for (sample_index, mask), (feature, ksi) in tqdm(
                     itertools.product(
                         enumerate(
                             yield_masks(
@@ -2257,19 +2273,20 @@ The value of <code>label</code> is not important for regression.</dd>
                                 p=self.sample_frac,
                             )
                         ),
-                        relevant.groupby([&#34;feature&#34;, &#34;lambda&#34;]).groups.keys(),
+                        keys,
                     ),
-                    disable=not self.show_progress_bar,
+                    disable=not self.verbose,
+                    total=len(keys) * self.n_samples,
                 )
             ],
-            columns=[&#34;feature&#34;, &#34;lambda&#34;, &#34;sample_index&#34;, metric_name],
+            columns=[&#34;feature&#34;, &#34;ksi&#34;, &#34;sample_index&#34;, metric_name],
         )
 
     return self._explain(
         X_test=X_test,
         y_pred=y_pred,
         dest_col=metric_name,
-        key_cols=[&#34;feature&#34;, &#34;lambda&#34;],
+        key_cols=[&#34;feature&#34;, &#34;ksi&#34;],
         compute=compute,
     )</code></pre>
 </details>
@@ -2309,7 +2326,7 @@ performance with respect of the given metric.</p>
 </details>
 </dd>
 <dt id="ethik.explainer.Explainer.plot_bias"><code class="name flex">
-<span>def <span class="ident">plot_bias</span></span>(<span>self, X_test, y_pred, colors=None, yrange=None)</span>
+<span>def <span class="ident">plot_bias</span></span>(<span>self, X_test, y_pred, colors=None, yrange=None, size=None)</span>
 </code></dt>
 <dd>
 <section class="desc"><p>Plot the bias of the model for the features in <code>X_test</code>.</p>
@@ -2343,7 +2360,7 @@ same cell.</dd>
 </code></pre></section>
 <details class="source">
 <summary>Source code</summary>
-<pre><code class="python">def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+<pre><code class="python">def plot_bias(self, X_test, y_pred, colors=None, yrange=None, size=None):
     &#34;&#34;&#34;Plot the bias of the model for the features in `X_test`.
 
     Args:
@@ -2374,12 +2391,12 @@ same cell.</dd>
         raise ValueError(&#34;Cannot plot multiple labels&#34;)
     y_label = f&#39;Average &#34;{labels[0]}&#34;&#39;
     return self._plot_explanation(
-        explanation, &#34;bias&#34;, y_label, colors=colors, yrange=yrange
+        explanation, &#34;bias&#34;, y_label, colors=colors, yrange=yrange, size=size
     )</code></pre>
 </details>
 </dd>
 <dt id="ethik.explainer.Explainer.plot_bias_ranking"><code class="name flex">
-<span>def <span class="ident">plot_bias_ranking</span></span>(<span>self, X_test, y_pred, colors=None)</span>
+<span>def <span class="ident">plot_bias_ranking</span></span>(<span>self, X_test, y_pred, n_features=None, colors=None)</span>
 </code></dt>
 <dd>
 <section class="desc"><p>Plot the ranking of the features based on their bias.</p>
@@ -2389,6 +2406,11 @@ same cell.</dd>
 <dd>See <a title="ethik.explainer.Explainer.explain_bias" href="#ethik.explainer.Explainer.explain_bias"><code>Explainer.explain_bias()</code></a>.</dd>
 <dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
 <dd>See <a title="ethik.explainer.Explainer.explain_bias" href="#ethik.explainer.Explainer.explain_bias"><code>Explainer.explain_bias()</code></a>.</dd>
+<dt><strong><code>n_features</code></strong> :&ensp;<code>int</code>, optional</dt>
+<dd>The number of features to plot. With the
+default (<code>None</code>), all of them are shown. For a positive value,
+we keep the <code>n_features</code> first features (the most impactful). For
+a negative value, we keep the <code>n_features</code> last features.</dd>
 <dt><strong><code>colors</code></strong> :&ensp;<code>dict</code>, optional</dt>
 <dd>See <a title="ethik.explainer.Explainer.plot_bias" href="#ethik.explainer.Explainer.plot_bias"><code>Explainer.plot_bias()</code></a>.</dd>
 </dl>
@@ -2401,12 +2423,16 @@ same cell.</dd>
 </dl></section>
 <details class="source">
 <summary>Source code</summary>
-<pre><code class="python">def plot_bias_ranking(self, X_test, y_pred, colors=None):
+<pre><code class="python">def plot_bias_ranking(self, X_test, y_pred, n_features=None, colors=None):
     &#34;&#34;&#34;Plot the ranking of the features based on their bias.
 
     Args:
         X_test (pd.DataFrame or np.array): See `Explainer.explain_bias()`.
         y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_bias()`.
+        n_features (int, optional): The number of features to plot. With the
+            default (`None`), all of them are shown. For a positive value,
+            we keep the `n_features` first features (the most impactful). For
+            a negative value, we keep the `n_features` last features.
         colors (dict, optional): See `Explainer.plot_bias()`.
 
     Returns:
@@ -2420,12 +2446,13 @@ same cell.</dd>
         ranking=ranking,
         score_column=&#34;importance&#34;,
         title=&#34;Importance&#34;,
+        n_features=n_features,
         colors=colors,
     )</code></pre>
 </details>
 </dd>
 <dt id="ethik.explainer.Explainer.plot_performance"><code class="name flex">
-<span>def <span class="ident">plot_performance</span></span>(<span>self, X_test, y_test, y_pred, metric, colors=None, yrange=None)</span>
+<span>def <span class="ident">plot_performance</span></span>(<span>self, X_test, y_test, y_pred, metric, colors=None, yrange=None, size=None)</span>
 </code></dt>
 <dd>
 <section class="desc"><p>Plot the performance of the model for the features in <code>X_test</code>.</p>
@@ -2454,7 +2481,7 @@ same cell.</dd>
 <details class="source">
 <summary>Source code</summary>
 <pre><code class="python">def plot_performance(
-    self, X_test, y_test, y_pred, metric, colors=None, yrange=None
+    self, X_test, y_test, y_pred, metric, colors=None, yrange=None, size=None
 ):
     &#34;&#34;&#34;Plot the performance of the model for the features in `X_test`.
 
@@ -2486,11 +2513,12 @@ same cell.</dd>
         y_label=f&#34;Average {metric_name}&#34;,
         colors=colors,
         yrange=yrange,
+        size=size,
     )</code></pre>
 </details>
 </dd>
 <dt id="ethik.explainer.Explainer.plot_performance_ranking"><code class="name flex">
-<span>def <span class="ident">plot_performance_ranking</span></span>(<span>self, X_test, y_test, y_pred, metric, criterion, colors=None)</span>
+<span>def <span class="ident">plot_performance_ranking</span></span>(<span>self, X_test, y_test, y_pred, metric, criterion, n_features=None, colors=None)</span>
 </code></dt>
 <dd>
 <section class="desc"><p>Plot the performance of the model for the features in <code>X_test</code>.</p>
@@ -2508,6 +2536,11 @@ same cell.</dd>
 <dd>Either "min" or "max" to determine whether, for a
 given feature, we keep the worst or the best performance for all
 the values taken by the mean. See <a title="ethik.explainer.Explainer.rank_by_performance" href="#ethik.explainer.Explainer.rank_by_performance"><code>Explainer.rank_by_performance()</code></a>.</dd>
+<dt><strong><code>n_features</code></strong> :&ensp;<code>int</code>, optional</dt>
+<dd>The number of features to plot. With the
+default (<code>None</code>), all of them are shown. For a positive value,
+we keep the <code>n_features</code> first features (the most impactful). For
+a negative value, we keep the <code>n_features</code> last features.</dd>
 <dt><strong><code>colors</code></strong> :&ensp;<code>dict</code>, optional</dt>
 <dd>See <a title="ethik.explainer.Explainer.plot_bias_ranking" href="#ethik.explainer.Explainer.plot_bias_ranking"><code>Explainer.plot_bias_ranking()</code></a>.</dd>
 </dl>
@@ -2521,7 +2554,7 @@ same cell.</dd>
 <details class="source">
 <summary>Source code</summary>
 <pre><code class="python">def plot_performance_ranking(
-    self, X_test, y_test, y_pred, metric, criterion, colors=None
+    self, X_test, y_test, y_pred, metric, criterion, n_features=None, colors=None
 ):
     &#34;&#34;&#34;Plot the performance of the model for the features in `X_test`.
 
@@ -2533,6 +2566,10 @@ same cell.</dd>
         criterion (str): Either &#34;min&#34; or &#34;max&#34; to determine whether, for a
             given feature, we keep the worst or the best performance for all
             the values taken by the mean. See `Explainer.rank_by_performance()`.
+        n_features (int, optional): The number of features to plot. With the
+            default (`None`), all of them are shown. For a positive value,
+            we keep the `n_features` first features (the most impactful). For
+            a negative value, we keep the `n_features` last features.
         colors (dict, optional): See `Explainer.plot_bias_ranking()`.
 
     Returns:
@@ -2549,6 +2586,7 @@ same cell.</dd>
         ranking=ranking,
         score_column=criterion,
         title=f&#34;{criterion} {metric_name}&#34;,
+        n_features=n_features,
         colors=colors,
     )</code></pre>
 </details>

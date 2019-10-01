@@ -9,7 +9,7 @@ __all__ = ["ClassificationExplainer"]
 
 
 class ClassificationExplainer(Explainer):
-    def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+    def plot_bias(self, X_test, y_pred, colors=None, yrange=None, size=None):
         """Plot the bias for the features in `X_test`.
 
         See `ethik.explainer.Explainer.plot_bias()`.
@@ -22,7 +22,7 @@ class ClassificationExplainer(Explainer):
 
         if len(y_pred.columns) == 1:
             return super().plot_bias(
-                X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange
+                X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange, size=size
             )
 
         if colors is None:
@@ -46,8 +46,35 @@ class ClassificationExplainer(Explainer):
                 trace["legendgroup"] = trace["name"]
                 fig.add_trace(trace, row=ilabel + 1, col=1)
 
-        xlabel = "tau" if len(X_test.columns) > 1 else f"Average {X_test.columns[0]}"
+        width = height = None
+        if size is not None:
+            width, height = size
+
+        fig.update_xaxes(
+            nticks=5,
+            showline=True,
+            showgrid=True,
+            zeroline=False,
+            linecolor="black",
+            gridcolor="#eee",
+        )
+        fig.update_yaxes(
+            range=yrange,
+            showline=True,
+            showgrid=True,
+            linecolor="black",
+            gridcolor="#eee",
+        )
         fig.update_layout(
-            {f"xaxis{len(labels)}": dict(title=xlabel), "plot_bgcolor": "white"}
+            {
+                f"xaxis{len(labels)}": dict(
+                    title="tau"
+                    if len(X_test.columns) > 1
+                    else f"Average {X_test.columns[0]}"
+                ),
+                "plot_bgcolor": "white",
+                "width": width,
+                "height": height,
+            }
         )
         return fig
