@@ -157,6 +157,7 @@ from .__version__ import __version__
 from .classification_explainer import ClassificationExplainer
 from .regression_explainer import RegressionExplainer
 from .image_classification_explainer import ImageClassificationExplainer
+from .utils import extract_category
 
 
 __all__ = [
@@ -165,6 +166,7 @@ __all__ = [
     &#34;RegressionExplainer&#34;,
     &#34;ClassificationExplainer&#34;,
     &#34;ImageClassificationExplainer&#34;,
+    &#34;extract_category&#34;,
 ]</code></pre>
 </details>
 </section>
@@ -200,13 +202,27 @@ __all__ = [
 <section>
 </section>
 <section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="ethik.extract_category"><code class="name flex">
+<span>def <span class="ident">extract_category</span></span>(<span>X, cat)</span>
+</code></dt>
+<dd>
+<section class="desc"></section>
+<details class="source">
+<summary>Source code</summary>
+<pre><code class="python">def extract_category(X, cat):
+    return pd.get_dummies(X)[cat].rename(f&#34;{X.name}={cat}&#34;)</code></pre>
+</details>
+</dd>
+</dl>
 </section>
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
 <dt id="ethik.ClassificationExplainer"><code class="flex name class">
 <span>class <span class="ident">ClassificationExplainer</span></span>
-<span>(</span><span>alpha=0.05, n_taus=41, n_samples=1, sample_frac=0.8, conf_level=0.05, max_iterations=15, tol=0.001, n_jobs=1, memoize=False, verbose=False, show_progress_bar=True)</span>
+<span>(</span><span>alpha=0.05, n_taus=41, n_samples=1, sample_frac=0.8, conf_level=0.05, max_iterations=15, tol=0.001, n_jobs=1, memoize=False, verbose=True)</span>
 </code></dt>
 <dd>
 <section class="desc"><p>Explains the bias and reliability of model predictions.</p>
@@ -254,16 +270,13 @@ reused by successively called methods. For example, if you call <code>plot_bias<
 <code>plot_bias</code> will be reused for <code>plot_bias_ranking</code>. Memoization is turned off by
 default because it can lead to unexpected behavior depending on your usage.</dd>
 <dt><strong><code>verbose</code></strong> :&ensp;<code>bool</code></dt>
-<dd>Passed to <code>joblib.Parallel()</code> for parallel computations.
-Default is <code>False</code>.</dd>
-<dt><strong><code>show_progress_bar</code></strong> :&ensp;<code>bool</code></dt>
 <dd>Whether or not to show progress bars during
 computations. Default is <code>True</code>.</dd>
 </dl></section>
 <details class="source">
 <summary>Source code</summary>
 <pre><code class="python">class ClassificationExplainer(Explainer):
-    def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+    def plot_bias(self, X_test, y_pred, colors=None, yrange=None, size=None):
         &#34;&#34;&#34;Plot the bias for the features in `X_test`.
 
         See `ethik.explainer.Explainer.plot_bias()`.
@@ -276,7 +289,7 @@ computations. Default is <code>True</code>.</dd>
 
         if len(y_pred.columns) == 1:
             return super().plot_bias(
-                X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange
+                X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange, size=size
             )
 
         if colors is None:
@@ -300,9 +313,36 @@ computations. Default is <code>True</code>.</dd>
                 trace[&#34;legendgroup&#34;] = trace[&#34;name&#34;]
                 fig.add_trace(trace, row=ilabel + 1, col=1)
 
-        xlabel = &#34;tau&#34; if len(X_test.columns) &gt; 1 else f&#34;Average {X_test.columns[0]}&#34;
+        width = height = None
+        if size is not None:
+            width, height = size
+
+        fig.update_xaxes(
+            nticks=5,
+            showline=True,
+            showgrid=True,
+            zeroline=False,
+            linecolor=&#34;black&#34;,
+            gridcolor=&#34;#eee&#34;,
+        )
+        fig.update_yaxes(
+            range=yrange,
+            showline=True,
+            showgrid=True,
+            linecolor=&#34;black&#34;,
+            gridcolor=&#34;#eee&#34;,
+        )
         fig.update_layout(
-            {f&#34;xaxis{len(labels)}&#34;: dict(title=xlabel), &#34;plot_bgcolor&#34;: &#34;white&#34;}
+            {
+                f&#34;xaxis{len(labels)}&#34;: dict(
+                    title=&#34;tau&#34;
+                    if len(X_test.columns) &gt; 1
+                    else f&#34;Average {X_test.columns[0]}&#34;
+                ),
+                &#34;plot_bgcolor&#34;: &#34;white&#34;,
+                &#34;width&#34;: width,
+                &#34;height&#34;: height,
+            }
         )
         return fig</code></pre>
 </details>
@@ -313,14 +353,14 @@ computations. Default is <code>True</code>.</dd>
 <h3>Methods</h3>
 <dl>
 <dt id="ethik.ClassificationExplainer.plot_bias"><code class="name flex">
-<span>def <span class="ident">plot_bias</span></span>(<span>self, X_test, y_pred, colors=None, yrange=None)</span>
+<span>def <span class="ident">plot_bias</span></span>(<span>self, X_test, y_pred, colors=None, yrange=None, size=None)</span>
 </code></dt>
 <dd>
 <section class="desc"><p>Plot the bias for the features in <code>X_test</code>.</p>
 <p>See <a title="ethik.explainer.Explainer.plot_bias" href="explainer.html#ethik.explainer.Explainer.plot_bias"><code>Explainer.plot_bias()</code></a>.</p></section>
 <details class="source">
 <summary>Source code</summary>
-<pre><code class="python">def plot_bias(self, X_test, y_pred, colors=None, yrange=None):
+<pre><code class="python">def plot_bias(self, X_test, y_pred, colors=None, yrange=None, size=None):
     &#34;&#34;&#34;Plot the bias for the features in `X_test`.
 
     See `ethik.explainer.Explainer.plot_bias()`.
@@ -333,7 +373,7 @@ computations. Default is <code>True</code>.</dd>
 
     if len(y_pred.columns) == 1:
         return super().plot_bias(
-            X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange
+            X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange, size=size
         )
 
     if colors is None:
@@ -357,9 +397,36 @@ computations. Default is <code>True</code>.</dd>
             trace[&#34;legendgroup&#34;] = trace[&#34;name&#34;]
             fig.add_trace(trace, row=ilabel + 1, col=1)
 
-    xlabel = &#34;tau&#34; if len(X_test.columns) &gt; 1 else f&#34;Average {X_test.columns[0]}&#34;
+    width = height = None
+    if size is not None:
+        width, height = size
+
+    fig.update_xaxes(
+        nticks=5,
+        showline=True,
+        showgrid=True,
+        zeroline=False,
+        linecolor=&#34;black&#34;,
+        gridcolor=&#34;#eee&#34;,
+    )
+    fig.update_yaxes(
+        range=yrange,
+        showline=True,
+        showgrid=True,
+        linecolor=&#34;black&#34;,
+        gridcolor=&#34;#eee&#34;,
+    )
     fig.update_layout(
-        {f&#34;xaxis{len(labels)}&#34;: dict(title=xlabel), &#34;plot_bgcolor&#34;: &#34;white&#34;}
+        {
+            f&#34;xaxis{len(labels)}&#34;: dict(
+                title=&#34;tau&#34;
+                if len(X_test.columns) &gt; 1
+                else f&#34;Average {X_test.columns[0]}&#34;
+            ),
+            &#34;plot_bgcolor&#34;: &#34;white&#34;,
+            &#34;width&#34;: width,
+            &#34;height&#34;: height,
+        }
     )
     return fig</code></pre>
 </details>
@@ -383,7 +450,7 @@ computations. Default is <code>True</code>.</dd>
 </dd>
 <dt id="ethik.ImageClassificationExplainer"><code class="flex name class">
 <span>class <span class="ident">ImageClassificationExplainer</span></span>
-<span>(</span><span>alpha=0.05, max_iterations=10, tol=0.001, n_jobs=-1, memoize=True, verbose=False, show_progress_bar=True)</span>
+<span>(</span><span>alpha=0.05, max_iterations=10, tol=0.001, n_jobs=-1, memoize=True, verbose=True)</span>
 </code></dt>
 <dd>
 <section class="desc"><p>An explainer specially suited for image classification.</p>
@@ -416,9 +483,6 @@ reused by successively called methods. For example, if you call <code>plot_bias<
 <code>plot_bias</code> will be reused for <code>plot_bias_ranking</code>. Memoization is turned on by
 default because computations are time-consuming for images.</dd>
 <dt><strong><code>verbose</code></strong> :&ensp;<code>bool</code></dt>
-<dd>Passed to <code>joblib.Parallel()</code> for parallel computations.
-Default is <code>False</code>.</dd>
-<dt><strong><code>show_progress_bar</code></strong> :&ensp;<code>bool</code></dt>
 <dd>Whether or not to show progress bars during
 computations. Default is <code>True</code>.</dd>
 </dl></section>
@@ -451,9 +515,7 @@ computations. Default is <code>True</code>.</dd>
             `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
             `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned on by
             default because computations are time-consuming for images.
-        verbose (bool): Passed to `joblib.Parallel()` for parallel computations.
-            Default is `False`.
-        show_progress_bar (bool): Whether or not to show progress bars during
+        verbose (bool): Whether or not to show progress bars during
             computations. Default is `True`.
     &#34;&#34;&#34;
 
@@ -464,8 +526,7 @@ computations. Default is <code>True</code>.</dd>
         tol=1e-3,
         n_jobs=-1,
         memoize=True,
-        verbose=False,
-        show_progress_bar=True,
+        verbose=True,
     ):
         super().__init__(
             alpha=alpha,
@@ -475,7 +536,6 @@ computations. Default is <code>True</code>.</dd>
             n_jobs=n_jobs,
             memoize=memoize,
             verbose=verbose,
-            show_progress_bar=show_progress_bar,
         )
 
     def _set_image_shape(self, images):
@@ -966,7 +1026,7 @@ same cell.</p>
 </dd>
 <dt id="ethik.RegressionExplainer"><code class="flex name class">
 <span>class <span class="ident">RegressionExplainer</span></span>
-<span>(</span><span>alpha=0.05, n_taus=41, n_samples=1, sample_frac=0.8, conf_level=0.05, max_iterations=15, tol=0.001, n_jobs=1, memoize=False, verbose=False, show_progress_bar=True)</span>
+<span>(</span><span>alpha=0.05, n_taus=41, n_samples=1, sample_frac=0.8, conf_level=0.05, max_iterations=15, tol=0.001, n_jobs=1, memoize=False, verbose=True)</span>
 </code></dt>
 <dd>
 <section class="desc"><p>Explains the bias and reliability of model predictions.</p>
@@ -1014,9 +1074,6 @@ reused by successively called methods. For example, if you call <code>plot_bias<
 <code>plot_bias</code> will be reused for <code>plot_bias_ranking</code>. Memoization is turned off by
 default because it can lead to unexpected behavior depending on your usage.</dd>
 <dt><strong><code>verbose</code></strong> :&ensp;<code>bool</code></dt>
-<dd>Passed to <code>joblib.Parallel()</code> for parallel computations.
-Default is <code>False</code>.</dd>
-<dt><strong><code>show_progress_bar</code></strong> :&ensp;<code>bool</code></dt>
 <dd>Whether or not to show progress bars during
 computations. Default is <code>True</code>.</dd>
 </dl></section>
@@ -1070,6 +1127,11 @@ computations. Default is <code>True</code>.</dd>
 <li><code><a title="ethik.image_classification_explainer" href="image_classification_explainer.html">ethik.image_classification_explainer</a></code></li>
 <li><code><a title="ethik.regression_explainer" href="regression_explainer.html">ethik.regression_explainer</a></code></li>
 <li><code><a title="ethik.utils" href="utils.html">ethik.utils</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="ethik.extract_category" href="#ethik.extract_category">extract_category</a></code></li>
 </ul>
 </li>
 <li><h3><a href="#header-classes">Classes</a></h3>
