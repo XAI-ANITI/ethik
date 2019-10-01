@@ -835,13 +835,13 @@ class Explainer:
             n_features = len(ranking)
         ascending = n_features >= 0
         ranking = ranking.sort_values(by=[score_column], ascending=ascending)
-        n_features = -1 * abs(n_features)
+        n_features = abs(n_features)
 
         return go.Figure(
             data=[
                 go.Bar(
-                    x=ranking[score_column][n_features:],
-                    y=ranking["feature"][n_features:],
+                    x=ranking[score_column][-n_features:],
+                    y=ranking["feature"][-n_features:],
                     orientation="h",
                     hoverinfo="x",
                     marker=dict(color=colors),
