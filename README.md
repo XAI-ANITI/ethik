@@ -7,13 +7,17 @@
   <a href="https://travis-ci.org/MaxHalford/ethik">
     <img src="https://img.shields.io/travis/MaxHalford/ethik/master.svg?style=for-the-badge" alt="travis" />
   </a>
+  <!-- PyPI -->
+  <a href="https://pypi.org/project/ethik">
+    <img src="https://img.shields.io/pypi/v/ethik.svg?style=for-the-badge" alt="pypi" />
+  </a>
   <!-- License -->
   <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">
     <img src="https://img.shields.io/badge/License-GPL%20v3-blue.svg?style=for-the-badge" alt="gpl_3_license"/>
   </a>
 </div>
 
-# Ethik
+## Table of contents
 
 * [Introduction](#introduction)
 * [Installation](#installation)
@@ -42,13 +46,11 @@ Currently, `ethik` can be used for:
 
 :warning: Python 3.6 or above is required :snake:
 
-<!---
 **Via [PyPI](https://pypi.org/project/ethik/)**
 
 ```shell
 >>> pip install ethik
 ```
--->
 
 **Via GitHub for the latest development version**
 
