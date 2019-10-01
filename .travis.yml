@@ -9,12 +9,11 @@ stages:
   - doc
   - pypi
 
+install: make install_dev
+script: make -j 4 test
+
 jobs:
   include:
-
-  - stage: test
-    install: make install_dev
-    script: make -j 4 test
 
   - stage: doc
     python: 3.7
