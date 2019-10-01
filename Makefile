@@ -16,7 +16,7 @@ test_syntax:
 test: test_nb test_unit test_syntax
 
 update_nb:
-	jupyter nbconvert --execute --to notebook --inplace notebooks/*.ipynb --ExecutePreprocessor.kernel_name=${IPY_KERNEL}
+	jupyter nbconvert --execute --to notebook --inplace notebooks/*.ipynb --ExecutePreprocessor.kernel_name=${IPY_KERNEL} --ExecutePreprocessor.timeout=300
 
 nb_to_html: update_nb
 	rm -rf docs/notebooks
