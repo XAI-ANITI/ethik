@@ -5,8 +5,7 @@
 * [User guide](#user-guide)
     * [Measuring model bias](#measuring-model-bias)
     * [Evaluating model reliability](#evaluating-model-reliability)
-    * [Handling images](#handling-images)
-* [API](#api)
+    * [Support for image classification](#support-for-image-classification)
 * [Authors](#authors)
 * [License](#license)
 
@@ -22,7 +21,7 @@ Currently, `ethik` can be used for:
 
 1. Detecting model bias with respect to one or more (protected) attributes.
 2. Identifying causes for why the model performs poorly on certain inputs.
-3. Visualizing which regions of an image influence a model's predictions.
+3. Visualizing regions of an image influence a model's predictions.
 
 ## Installation
 
@@ -95,7 +94,7 @@ explainer.plot_bias(X_test=X_test['age'], y_pred=y_pred)
 ```
 
 <div align="center">
-    <img src="docs/figures/age_bias.png" alt="Age bias" />
+  <img src="docs/figures/age_bias.png" alt="Age bias" />
 </div>
 
 Recall that the target indicates if a person's annual salary is above $50k. **We can see that the model predicts higher probabilities for older people**. This isn't a surprising result, and could have just as well been observed by looking at the data. However, we can see that the predictions plateau at around 50 years old. Indeed, although salary is correlated with age, some people may retire early or lose their job. Furthermore we can see that the model understands the fact that salaries shrink once people get in age of retiring. This up-and-down relationship is in nature non-linear, and isn't picked up by summary statistics such as correlation coefficients, [odds ratios](https://www.wikiwand.com/en/Odds_ratio), and feature importances in general. Although the observations we made are quite obvious and rather intuitive, it's always good to confirm what the model is thinking. The point is that the curves produced by `plot_predictions` represent the relationship between a variable and the target according to the model, rather than the data.
@@ -107,7 +106,7 @@ explainer.plot_bias(X_test=X_test['age', 'education-num'], y_pred=y_pred)
 ```
 
 <div align="center">
-    <img src="docs/figures/age_education_bias.png" alt="Age and education bias" />
+  <img src="docs/figures/age_education_bias.png" alt="Age and education bias" />
 </div>
 
 We can observe that the model assigns higher probabilities to people with higher degrees, which makes perfect sense. Again, this conveys much more of a story than summary statistics.
@@ -126,7 +125,7 @@ explainer.plot_performance(
 ```
 
 <div align="center">
-    <img src="docs/figures/age_accuracy.png" alt="Age accuracy" />
+  <img src="docs/figures/age_accuracy.png" alt="Age accuracy" />
 </div>
 
 In the above figure **we can see that the model is more reliable for younger people than for older ones**. Having a fine-grained understanding of the accuracy of a model can be of extreme help in real-life scenarios. Moreover this can help you understand from where the error of the model is coming from and guide your data science process.
@@ -143,37 +142,34 @@ explainer.plot_performance(
 ```
 
 <div align="center">
-    <img src="docs/figures/age_education_accuracy.png" alt="Age and education accuracy" />
+  <img src="docs/figures/age_education_accuracy.png" alt="Age and education accuracy" />
 </div>
 
-### Handling images
+### Support for image classification
 
-A special class named `ImageExplainer` can be used to analyze image classification models. It has the same API as `Explainer` but expects to be provided with an array of images. For example we can analyze a CNN run on the MNIST dataset [from the Keras documendation](https://keras.io/examples/mnist_cnn/). The model achieves an accuracy of around 99% on the test set.
-
-**`ImageExplainer` is being migrated to the new API and does not work for now.**
-
-<!---
-We'll first produce predictions for the test set. `x_test` is expected to be an array of shape (`n_images`, `width`, `height`, `n_channels`). Because we are using the MNIST dataset, `x_test` is an array of shape `(10000, 28, 28, 1)`.
+A special class named `ImageClassificationExplainer` can be used to analyze image classification models. It has the same API as `ClassificationExplainer`, but expects to be provided with an array of images. For instance, we can analyze a CNN run on the MNIST dataset [from the Keras documendation](https://keras.io/examples/mnist_cnn/). The model achieves an accuracy of around 99% on the test set. For the sake of brevity we will the skip the exact details of the model training.
 
 ```python
-y_pred = model.predict_proba(x_test)
+(x_train, y_train), (x_test, y_test) = mnist.load_data()
+
+cnn.fit(x_train, y_train)
+y_pred = cnn.predict_proba(x_test)
 ```
 
-We will now fit an `ImageExplainer` to analyze the images in parallel using `n_jobs=-1`.
+`x_test` is a set of images of shape `(10000, 28, 28)` whilst `y_pred` is a set of probabilities predicted for digit by the CNN, and is thus of shape `(10000, 10)`. We can use the `plot_bias` method to display the importance of each pixel for the classifier with respect to each label.
 
 ```python
 import ethik
 
-explainer = ethik.ImageExplainer(n_jobs=-1)
-explainer = explainer.fit(x_test)
+explainer = ethik.ImageClassificationExplainer()
+explainer.plot_bias(x_test, y_pred)
 ```
--->
 
+<div align="center">
+  <img src="docs/figures/image_bias_explanation.png" alt="Image bias explanation" />
+</div>
 
-## API
-
-**Working on it.**
-
+This takes around 15 seconds to run on a mid-tier laptop. The previous plot highlights the regions of importance for identifying each digit. More precisely, the intensity of each pixel corresponds to probability increase of saturating or not the pixel. A value of 0.28 means that saturating the pixel increases the probability predicted by the model by 0.28. Note that we do not saturate and desaturate the pixel independently. Instead, our method understands which pixels are linked together and saturates them in a realistic manner.
 
 ## Authors
 
