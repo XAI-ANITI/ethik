@@ -28,9 +28,11 @@
 * [Authors](#authors)
 * [License](#license)
 
+**The documentation can be found [here](https://maxhalford.github.io/ethik/)**.
+
 ## Introduction
 
-`ethik` is a Python package for performing [fair](https://www.microsoft.com/en-us/research/blog/machine-learning-for-fair-decisions/) and [explainable](https://www.wikiwand.com/en/Explainable_artificial_intelligence) machine learning. At it's core, the approach of `ethik` is to build *counterfactual distributions* that permit answering "what if?" scenarios. The idea is that we are able to stress one or more variables and observe how a machine learning model reacts to the stress. The stress is based on a statistical re-weighting scheme called *entropic variable projection*. The main benefit of our method is that it will only consider realistic scenarios, and will not build fake examples. You may find more information by reading [this paper](https://arxiv.org/abs/1810.07924) as well as the ["How It Works" notebook](notebooks/How%20It%20Works.ipynb).
+`ethik` is a Python package for performing [fair](https://perso.math.univ-toulouse.fr/loubes/fairness-robustness-in-machine-learning/) and [explainable](https://www.wikiwand.com/en/Explainable_artificial_intelligence) machine learning. At it's core, the approach of `ethik` is to build *counterfactual distributions* that permit answering "what if?" scenarios. The idea is that we are able to stress one or more variables and observe how a machine learning model reacts to the stress. The stress is based on a statistical re-weighting scheme called *entropic variable projection*. The main benefit of our method is that it will only consider realistic scenarios, and will not build fake examples. You may find more information by reading [this paper](https://arxiv.org/abs/1810.07924) as well as the ["How It Works" notebook](notebooks/How%20It%20Works.ipynb).
 
 <div align="center">
   <img src="docs/figures/overview.svg" width="660px" alt="overview"/>
@@ -183,7 +185,7 @@ explainer.plot_bias(x_test, y_pred)
 ```
 
 <div align="center">
-  <img src="docs/figures/mnist_bias_explanation.svg" alt="Image bias explanation" />
+  <img width="75%" src="docs/figures/mnist_bias_explanation.svg" alt="Image bias explanation" />
 </div>
 
 This takes around 15 seconds to run on a mid-tier laptop. The previous plot highlights the regions of importance for identifying each digit. More precisely, the intensity of each pixel corresponds to the probability increase of saturating or not the pixel. A value of 0.28 means that saturating the pixel increases the probability predicted by the model by 0.28. Note that we do not saturate and desaturate the pixels independently. Instead, our method understands which pixels are linked together and saturates them in a realistic manner. The previous images show that the CNN seems to be using the same visual cues as a human. However, we can see that is uses very specific regions on images to identify particular digits. For instance, the top-right region of an image seems to trigger the "5" digit, whereas the bottom parts of the images seem to be linked with the "7" digit.
