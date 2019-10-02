@@ -635,7 +635,9 @@ class Explainer:
 
                 The bias curve is first normalized so that the importance is
                 between 0 and 1 (which may not be the case originally for regression
-                problems).
+                problems). To normalize, we get the minimum and maximum biases
+                *across all features and all classes* and then compute
+                `normalized = (bias - min) / (max - min)`.
 
                 For regression problems, there's one label only and its name
                 doesn't matter (it's just to have a consistent output).
