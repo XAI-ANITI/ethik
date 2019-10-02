@@ -662,25 +662,32 @@ class Explainer:
 
                 The bias curve is first normalized so that the importance is
                 between 0 and 1 (which may not be the case originally for regression
-                problems).
+                problems). To normalize, we get the minimum and maximum biases
+                *across all features and all classes* and then compute
+                `normalized = (bias - min) / (max - min)`.
 
                 For regression problems, there&#39;s one label only and its name
                 doesn&#39;t matter (it&#39;s just to have a consistent output).
         &#34;&#34;&#34;
 
-        def get_importance(group):
+        def get_importance(group, min_bias, max_bias):
             &#34;&#34;&#34;Computes the average absolute difference in bias changes per tau increase.&#34;&#34;&#34;
             #  Normalize bias to get an importance between 0 and 1
             # bias can be outside [0, 1] for regression
             bias = group[&#34;bias&#34;]
-            group[&#34;bias&#34;] = (bias - bias.min()) / (bias.max() - bias.min())
+            group[&#34;bias&#34;] = (bias - min_bias) / (max_bias - min_bias)
             baseline = group.query(&#34;tau == 0&#34;).iloc[0][&#34;bias&#34;]
             return (group[&#34;bias&#34;] - baseline).abs().mean()
 
+        explanation = self.explain_bias(X_test=X_test, y_pred=y_pred)
+        min_bias = explanation[&#34;bias&#34;].min()
+        max_bias = explanation[&#34;bias&#34;].max()
+
         return (
-            self.explain_bias(X_test=X_test, y_pred=y_pred)
-            .groupby([&#34;label&#34;, &#34;feature&#34;])
-            .apply(get_importance)
+            explanation.groupby([&#34;label&#34;, &#34;feature&#34;])
+            .apply(
+                functools.partial(get_importance, min_bias=min_bias, max_bias=max_bias)
+            )
             .to_frame(&#34;importance&#34;)
             .reset_index()
         )
@@ -1603,25 +1610,32 @@ computations. Default is <code>True</code>.</dd>
 
                 The bias curve is first normalized so that the importance is
                 between 0 and 1 (which may not be the case originally for regression
-                problems).
+                problems). To normalize, we get the minimum and maximum biases
+                *across all features and all classes* and then compute
+                `normalized = (bias - min) / (max - min)`.
 
                 For regression problems, there&#39;s one label only and its name
                 doesn&#39;t matter (it&#39;s just to have a consistent output).
         &#34;&#34;&#34;
 
-        def get_importance(group):
+        def get_importance(group, min_bias, max_bias):
             &#34;&#34;&#34;Computes the average absolute difference in bias changes per tau increase.&#34;&#34;&#34;
             #  Normalize bias to get an importance between 0 and 1
             # bias can be outside [0, 1] for regression
             bias = group[&#34;bias&#34;]
-            group[&#34;bias&#34;] = (bias - bias.min()) / (bias.max() - bias.min())
+            group[&#34;bias&#34;] = (bias - min_bias) / (max_bias - min_bias)
             baseline = group.query(&#34;tau == 0&#34;).iloc[0][&#34;bias&#34;]
             return (group[&#34;bias&#34;] - baseline).abs().mean()
 
+        explanation = self.explain_bias(X_test=X_test, y_pred=y_pred)
+        min_bias = explanation[&#34;bias&#34;].min()
+        max_bias = explanation[&#34;bias&#34;].max()
+
         return (
-            self.explain_bias(X_test=X_test, y_pred=y_pred)
-            .groupby([&#34;label&#34;, &#34;feature&#34;])
-            .apply(get_importance)
+            explanation.groupby([&#34;label&#34;, &#34;feature&#34;])
+            .apply(
+                functools.partial(get_importance, min_bias=min_bias, max_bias=max_bias)
+            )
             .to_frame(&#34;importance&#34;)
             .reset_index()
         )
@@ -2654,7 +2668,9 @@ I(X) = \frac{1}{n_\tau} \sum_{i=1}^{n_\tau} \mid bias_{\tau(i)}(X) - bias_{\tau(
 </script></span></p>
 <p>The bias curve is first normalized so that the importance is
 between 0 and 1 (which may not be the case originally for regression
-problems).</p>
+problems). To normalize, we get the minimum and maximum biases
+<em>across all features and all classes</em> and then compute
+<code>normalized = (bias - min) / (max - min)</code>.</p>
 <p>For regression problems, there's one label only and its name
 doesn't matter (it's just to have a consistent output).</p>
 </dd>
@@ -2698,25 +2714,32 @@ doesn't matter (it's just to have a consistent output).</p>
 
             The bias curve is first normalized so that the importance is
             between 0 and 1 (which may not be the case originally for regression
-            problems).
+            problems). To normalize, we get the minimum and maximum biases
+            *across all features and all classes* and then compute
+            `normalized = (bias - min) / (max - min)`.
 
             For regression problems, there&#39;s one label only and its name
             doesn&#39;t matter (it&#39;s just to have a consistent output).
     &#34;&#34;&#34;
 
-    def get_importance(group):
+    def get_importance(group, min_bias, max_bias):
         &#34;&#34;&#34;Computes the average absolute difference in bias changes per tau increase.&#34;&#34;&#34;
         #  Normalize bias to get an importance between 0 and 1
         # bias can be outside [0, 1] for regression
         bias = group[&#34;bias&#34;]
-        group[&#34;bias&#34;] = (bias - bias.min()) / (bias.max() - bias.min())
+        group[&#34;bias&#34;] = (bias - min_bias) / (max_bias - min_bias)
         baseline = group.query(&#34;tau == 0&#34;).iloc[0][&#34;bias&#34;]
         return (group[&#34;bias&#34;] - baseline).abs().mean()
 
+    explanation = self.explain_bias(X_test=X_test, y_pred=y_pred)
+    min_bias = explanation[&#34;bias&#34;].min()
+    max_bias = explanation[&#34;bias&#34;].max()
+
     return (
-        self.explain_bias(X_test=X_test, y_pred=y_pred)
-        .groupby([&#34;label&#34;, &#34;feature&#34;])
-        .apply(get_importance)
+        explanation.groupby([&#34;label&#34;, &#34;feature&#34;])
+        .apply(
+            functools.partial(get_importance, min_bias=min_bias, max_bias=max_bias)
+        )
         .to_frame(&#34;importance&#34;)
         .reset_index()
     )</code></pre>
