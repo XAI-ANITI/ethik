@@ -23,6 +23,9 @@ jobs:
     python: 3.7
     install: make install_dev && python setup.py install
     script: make deploy_doc
+    on:
+      all_branches: true
+    if: tag IS present
 
   - stage: pypi
     name: "PyPI release"
@@ -35,5 +38,6 @@ jobs:
       password:
         secure: mQDleCDPaGN/yQVDOo8dhvwQKhc478thYrEyNFaj4LQmjB6gm/Frabb42+wjoEEBy1/Hk183/cD+Q3wSkOU/eAXYt8sFZnPCxyxAAX0rnoB+Yr/u/XclTwaWYx+3t4qNxbcxRkcapcaoniw+XynTiobUddcehHHiwV8KTKg1/81ACIWYI2SUJLsRWwPo09ov2d0zGldZZOjdFkg+nmzbUUVU8J7d0l14dYFngjAbAYmLi6kj219ss3TvsYtu5xARjSrZBoJ+VUs32L/qHf9QQfAU+qGsqqT2lDsYDUlGJEAXAGP0Rr0xNY0bNBlKDug5CxX7AMjwJtDofH16X/Xlo8jJ3EiZcmF2vZFBcQEfa/WZsTSHpRGP4p6FHXfPXFRWEN9WLxzdgG7DOlDvqUo7YHKcx6RiMLqb98oXEHtr3VpqpilguAvCWxA3N3WyljoVw2tRN6a2zBHGAiNywmkNstSqd2RK3QP5keb8znt0fJ1KxV/j2Y3AEnC1kHftt0xEVj2vxbpU7rsuD3xv3I/op/BQCqe2l2kX8T6fMgRCKjHzydMrarizQoeDPVpDG142woV4yWVylYtEox6dmlrrtrGjO293yZqUusTap6V5eezEXcHKfa5Q0kSJ3hhYPGmLytm+gonMYbZ0rsUTjz1cAqG2V64GUzGQCMaseI0/5zw=
       on:
-        tags: true
+        all_branches: true
       skip_existing: true
+    if: tag IS present
