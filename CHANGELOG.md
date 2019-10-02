@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-## [0.0.2] - 2019-10-02
+## 0.0.2 - 02/10/19
 
-### Fixed
+### Changed
 
 * Fix bias ranking normalization. Now, we get the minimum and maximum biases
 across all features. Before that, a bias curve that spread from 0 to 0.5
