@@ -123,7 +123,7 @@ Recall that the target indicates if a person's annual salary is above $50k. **We
 We can also plot the distribution of predictions for more than one variable. However, because different variables have different scales we have to use a common measure to display them together. For this purpose we plot the τ ("tau") values. These values are contained between -1 and 1 and simply reflect by how much the variable is shifted from it's mean towards it's lower and upper quantiles. In the following figure a tau value of -1 corresponds to just under 20 years old whereas a tau value of 1 refers to being slightly over 60 years old.
 
 ```python
-explainer.plot_bias(X_test=X_test['age', 'education-num'], y_pred=y_pred)
+explainer.plot_bias(X_test=X_test[['age', 'education-num']], y_pred=y_pred)
 ```
 
 <div align="center">
@@ -149,13 +149,13 @@ explainer.plot_performance(
   <img src="docs/figures/age_accuracy.svg" alt="Age accuracy" />
 </div>
 
-In the above figure **we can see that the model is more reliable for younger people than for older ones**. Having a fine-grained understanding of the accuracy of a model can be of extreme help in real-life scenarios. Moreover this can help you understand from where the error of the model is coming from and guide your data science process.
+In the above figure **we can see that the model is more reliable for younger people than for older ones**. Having a fine-grained understanding of the accuracy of a model can be of extreme help in real-life scenarios. Indeed this can help you understand where the error of the model is coming from and guide your data science process.
 
 Similarly to the `plot_predictions` method, we can display the performance of the model for multiple variables.
 
 ```python
 explainer.plot_performance(
-    X_test=X_test['age', 'education-num'],
+    X_test=X_test[['age', 'education-num']],
     y_test=y_test,
     y_pred=y_pred > 0.5,
     metric=metrics.accuracy_score
