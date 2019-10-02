@@ -1,30 +1,28 @@
 language: python
 
 python:
-  - 3.6
-  - 3.7
+- 3.6
+- 3.7
 
 stages:
-  - test
-  - doc
-  - pypi
+- test
+- doc
+- pypi
 
 env:
-  - IPY_KERNEL=python3
+- IPY_KERNEL=python3
 
 install: make install_dev && python setup.py install
 script: make -j 4 test
 
 jobs:
   include:
-
   - stage: deploy_doc
     python: 3.7
     install: make install_dev && python setup.py install
     script: make deploy_doc
     on:
       tags: true
-
   - stage: pypi
     python: 3.7
     install: echo "skipping install"
@@ -32,8 +30,10 @@ jobs:
     deploy:
       provider: pypi
       user: MaxHalford
-      password:
-        secure: IKlAIBIeaM6muU5ITEM5a6BwYwDzRI5Bn30ssnS9oRRTLEqsU70Ih+2eWX5UbascgBTdtMJLdE9vEsp4F6TLNgdjmZPyYXZLb6hTDu0lz5PeFiJ4EHVNyC7PqjDpPWiU9kE1lXMAfbDADIWnK/bNvgfn5xlbUfTPnnMd1bsazJtYSOumoYpjhvEPRkC/A/+iVHfBXFvt4UqXVZw/HgcZfBze8heLGh3klAyO6QuIIbfXvf9Oiym8BnfnaPKvJi+npmitL7wMtTP/Oq/zFg0RQdBPZhcqvnwJ5c1XQDWbLJArs56IqPEk/eN3HpvDbo+bZD1Lc3ACA71bCkKDTnkhZ+0uVga9rQaue/dCQ8l+PIIHwfesv8Wb5sTA3YGaHhTFcN645AAttlvN/GHluJNuufdnp2HrTicCnsXM+9HvgvQgdNB4xVOGuinAebMyEoX6pi99dUNZXl7knFr8VTfu4YKstH59pz7PDAq5FYLpPOxpgc1+nKa0DSCj7VMKZy4G+PDbok+LKtNJj1BCKwdZFb0QQUNLLQYJfvFLJfEcArYHLb+fNgtOT87IB4TnQD2O3vNkTx7Z3/oSMaLqfIP9Jwc1q8YlLvNp7u3L04ar0V09p9xnW3qoMzWTImPZimNOjabPE6Ieoyu6N7FJsPEwAsW3S4GeSZertcy1HJLhTkU=
       on:
         tags: true
       skip_existing: true
+
+deploy:
+  password:
+    secure: mQDleCDPaGN/yQVDOo8dhvwQKhc478thYrEyNFaj4LQmjB6gm/Frabb42+wjoEEBy1/Hk183/cD+Q3wSkOU/eAXYt8sFZnPCxyxAAX0rnoB+Yr/u/XclTwaWYx+3t4qNxbcxRkcapcaoniw+XynTiobUddcehHHiwV8KTKg1/81ACIWYI2SUJLsRWwPo09ov2d0zGldZZOjdFkg+nmzbUUVU8J7d0l14dYFngjAbAYmLi6kj219ss3TvsYtu5xARjSrZBoJ+VUs32L/qHf9QQfAU+qGsqqT2lDsYDUlGJEAXAGP0Rr0xNY0bNBlKDug5CxX7AMjwJtDofH16X/Xlo8jJ3EiZcmF2vZFBcQEfa/WZsTSHpRGP4p6FHXfPXFRWEN9WLxzdgG7DOlDvqUo7YHKcx6RiMLqb98oXEHtr3VpqpilguAvCWxA3N3WyljoVw2tRN6a2zBHGAiNywmkNstSqd2RK3QP5keb8znt0fJ1KxV/j2Y3AEnC1kHftt0xEVj2vxbpU7rsuD3xv3I/op/BQCqe2l2kX8T6fMgRCKjHzydMrarizQoeDPVpDG142woV4yWVylYtEox6dmlrrtrGjO293yZqUusTap6V5eezEXcHKfa5Q0kSJ3hhYPGmLytm+gonMYbZ0rsUTjz1cAqG2V64GUzGQCMaseI0/5zw=
