@@ -34,8 +34,7 @@ doc: nb_to_html api_ref
 deploy_doc: doc
 	git clone -b gh-pages "https://${GH_USER}:${GH_PASSWORD}@github.com/${TRAVIS_REPO_SLUG}.git" gh-pages
 	cp -R docs/* gh-pages/
-	cd gh-pages
-	git add *
-	git diff --staged --quiet && echo "$0: No changes to commit." && exit 0
-	git commit -a -m "CI: Update docs for ${TRAVIS_TAG} (${head})"
-	git push
+	cd gh-pages; pwd; git add *; \
+	  git diff --staged --quiet && echo "$0: No changes to commit." && exit 0; \
+	  git commit -a -m "CI: Update docs for ${TRAVIS_TAG} (${head})"; \
+	  git push
