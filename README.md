@@ -41,8 +41,10 @@
 Currently, `ethik` can be used for:
 
 1. Detecting model bias with respect to one or more (protected) attributes.
-2. Identifying causes for why the model performs poorly on certain inputs.
-3. Visualizing regions of an image influence a model's predictions.
+2. Identifying causes for why a model performs poorly on certain inputs.
+3. Visualizing regions of an image that influence a model's predictions.
+
+We have more plans for the future.
 
 ## Installation
 
@@ -188,7 +190,7 @@ explainer.plot_bias(x_test, y_pred)
   <img width="75%" src="docs/figures/mnist_bias_explanation.svg" alt="Image bias explanation" />
 </div>
 
-This takes around 15 seconds to run on a mid-tier laptop. The previous plot highlights the regions of importance for identifying each digit. More precisely, the intensity of each pixel corresponds to the probability increase of saturating or not the pixel. A value of 0.28 means that saturating the pixel increases the probability predicted by the model by 0.28. Note that we do not saturate and desaturate the pixels independently. Instead, our method understands which pixels are linked together and saturates them in a realistic manner. The previous images show that the CNN seems to be using the same visual cues as a human. However, we can see that is uses very specific regions on images to identify particular digits. For instance, the top-right region of an image seems to trigger the "5" digit, whereas the bottom parts of the images seem to be linked with the "7" digit.
+This takes around 15 seconds to run on a mid-tier laptop. The previous plot highlights the regions of importance for identifying each digit. More precisely, the intensity of each pixel corresponds to the probability increase of saturating or not the pixel. A value of 0.28 means that saturating the pixel increases the probability predicted by the model by 0.28. Note that we do not saturate and desaturate the pixels independently. Instead, our method understands which pixels are linked together and saturates them in a realistic manner. The previous images show that the CNN seems to be using the same visual cues as a human. However, we can see that is uses very specific regions on images to identify particular digits. For instance, the top-right region of an image seems to trigger the "5" digit, whereas the bottom parts of the images seem to be linked with the "7" digit. Meanwhile, the colder areas correspond to regions that lower the predicted probabilities when the corresponding pixels are "turned on", which is why the center of the "0" digit figure is blue.
 
 ## Authors
 
@@ -200,6 +202,8 @@ This work is led by members of the [Toulouse Institute of Mathematics](https://w
 - [Vincent Lefoulon](https://vayel.github.io/)
 - [Jean-Michel Loubes](https://perso.math.univ-toulouse.fr/loubes/)
 - [Laurent Risser](http://laurent.risser.free.fr/menuEng.html)
+
+You can contact us at [jm.loubes@gmail.com](mailto:jm.loubes@gmail.com) and/or [maxhalford25@gmail.com](mailto:maxhalford25@gmail.com).
 
 This work is supported by the [Centre National de la Recherche Scientifique (CNRS)](http://www.cnrs.fr/) and is done in the context of the [Artificial and Natural Intelligence Toulouse Institute (ANITI)](https://en.univ-toulouse.fr/aniti) project.
 
