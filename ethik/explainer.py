@@ -641,19 +641,24 @@ class Explainer:
                 doesn't matter (it's just to have a consistent output).
         """
 
-        def get_importance(group):
+        def get_importance(group, min_bias, max_bias):
             """Computes the average absolute difference in bias changes per tau increase."""
             #  Normalize bias to get an importance between 0 and 1
             # bias can be outside [0, 1] for regression
             bias = group["bias"]
-            group["bias"] = (bias - bias.min()) / (bias.max() - bias.min())
+            group["bias"] = (bias - min_bias) / (max_bias - min_bias)
             baseline = group.query("tau == 0").iloc[0]["bias"]
             return (group["bias"] - baseline).abs().mean()
 
+        explanation = self.explain_bias(X_test=X_test, y_pred=y_pred)
+        min_bias = explanation["bias"].min()
+        max_bias = explanation["bias"].max()
+
         return (
-            self.explain_bias(X_test=X_test, y_pred=y_pred)
-            .groupby(["label", "feature"])
-            .apply(get_importance)
+            explanation.groupby(["label", "feature"])
+            .apply(
+                functools.partial(get_importance, min_bias=min_bias, max_bias=max_bias)
+            )
             .to_frame("importance")
             .reset_index()
         )
