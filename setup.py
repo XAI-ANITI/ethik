@@ -16,8 +16,8 @@ NAME = "ethik"
 DESCRIPTION = "A toolbox for fair and explainable machine learning"
 LONG_DESCRIPTION_CONTENT_TYPE = "text/markdown"
 URL = "https://github.com/MaxHalford/ethik"
-EMAIL = "maxhalford25@gmail.com"
-AUTHOR = "Max Halford"
+EMAIL = "maxhalford25@gmail.com, vincent.lefoulon@free.fr"
+AUTHOR = "Max Halford, Vincent Lefoulon"
 REQUIRES_PYTHON = ">=3.6.0"
 VERSION = None
 
