@@ -267,13 +267,14 @@ class Explainer:
     def _find_ksis(self, X_test, y_pred):
         """Finds ksi values for each (feature, tau, label) triplet.
 
-        1. A list of $\tau$ values is generated using `n_taus`. The $\tau$ values range from -1 to 1.
-        2. A grid of $\eps$ values is generated for each $\tau$ and for each variable. Each $\eps$ represents a shift from a variable's mean towards a particular quantile.
-        3. A grid of $\ksi$ values is generated for each $\eps$. Each $\ksi$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\eps$ shift.
+        1. A list of $\\tau$ values is generated using `n_taus`. The $\\tau$ values range from -1 to 1.
+        2. A grid of $\\eps$ values is generated for each $\\tau$ and for each variable. Each $\\eps$ represents a shift from a variable's mean towards a particular quantile.
+        3. A grid of $\\ksi$ values is generated for each $\\eps$. Each $\\ksi$ corresponds to the optimal parameter that has to be used to weight the observations in order for the average to reach the associated $\\eps$ shift.
 
         Args:
             X_test (pandas.DataFrame or numpy.ndarray): a
             y_pred (pandas.DataFrame or numpy.ndarray): a
+
         """
 
         X_test = pd.DataFrame(to_pandas(X_test))
@@ -625,12 +626,12 @@ class Explainer:
                 if the model bias for the feature `X` is a flat curve (the average
                 model prediction is not impacted by the mean of `X`) then we
                 can conclude that `X` has no importance for predictions. This
-                flat curve is the baseline and satisfies \(y = bias_{\\tau(0)}\).
+                flat curve is the baseline and satisfies \\(y = bias_{\\tau(0)}\\).
                 To compute the importance of a feature, we look at the average
                 distance of the bias curve to this baseline:
 
                 $$
-                I(X) = \\frac{1}{n_\\tau} \sum_{i=1}^{n_\\tau} \mid bias_{\\tau(i)}(X) - bias_{\\tau(0)}(X) \mid
+                I(X) = \\frac{1}{n_\\tau} \\sum_{i=1}^{n_\\tau} \\mid bias_{\\tau(i)}(X) - bias_{\\tau(0)}(X) \\mid
                 $$
 
                 The bias curve is first normalized so that the importance is
