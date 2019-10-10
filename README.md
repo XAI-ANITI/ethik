@@ -11,6 +11,10 @@
   <a href="https://pypi.org/project/ethik">
     <img src="https://img.shields.io/pypi/v/ethik.svg?style=for-the-badge" alt="pypi" />
   </a>
+  <!-- Black -->
+  <a href="https://github.com/psf/black">
+    <img src="https://img.shields.io/badge/code%20style-black-000000.svg?style=for-the-badge" alt="black" />
+  </a>
   <!-- License -->
   <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">
     <img src="https://img.shields.io/badge/License-GPL%20v3-blue.svg?style=for-the-badge" alt="gpl_3_license"/>
