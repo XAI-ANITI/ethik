@@ -123,7 +123,41 @@ class ImageClassificationExplainer(explainer.Explainer):
             metric=metric,
         )
 
-    def _plot(self, z_values, n_cols):
+    def _get_fig_size(self, cell_width, n_rows, n_cols):
+        if cell_width is None:
+            cell_width = 800 / n_cols
+        im_height, im_width = self.img_shape
+        ratio = im_height / im_width
+        cell_height = ratio * cell_width
+        return n_cols * cell_width, n_rows * cell_height
+
+    def plot_bias(self, X_test, y_pred, n_cols=3, cell_width=None):
+        """Plot the bias of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame or np.array): See `ImageClassificationExplainer.explain_bias()`.
+            y_pred (pd.DataFrame or pd.Series): See `ImageClassificationExplainer.explain_bias()`.
+            n_cols (int): The number of classes to render per row. Default is `3`.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+
+                TODO: explain what is represented on the image.
+        """
+        biases = self.explain_bias(X_test=X_test, y_pred=y_pred)
+        z_values = {}
+
+        for label, group in biases.groupby("label"):
+            diffs = (
+                group.query("tau == 1")["bias"]
+                - group.query("tau == -1")["bias"].values
+            )
+            diffs = diffs.to_numpy().reshape(self.img_shape)
+            z_values[label] = diffs
+
         n_plots = len(z_values)
         labels = sorted(z_values)
         n_rows = n_plots // n_cols + 1
@@ -144,20 +178,31 @@ class ImageClassificationExplainer(explainer.Explainer):
         # We want to make sure that 0 is at the center of the scale
         zmin, zmax = min(zmin, -zmax), max(zmax, -zmin)
 
+        im_height, im_width = self.img_shape
+        colorbar_width = 30
+        colorbar_ticks_width = 27
+        colorbar_x = 1.02
+
         for i, label in enumerate(labels):
             fig.add_trace(
                 go.Heatmap(
                     z=z_values[label][::-1],
-                    x=list(range(self.img_shape[1])),
-                    y=list(range(self.img_shape[0])),
+                    x=list(range(im_width)),
+                    y=list(range(im_height)),
                     zmin=zmin,
                     zmax=zmax,
                     colorscale="RdBu",
                     zsmooth="best",
-                    showscale=i == 0,
+                    showscale=(i == 0),
                     name=label,
                     hoverinfo="x+y+z",
                     reversescale=True,
+                    colorbar=dict(
+                        thicknessmode="pixels",
+                        thickness=colorbar_width,
+                        xpad=0,
+                        x=colorbar_x,
+                    ),
                 ),
                 row=i // n_cols + 1,
                 col=i % n_cols + 1,
@@ -170,43 +215,18 @@ class ImageClassificationExplainer(explainer.Explainer):
                     f"yaxis{i+1}": dict(scaleanchor=f"x{i+1}", visible=False),
                 }
             )
+
+        width, height = self._get_fig_size(cell_width, n_rows, n_cols)
+        width += (colorbar_x - 1) * width + colorbar_width + colorbar_ticks_width
+
         fig.update_layout(
-            margin=dict(t=20, l=20, b=20),
-            width=800,
-            height=800,
+            margin=dict(t=20, l=20, b=20, r=20),
+            width=width,
+            height=height,
             autosize=False,
             plot_bgcolor="white",
         )
         return fig
-
-    def plot_bias(self, X_test, y_pred, n_cols=3):
-        """Plot the bias of the model for the features in `X_test`.
-
-        Args:
-            X_test (pd.DataFrame or np.array): See `ImageClassificationExplainer.explain_bias()`.
-            y_pred (pd.DataFrame or pd.Series): See `ImageClassificationExplainer.explain_bias()`.
-            n_cols (int): The number of classes to render per row. Default is `3`.
-
-        Returns:
-            plotly.graph_objs.Figure:
-                A Plotly figure. It shows automatically in notebook cells but you
-                can also call the `.show()` method to plot multiple charts in the
-                same cell.
-
-                TODO: explain what is represented on the image.
-        """
-        biases = self.explain_bias(X_test=X_test, y_pred=y_pred)
-        values = {}
-
-        for label, group in biases.groupby("label"):
-            diffs = (
-                group.query("tau == 1")["bias"]
-                - group.query("tau == -1")["bias"].values
-            )
-            diffs = diffs.to_numpy().reshape(self.img_shape)
-            values[label] = diffs
-
-        return self._plot(values, n_cols=n_cols)
 
     def plot_performance(self, X_test, y_test, y_pred, metric):
         """Plot the performance of the model for the features in `X_test`.
