@@ -294,9 +294,9 @@ class Explainer:
             return self
 
         # Make the epsilons for each (feature, label, tau) triplet
-        quantiles = X_test.quantile(q=[self.alpha, 1. - self.alpha])
+        quantiles = X_test.quantile(q=[self.alpha, 1.0 - self.alpha])
         q_mins = quantiles.loc[self.alpha].to_dict()
-        q_maxs = quantiles.loc[1. - self.alpha].to_dict()
+        q_maxs = quantiles.loc[1.0 - self.alpha].to_dict()
         means = X_test.mean().to_dict()
         additional_info = pd.concat(
             [
