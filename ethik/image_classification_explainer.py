@@ -129,7 +129,7 @@ class ImageClassificationExplainer(explainer.Explainer):
         im_height, im_width = self.img_shape
         ratio = im_height / im_width
         cell_height = ratio * cell_width
-        return n_cols * cell_width + 100, n_rows * cell_height
+        return n_cols * cell_width, n_rows * cell_height
 
     def plot_bias(self, X_test, y_pred, n_cols=3, cell_width=None):
         """Plot the bias of the model for the features in `X_test`.
@@ -179,6 +179,9 @@ class ImageClassificationExplainer(explainer.Explainer):
         zmin, zmax = min(zmin, -zmax), max(zmax, -zmin)
 
         im_height, im_width = self.img_shape
+        colorbar_width = 30
+        colorbar_ticks_width = 27
+        colorbar_x = 1.02
 
         for i, label in enumerate(labels):
             fig.add_trace(
@@ -190,10 +193,16 @@ class ImageClassificationExplainer(explainer.Explainer):
                     zmax=zmax,
                     colorscale="RdBu",
                     zsmooth="best",
-                    showscale=False,  #  TODO: (i == 0),
+                    showscale=(i == 0),
                     name=label,
                     hoverinfo="x+y+z",
                     reversescale=True,
+                    colorbar=dict(
+                        thicknessmode="pixels",
+                        thickness=colorbar_width,
+                        xpad=0,
+                        x=colorbar_x,
+                    ),
                 ),
                 row=i // n_cols + 1,
                 col=i % n_cols + 1,
@@ -208,6 +217,7 @@ class ImageClassificationExplainer(explainer.Explainer):
             )
 
         width, height = self._get_fig_size(cell_width, n_rows, n_cols)
+        width += (colorbar_x - 1) * width + colorbar_width + colorbar_ticks_width
 
         fig.update_layout(
             margin=dict(t=20, l=20, b=20, r=20),
