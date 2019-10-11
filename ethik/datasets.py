@@ -69,3 +69,22 @@ def load_diabetes():
     X = pd.read_csv(os.path.join(os.path.dirname(__file__), "data", "diabetes.csv"))
     y = X.pop("Outcome").apply(int).astype(bool).rename("has_diabetes")
     return X, y
+
+
+def load_heart_disease():
+    """https://www.kaggle.com/ronitf/heart-disease-uci"""
+    X = pd.read_csv(
+        os.path.join(os.path.dirname(__file__), "data", "heart_disease.csv"),
+        dtype={
+            "sex": "category",
+            "cp": "category",
+            "fbs": "category",
+            "restecg": "category",
+            "exang": "category",
+            "slope": "category",
+            "ca": "category",
+            "thal": "category",
+        },
+    )
+    y = X.pop("target").apply(int).astype(bool).rename("has_heart_disease")
+    return X, y
