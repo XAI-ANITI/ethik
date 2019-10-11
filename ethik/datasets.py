@@ -2,7 +2,7 @@ import os
 
 import pandas as pd
 
-__all__ = ["load_law_school"]
+__all__ = ["load_diabetes", "load_heart_disease", "load_law_school"]
 
 
 def load_law_school():
