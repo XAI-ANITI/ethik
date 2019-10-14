@@ -9,10 +9,10 @@ __all__ = ["ClassificationExplainer"]
 
 
 class ClassificationExplainer(Explainer):
-    def plot_bias(self, X_test, y_pred, colors=None, yrange=None, size=None):
-        """Plot the bias for the features in `X_test`.
+    def plot_influence(self, X_test, y_pred, colors=None, yrange=None, size=None):
+        """Plot the influence for the features in `X_test`.
 
-        See `ethik.explainer.Explainer.plot_bias()`.
+        See `ethik.explainer.Explainer.plot_influence()`.
         """
         if yrange is None:
             yrange = [0, 1]
@@ -21,7 +21,7 @@ class ClassificationExplainer(Explainer):
         y_pred = pd.DataFrame(to_pandas(y_pred))
 
         if len(y_pred.columns) == 1:
-            return super().plot_bias(
+            return super().plot_influence(
                 X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange, size=size
             )
 
@@ -35,7 +35,9 @@ class ClassificationExplainer(Explainer):
         plots = []
         for label in labels:
             plots.append(
-                super().plot_bias(X_test, y_pred[label], colors=colors, yrange=yrange)
+                super().plot_influence(
+                    X_test, y_pred[label], colors=colors, yrange=yrange
+                )
             )
 
         fig = make_subplots(rows=len(labels), cols=1, shared_xaxes=True)

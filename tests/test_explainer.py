@@ -80,18 +80,18 @@ def test_memoization():
 
     # Without memoization
     explainer = ethik.RegressionExplainer(memoize=False, n_jobs=1)
-    explainer.explain_bias(X_test[["INDUS", "NOX"]], y_pred)
+    explainer.explain_influence(X_test[["INDUS", "NOX"]], y_pred)
     assert explainer.info["feature"].unique().tolist() == ["INDUS", "NOX"]
-    explainer.explain_bias(X_test[["INDUS"]], y_pred)
+    explainer.explain_influence(X_test[["INDUS"]], y_pred)
     assert explainer.info["feature"].unique().tolist() == ["INDUS"]
 
     # With memoization
     explainer = ethik.RegressionExplainer(memoize=True, n_jobs=1)
-    bias = explainer.explain_bias(X_test[["INDUS", "NOX"]], y_pred)
-    assert bias["feature"].unique().tolist() == ["INDUS", "NOX"]
+    influence = explainer.explain_influence(X_test[["INDUS", "NOX"]], y_pred)
+    assert influence["feature"].unique().tolist() == ["INDUS", "NOX"]
     assert explainer.info["feature"].unique().tolist() == ["INDUS", "NOX"]
-    bias = explainer.explain_bias(X_test[["INDUS"]], y_pred)
-    assert bias["feature"].unique().tolist() == ["INDUS"]
+    influence = explainer.explain_influence(X_test[["INDUS"]], y_pred)
+    assert influence["feature"].unique().tolist() == ["INDUS"]
     assert explainer.info["feature"].unique().tolist() == ["INDUS", "NOX"]
 
 
@@ -117,7 +117,7 @@ def test_determine_pairs_to_do():
     to_do = explainer._determine_pairs_to_do(["sepal length (cm)"], ["setosa"])
     assert to_do == {"sepal length (cm)": ["setosa"]}
 
-    explainer.explain_bias(X_test["sepal length (cm)"], y_pred["setosa"])
+    explainer.explain_influence(X_test["sepal length (cm)"], y_pred["setosa"])
 
     to_do = explainer._determine_pairs_to_do(["sepal length (cm)"], ["setosa"])
     assert to_do == {}

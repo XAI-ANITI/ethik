@@ -11,6 +11,8 @@
 ### Changed
 
 * In `ImageClassificationExplainer`, the image plot size will now adapt better to the desired number of rows and columns.
+* `Explainer.explain_bias()` renamed into `Explainer.explain_influence()` as "bias" means something specific in statistics.
+* Renamed "bias" to "influence" across the library.
 
 ### Fixed
 
