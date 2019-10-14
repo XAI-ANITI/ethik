@@ -39,9 +39,9 @@ class ImageClassificationExplainer(explainer.Explainer):
             `joblib.Parallel()`. Default is `-1`.
         memoize (bool): Indicates whether or not memoization should be used or not. If `True`, then
             intermediate results will be stored in order to avoid recomputing results that can be
-            reused by successively called methods. For example, if you call `plot_bias` followed by
-            `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
-            `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned on by
+            reused by successively called methods. For example, if you call `plot_influence` followed by
+            `plot_influence_ranking` and `memoize` is `True`, then the intermediate results required by
+            `plot_influence` will be reused for `plot_influence_ranking`. Memoization is turned on by
             default because computations are time-consuming for images.
         verbose (bool): Whether or not to show progress bars during
             computations. Default is `True`.
@@ -71,8 +71,8 @@ class ImageClassificationExplainer(explainer.Explainer):
         if self.img_shape[-1] == 1:
             self.img_shape = self.img_shape[:-1]
 
-    def explain_bias(self, X_test, y_pred):
-        """Compute the bias of the model for the features in `X_test`.
+    def explain_influence(self, X_test, y_pred):
+        """Compute the influence of the model for the features in `X_test`.
 
         Args:
             X_test (np.array): An array of images, i.e. a 3d numpy array of
@@ -86,10 +86,12 @@ class ImageClassificationExplainer(explainer.Explainer):
 
         Returns:
             pd.DataFrame:
-                See `ethik.explainer.Explainer.explain_bias()`.
+                See `ethik.explainer.Explainer.explain_influence()`.
         """
         self._set_image_shape(images=X_test)
-        return super().explain_bias(X_test=images_to_dataframe(X_test), y_pred=y_pred)
+        return super().explain_influence(
+            X_test=images_to_dataframe(X_test), y_pred=y_pred
+        )
 
     def explain_performance(self, X_test, y_test, y_pred, metric):
         """Compute the change in model's performance for the features in `X_test`.
@@ -131,12 +133,12 @@ class ImageClassificationExplainer(explainer.Explainer):
         cell_height = ratio * cell_width
         return n_cols * cell_width, n_rows * cell_height
 
-    def plot_bias(self, X_test, y_pred, n_cols=3, cell_width=None):
-        """Plot the bias of the model for the features in `X_test`.
+    def plot_influence(self, X_test, y_pred, n_cols=3, cell_width=None):
+        """Plot the influence of the model for the features in `X_test`.
 
         Args:
-            X_test (pd.DataFrame or np.array): See `ImageClassificationExplainer.explain_bias()`.
-            y_pred (pd.DataFrame or pd.Series): See `ImageClassificationExplainer.explain_bias()`.
+            X_test (pd.DataFrame or np.array): See `ImageClassificationExplainer.explain_influence()`.
+            y_pred (pd.DataFrame or pd.Series): See `ImageClassificationExplainer.explain_influence()`.
             n_cols (int): The number of classes to render per row. Default is `3`.
 
         Returns:
@@ -147,13 +149,13 @@ class ImageClassificationExplainer(explainer.Explainer):
 
                 TODO: explain what is represented on the image.
         """
-        biases = self.explain_bias(X_test=X_test, y_pred=y_pred)
+        influences = self.explain_influence(X_test=X_test, y_pred=y_pred)
         z_values = {}
 
-        for label, group in biases.groupby("label"):
+        for label, group in influences.groupby("label"):
             diffs = (
-                group.query("tau == 1")["bias"]
-                - group.query("tau == -1")["bias"].values
+                group.query("tau == 1")["influence"]
+                - group.query("tau == -1")["influence"].values
             )
             diffs = diffs.to_numpy().reshape(self.img_shape)
             z_values[label] = diffs

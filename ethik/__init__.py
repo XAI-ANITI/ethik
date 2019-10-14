@@ -1,44 +1,46 @@
 """
 # Introduction
 
-`ethik` is a Python package for performing [fair](https://www.microsoft.com/en-us/research/blog/machine-learning-for-fair-decisions/) and [explainable](https://www.wikiwand.com/en/Explainable_artificial_intelligence) machine learning. At it's core, the approach of `ethik` is to build *counterfactual distributions* that permit answering "what if?" scenarios. The idea is that we are able to stress one or more variables and observe how a machine learning model reacts to the stress. The stress is based on a statistical re-weighting scheme called *entropic variable projection*. The main benefit of our method is that it will only consider realistic scenarios, and will not build fake examples. You may find more information by reading [this paper](https://arxiv.org/abs/1810.07924) as well as the ["How It Works" notebook](notebooks/How%20It%20Works.ipynb).
+`ethik` is a Python package for performing [fair](https://perso.math.univ-toulouse.fr/loubes/fairness-robustness-in-machine-learning/) and [explainable](https://www.wikiwand.com/en/Explainable_artificial_intelligence) machine learning. At it's core, the approach of `ethik` is to build *counterfactual distributions* that permit answering "what if?" scenarios. The idea is that we are able to stress one or more variables and observe how a machine learning model reacts to the stress. The stress is based on a statistical re-weighting scheme called *entropic variable projection*. The main benefit of our method is that it will only consider realistic scenarios, and will not build fake examples. You may find more information by reading [this paper](https://arxiv.org/abs/1810.07924) as well as the ["How It Works" notebook](notebooks/How%20It%20Works.ipynb).
 
 <div align="center">
-  <img src="figures/overview.svg" width="660px" alt="overview"/>
+  <img src="docs/figures/overview.svg" width="660px" alt="overview"/>
 </div>
 
-`ethik` can be used to:
+Currently, `ethik` can be used for:
 
-1. Determine if a predictive model is biased with respect to one or more features.
-2. Understand how the performance of the model varies with respect to one or more features.
-3. Visualize which parts of an image influence a model's predictions.
+1. Detecting model influence with respect to one or more (protected) attributes.
+2. Identifying causes for why a model performs poorly on certain inputs.
+3. Visualizing regions of an image that influence a model's predictions.
 
-# Installation
+We have more plans for the future.
 
-**Python 3.6 or above is required!**
+## Installation
+
+:warning: Python 3.6 or above is required :snake:
 
 **Via [PyPI](https://pypi.org/project/ethik/)**
 
 ```shell
-pip install ethik
+>>> pip install ethik
 ```
 
-Via GitHub for the latest development version:
+**Via GitHub for the latest development version**
 
 ```shell
-pip install git+https://github.com/MaxHalford/ethik
-# Or through SSH:
-pip install git+ssh://git@github.com/MaxHalford/ethik.git
+>>> pip install git+https://github.com/MaxHalford/ethik
+>>> # Or through SSH:
+>>> pip install git+ssh://git@github.com/MaxHalford/ethik.git
 ```
 
-For developers:
+**Development installation**
 
 ```shell
-git clone https://github.com/MaxHalford/ethik
-cd ethik
-python setup.py develop
-pip install -r requirements-dev.txt
-pre-commit install # For black
+>>> git clone https://github.com/MaxHalford/ethik
+>>> cd ethik
+>>> python setup.py develop
+>>> pip install -r requirements-dev.txt
+>>> pre-commit install # For black
 ```
 
 # User guide

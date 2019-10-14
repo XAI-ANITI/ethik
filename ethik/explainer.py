@@ -125,7 +125,7 @@ def yield_masks(n_masks, n, p):
 
 
 class Explainer:
-    """Explains the bias and reliability of model predictions.
+    """Explains the influence and reliability of model predictions.
 
     Parameters:
         alpha (float): A `float` between `0` and `0.5` which indicates by how close the `Explainer`
@@ -156,9 +156,9 @@ class Explainer:
             `joblib.Parallel()`. Default is `-1`.
         memoize (bool): Indicates whether or not memoization should be used or not. If `True`, then
             intermediate results will be stored in order to avoid recomputing results that can be
-            reused by successively called methods. For example, if you call `plot_bias` followed by
-            `plot_bias_ranking` and `memoize` is `True`, then the intermediate results required by
-            `plot_bias` will be reused for `plot_bias_ranking`. Memoization is turned off by
+            reused by successively called methods. For example, if you call `plot_influence` followed by
+            `plot_influence_ranking` and `memoize` is `True`, then the intermediate results required by
+            `plot_influence` will be reused for `plot_influence_ranking`. Memoization is turned off by
             default because it can lead to unexpected behavior depending on your usage.
         verbose (bool): Whether or not to show progress bars during
             computations. Default is `True`.
@@ -225,9 +225,9 @@ class Explainer:
                 "value",
                 "ksi",
                 "label",
-                "bias",
-                "bias_low",
-                "bias_high",
+                "influence",
+                "influence_low",
+                "influence_high",
             ]
         )
 
@@ -368,7 +368,7 @@ class Explainer:
         # One-hot encode the categorical variables
         X_test = pd.get_dummies(data=X_test, prefix_sep=CAT_COL_SEP)
 
-        # Determine which features are missing explanations; that is they have null biases for at
+        # Determine which features are missing explanations; that is they have null influences for at
         # least one ksi value
         relevant = self.info[
             self.info["feature"].isin(X_test.columns)
@@ -391,14 +391,14 @@ class Explainer:
             #  interval
             data = data.groupby(key_cols)[dest_col].agg(
                 [
-                    # Mean bias
+                    # Mean influence
                     (dest_col, "mean"),
-                    # Lower bound on the mean bias
+                    # Lower bound on the mean influence
                     (
                         f"{dest_col}_low",
                         functools.partial(np.quantile, q=self.conf_level),
                     ),
-                    # Upper bound on the mean bias
+                    # Upper bound on the mean influence
                     (
                         f"{dest_col}_high",
                         functools.partial(np.quantile, q=1 - self.conf_level),
@@ -414,8 +414,8 @@ class Explainer:
             & self.info["label"].isin(y_pred.columns)
         ]
 
-    def explain_bias(self, X_test, y_pred):
-        """Compute the bias of the model for the features in `X_test`.
+    def explain_influence(self, X_test, y_pred):
+        """Compute the influence of the model for the features in `X_test`.
 
         Args:
             X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
@@ -430,8 +430,8 @@ class Explainer:
         Returns:
             pd.DataFrame:
                 A dataframe with columns `(feature, tau, value, ksi, label,
-                bias, bias_low, bias_high)`. If `explainer.n_samples` is `1`,
-                no confidence interval is computed and `bias = bias_low = bias_high`.
+                influence, influence_low, influence_high)`. If `explainer.n_samples` is `1`,
+                no confidence interval is computed and `influence = influence_low = influence_high`.
                 The value of `label` is not important for regression.
 
         Examples:
@@ -449,7 +449,7 @@ class Explainer:
             [0, 1, 1]  # Can also be probabilities: [0.3, 0.65, 0.8]
             >>> # For readibility reasons, we give a name to the predictions
             >>> y_pred = pd.Series(y_pred, name="is_reliable")
-            >>> explainer.explain_bias(X_test, y_pred)
+            >>> explainer.explain_influence(X_test, y_pred)
 
             Regression is similar to binary classification:
 
@@ -463,7 +463,7 @@ class Explainer:
             [22, 24, 19]
             >>> # For readibility reasons, we give a name to the predictions
             >>> y_pred = pd.Series(y_pred, name="price")
-            >>> explainer.explain_bias(X_test, y_pred)
+            >>> explainer.explain_influence(X_test, y_pred)
 
             For multi-label classification, we need a dataframe to store predictions:
 
@@ -477,7 +477,7 @@ class Explainer:
             ["class0", "class1", "class2"]
             >>> y_pred.iloc[0]
             [0, 1, 0] # One-hot encoded, or probabilities: [0.15, 0.6, 0.25]
-            >>> explainer.explain_bias(X_test, y_pred)
+            >>> explainer.explain_influence(X_test, y_pred)
         """
 
         def compute(X_test, y_pred, relevant):
@@ -509,13 +509,13 @@ class Explainer:
                         total=len(keys) * self.n_samples,
                     )
                 ],
-                columns=["feature", "label", "ksi", "sample_index", "bias"],
+                columns=["feature", "label", "ksi", "sample_index", "influence"],
             )
 
         return self._explain(
             X_test=X_test,
             y_pred=y_pred,
-            dest_col="bias",
+            dest_col="influence",
             key_cols=["feature", "label", "ksi"],
             compute=compute,
         )
@@ -543,7 +543,7 @@ class Explainer:
         Returns:
             pd.DataFrame:
                 A dataframe with columns `(feature, tau, value, ksi, label,
-                bias, bias_low, bias_high, <metric_name>, <metric_name_low>, <metric_name_high>)`.
+                influence, influence_low, influence_high, <metric_name>, <metric_name_low>, <metric_name_high>)`.
                 If `explainer.n_samples` is `1`, no confidence interval is computed
                 and `<metric_name> = <metric_name_low> = <metric_name_high>`.
                 The value of `label` is not important for regression.
@@ -600,7 +600,7 @@ class Explainer:
             compute=compute,
         )
 
-    def rank_by_bias(self, X_test, y_pred):
+    def rank_by_influence(self, X_test, y_pred):
         """Returns a pandas DataFrame containing the importance of each feature
         per label.
 
@@ -622,44 +622,50 @@ class Explainer:
                 30% in the prediction of the class `setosa`.
 
                 The importance is a real number between 0 and 1. Intuitively,
-                if the model bias for the feature `X` is a flat curve (the average
+                if the model influence for the feature `X` is a flat curve (the average
                 model prediction is not impacted by the mean of `X`) then we
                 can conclude that `X` has no importance for predictions. This
-                flat curve is the baseline and satisfies \\(y = bias_{\\tau(0)}\\).
+                flat curve is the baseline and satisfies \\(y = influence_{\\tau(0)}\\).
                 To compute the importance of a feature, we look at the average
-                distance of the bias curve to this baseline:
+                distance of the influence curve to this baseline:
 
                 $$
-                I(X) = \\frac{1}{n_\\tau} \\sum_{i=1}^{n_\\tau} \\mid bias_{\\tau(i)}(X) - bias_{\\tau(0)}(X) \\mid
+                I(X) = \\frac{1}{n_\\tau} \\sum_{i=1}^{n_\\tau} \\mid influence_{\\tau(i)}(X) - influence_{\\tau(0)}(X) \\mid
                 $$
 
-                The bias curve is first normalized so that the importance is
+                The influence curve is first normalized so that the importance is
                 between 0 and 1 (which may not be the case originally for regression
-                problems). To normalize, we get the minimum and maximum biases
+                problems). To normalize, we get the minimum and maximum influences
                 *across all features and all classes* and then compute
-                `normalized = (bias - min) / (max - min)`.
+                `normalized = (influence - min) / (max - min)`.
 
                 For regression problems, there's one label only and its name
                 doesn't matter (it's just to have a consistent output).
         """
 
-        def get_importance(group, min_bias, max_bias):
-            """Computes the average absolute difference in bias changes per tau increase."""
-            #  Normalize bias to get an importance between 0 and 1
-            # bias can be outside [0, 1] for regression
-            bias = group["bias"]
-            group["bias"] = (bias - min_bias) / (max_bias - min_bias)
-            baseline = group.query("tau == 0").iloc[0]["bias"]
-            return (group["bias"] - baseline).abs().mean()
+        def get_importance(group, min_influence, max_influence):
+            """Computes the average absolute difference in influence changes per tau increase."""
+            #  Normalize influence to get an importance between 0 and 1
+            # influence can be outside [0, 1] for regression
+            influence = group["influence"]
+            group["influence"] = (influence - min_influence) / (
+                max_influence - min_influence
+            )
+            baseline = group.query("tau == 0").iloc[0]["influence"]
+            return (group["influence"] - baseline).abs().mean()
 
-        explanation = self.explain_bias(X_test=X_test, y_pred=y_pred)
-        min_bias = explanation["bias"].min()
-        max_bias = explanation["bias"].max()
+        explanation = self.explain_influence(X_test=X_test, y_pred=y_pred)
+        min_influence = explanation["influence"].min()
+        max_influence = explanation["influence"].max()
 
         return (
             explanation.groupby(["label", "feature"])
             .apply(
-                functools.partial(get_importance, min_bias=min_bias, max_bias=max_bias)
+                functools.partial(
+                    get_importance,
+                    min_influence=min_influence,
+                    max_influence=max_influence,
+                )
             )
             .to_frame("importance")
             .reset_index()
@@ -871,12 +877,12 @@ class Explainer:
             ),
         )
 
-    def plot_bias(self, X_test, y_pred, colors=None, yrange=None, size=None):
-        """Plot the bias of the model for the features in `X_test`.
+    def plot_influence(self, X_test, y_pred, colors=None, yrange=None, size=None):
+        """Plot the influence of the model for the features in `X_test`.
 
         Args:
-            X_test (pd.DataFrame or np.array): See `Explainer.explain_bias()`.
-            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_bias()`.
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_influence()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_influence()`.
             colors (dict, optional): A dictionary that maps features to colors.
                 Default is `None` and the colors are choosen automatically.
             yrange (list, optional): A two-item list `[low, high]`. Default is
@@ -889,33 +895,33 @@ class Explainer:
                 same cell.
 
         Examples:
-            >>> explainer.plot_bias(X_test, y_pred)
-            >>> explainer.plot_bias(X_test, y_pred, colors=dict(
+            >>> explainer.plot_influence(X_test, y_pred)
+            >>> explainer.plot_influence(X_test, y_pred, colors=dict(
             ...     x0="blue",
             ...     x1="red",
             ... ))
-            >>> explainer.plot_bias(X_test, y_pred, yrange=[0.5, 1])
+            >>> explainer.plot_influence(X_test, y_pred, yrange=[0.5, 1])
         """
-        explanation = self.explain_bias(X_test, y_pred)
+        explanation = self.explain_influence(X_test, y_pred)
         labels = explanation["label"].unique()
         if len(labels) > 1:
             raise ValueError("Cannot plot multiple labels")
         y_label = f'Average "{labels[0]}"'
         return self._plot_explanation(
-            explanation, "bias", y_label, colors=colors, yrange=yrange, size=size
+            explanation, "influence", y_label, colors=colors, yrange=yrange, size=size
         )
 
-    def plot_bias_ranking(self, X_test, y_pred, n_features=None, colors=None):
-        """Plot the ranking of the features based on their bias.
+    def plot_influence_ranking(self, X_test, y_pred, n_features=None, colors=None):
+        """Plot the ranking of the features based on their influence.
 
         Args:
-            X_test (pd.DataFrame or np.array): See `Explainer.explain_bias()`.
-            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_bias()`.
+            X_test (pd.DataFrame or np.array): See `Explainer.explain_influence()`.
+            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_influence()`.
             n_features (int, optional): The number of features to plot. With the
                 default (`None`), all of them are shown. For a positive value,
                 we keep the `n_features` first features (the most impactful). For
                 a negative value, we keep the `n_features` last features.
-            colors (dict, optional): See `Explainer.plot_bias()`.
+            colors (dict, optional): See `Explainer.plot_influence()`.
 
         Returns:
             plotly.graph_objs.Figure:
@@ -923,7 +929,7 @@ class Explainer:
                 can also call the `.show()` method to plot multiple charts in the
                 same cell.
         """
-        ranking = self.rank_by_bias(X_test=X_test, y_pred=y_pred)
+        ranking = self.rank_by_influence(X_test=X_test, y_pred=y_pred)
         return self._plot_ranking(
             ranking=ranking,
             score_column="importance",
@@ -942,8 +948,8 @@ class Explainer:
             y_test (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
             y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
             metric (callable): See `Explainer.explain_performance()`.
-            colors (dict, optional): See `Explainer.plot_bias()`.
-            yrange (list, optional): See `Explainer.plot_bias()`.
+            colors (dict, optional): See `Explainer.plot_influence()`.
+            yrange (list, optional): See `Explainer.plot_influence()`.
 
         Returns:
             plotly.graph_objs.Figure:
@@ -985,7 +991,7 @@ class Explainer:
                 default (`None`), all of them are shown. For a positive value,
                 we keep the `n_features` first features (the most impactful). For
                 a negative value, we keep the `n_features` last features.
-            colors (dict, optional): See `Explainer.plot_bias_ranking()`.
+            colors (dict, optional): See `Explainer.plot_influence_ranking()`.
 
         Returns:
             plotly.graph_objs.Figure:

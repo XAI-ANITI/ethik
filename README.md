@@ -26,7 +26,7 @@
 * [Introduction](#introduction)
 * [Installation](#installation)
 * [User guide](#user-guide)
-    * [Measuring model bias](#measuring-model-bias)
+    * [Measuring model influence](#measuring-model-influence)
     * [Evaluating model reliability](#evaluating-model-reliability)
     * [Support for image classification](#support-for-image-classification)
 * [Authors](#authors)
@@ -44,7 +44,7 @@
 
 Currently, `ethik` can be used for:
 
-1. Detecting model bias with respect to one or more (protected) attributes.
+1. Detecting model influence with respect to one or more (protected) attributes.
 2. Identifying causes for why a model performs poorly on certain inputs.
 3. Visualizing regions of an image that influence a model's predictions.
 
@@ -110,16 +110,16 @@ import ethik
 explainer = ethik.ClassificationExplainer()
 ```
 
-### Measuring model bias
+### Measuring model influence
 
 `ethik` can be used to understand how the model predictions vary as a function of one or more features. For example we can look at how the model behaves with respect to the `age` feature.
 
 ```python
-explainer.plot_bias(X_test=X_test['age'], y_pred=y_pred)
+explainer.plot_influence(X_test=X_test['age'], y_pred=y_pred)
 ```
 
 <div align="center">
-  <img src="docs/figures/age_bias.svg" alt="Age bias" />
+  <img src="docs/figures/age_influence.svg" alt="Age influence" />
 </div>
 
 Recall that the target indicates if a person's annual salary is above $50k. **We can see that the model predicts higher probabilities for older people**. This isn't a surprising result, and could have just as well been observed by looking at the data. However, we can see that the predictions plateau at around 50 years old. Indeed, although salary is correlated with age, some people may retire early or lose their job. Furthermore we can see that the model understands the fact that salaries shrink once people get in age of retiring. This up-and-down relationship is in nature non-linear, and isn't picked up by summary statistics such as correlation coefficients, [odds ratios](https://www.wikiwand.com/en/Odds_ratio), and feature importances in general. Although the observations we made are quite obvious and rather intuitive, it's always good to confirm what the model is thinking. The point is that the curves produced by `plot_predictions` represent the relationship between a variable and the target according to the model, rather than the data.
@@ -127,11 +127,11 @@ Recall that the target indicates if a person's annual salary is above $50k. **We
 We can also plot the distribution of predictions for more than one variable. However, because different variables have different scales we have to use a common measure to display them together. For this purpose we plot the τ ("tau") values. These values are contained between -1 and 1 and simply reflect by how much the variable is shifted from it's mean towards it's lower and upper quantiles. In the following figure a tau value of -1 corresponds to just under 20 years old whereas a tau value of 1 refers to being slightly over 60 years old.
 
 ```python
-explainer.plot_bias(X_test=X_test[['age', 'education-num']], y_pred=y_pred)
+explainer.plot_influence(X_test=X_test[['age', 'education-num']], y_pred=y_pred)
 ```
 
 <div align="center">
-  <img src="docs/figures/age_education_bias.svg" alt="Age and education bias" />
+  <img src="docs/figures/age_education_influence.svg" alt="Age and education influence" />
 </div>
 
 We can observe that the model assigns higher probabilities to people with higher degrees, which makes perfect sense. Again, this conveys much more of a story than summary statistics.
@@ -181,17 +181,17 @@ cnn.fit(x_train, y_train)
 y_pred = cnn.predict_proba(x_test)
 ```
 
-`x_test` is a set of images of shape `(10000, 28, 28)` whilst `y_pred` is a set of probabilities predicted for digit by the CNN, and is thus of shape `(10000, 10)`. We can use the `plot_bias` method to display the importance of each pixel for the classifier with respect to each label.
+`x_test` is a set of images of shape `(10000, 28, 28)` whilst `y_pred` is a set of probabilities predicted for digit by the CNN, and is thus of shape `(10000, 10)`. We can use the `plot_influence` method to display the importance of each pixel for the classifier with respect to each label.
 
 ```python
 import ethik
 
 explainer = ethik.ImageClassificationExplainer()
-explainer.plot_bias(x_test, y_pred)
+explainer.plot_influence(x_test, y_pred)
 ```
 
 <div align="center">
-  <img width="75%" src="docs/figures/mnist_bias_explanation.svg" alt="Image bias explanation" />
+  <img width="75%" src="docs/figures/mnist_influence_explanation.svg" alt="Image influence explanation" />
 </div>
 
 This takes around 15 seconds to run on a mid-tier laptop. The previous plot highlights the regions of importance for identifying each digit. More precisely, the intensity of each pixel corresponds to the probability increase of saturating or not the pixel. A value of 0.28 means that saturating the pixel increases the probability predicted by the model by 0.28. Note that we do not saturate and desaturate the pixels independently. Instead, our method understands which pixels are linked together and saturates them in a realistic manner. The previous images show that the CNN seems to be using the same visual cues as a human. However, we can see that is uses very specific regions on images to identify particular digits. For instance, the top-right region of an image seems to trigger the "5" digit, whereas the bottom parts of the images seem to be linked with the "7" digit. Meanwhile, the colder areas correspond to regions that lower the predicted probabilities when the corresponding pixels are "turned on", which is why the center of the "0" digit figure is blue.
