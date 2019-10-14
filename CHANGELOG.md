@@ -6,10 +6,15 @@
 
 * Added the Pima indians diabetes dataset via the `datasets.load_diabetes` function.
 * Added the UCI heart disease dataset via the `datasets.load_heart_disease` function.
+* A `ConstantWarning` will now be raised when a feature has only one single value.
 
 ### Changed
 
 * In `ImageClassificationExplainer`, the image plot size will now adapt better to the desired number of rows and columns.
+
+### Fixed
+
+* Fixed an issue where an `IndexError` would be raised if a column name wasn't of type `str`.
 
 ## 0.0.2 - 02/10/19
 

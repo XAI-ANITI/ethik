@@ -1,4 +1,5 @@
 import itertools
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -6,6 +7,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from . import explainer
+from .warnings import ConstantWarning
 
 
 def images_to_dataframe(images):
@@ -23,7 +25,7 @@ class ImageClassificationExplainer(explainer.Explainer):
     images instead of a tabular dataset.
 
     TODO: add a note about n_taus being 2
-    
+
     Parameters:
         alpha (float): A `float` between `0` and `0.5` which indicates by how close the `Explainer`
             should look at extreme values of a distribution. The closer to zero, the more so
@@ -89,7 +91,12 @@ class ImageClassificationExplainer(explainer.Explainer):
                 See `ethik.explainer.Explainer.explain_bias()`.
         """
         self._set_image_shape(images=X_test)
-        return super().explain_bias(X_test=images_to_dataframe(X_test), y_pred=y_pred)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=ConstantWarning)
+            return super().explain_bias(
+                X_test=images_to_dataframe(X_test), y_pred=y_pred
+            )
 
     def explain_performance(self, X_test, y_test, y_pred, metric):
         """Compute the change in model's performance for the features in `X_test`.
@@ -116,12 +123,15 @@ class ImageClassificationExplainer(explainer.Explainer):
                 See `ethik.explainer.Explainer.explain_performance()`.
         """
         self._set_image_shape(images=X_test)
-        return super().explain_performance(
-            X_test=images_to_dataframe(X_test),
-            y_test=y_test,
-            y_pred=y_pred,
-            metric=metric,
-        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=explainer.ConstantWarning)
+            return super().explain_performance(
+                X_test=images_to_dataframe(X_test),
+                y_test=y_test,
+                y_pred=y_pred,
+                metric=metric,
+            )
 
     def _get_fig_size(self, cell_width, n_rows, n_cols):
         if cell_width is None:
