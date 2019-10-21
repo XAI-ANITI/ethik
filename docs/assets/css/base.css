@@ -1,3 +1,8 @@
-.android-header {
-  background: #dee8eb;
+header  .mdl-navigation__link {
+    font-weight: 700;
+    font-size: 14px;
+}
+
+main > .content {
+  padding: 20px;
 }
