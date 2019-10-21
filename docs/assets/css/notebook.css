@@ -20,13 +20,7 @@ a {
   transition: color .3s ease-in-out;
 }
 
-main {
-  display: flex;
-  flex-direction: row-reverse;
-  justify-content: flex-end;
-}
-
-main > .notebook {
+main > .content {
   margin: auto;
   max-width: 1000px;
 }

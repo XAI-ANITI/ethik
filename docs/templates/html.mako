@@ -366,8 +366,10 @@ css: |
   <style media="screen and (min-width: 700px)">${css.desktop()}</style>
   <style media="print">${css.print()}</style>
   <style media="screen and (min-width: 700px)">
-    main.mdl-layout__content {
+    main > .content {
       display: flex;
+      flex-direction: row-reverse;
+      justify-content: flex-end;
     }
   </style>
 
