@@ -26,27 +26,9 @@ main {
   justify-content: flex-end;
 }
 
-#content {
-  width: 70%;
-  max-width: 100ch;
-  padding: 3em 4em;
-  border-left: 1px solid #ddd;
-}
-
-#sidebar {
-  width: 30%;
-  padding: 30px;
-  overflow: hidden;
-}
-
-#sidebar .toc {
-  list-style-type: none;
-  margin: 0;
-  padding: 0;
-}
-
-#sidebar .toc li {
-  margin-top: .5em;
+main > .notebook {
+  margin: auto;
+  max-width: 1000px;
 }
 
 div#notebook-container{

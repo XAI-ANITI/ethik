@@ -106,4 +106,9 @@ venv.bak/
 # For convenience
 /*.ipynb
 
+# Custom
 notebooks/temp-plot.html
+docs/api/
+docs/tutorials/
+docs/_site/
+Gemfile.lock
