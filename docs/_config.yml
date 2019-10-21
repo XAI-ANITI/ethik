@@ -5,6 +5,7 @@ logo: "" #/assets/img/logo.png
 image: "" #/assets/img/thumbnail.png
 twitter:
   card: summary_large_image
+github: https://github.com/MaxHalford/ethik
 
 plugins:
   - jekyll-redirect-from
