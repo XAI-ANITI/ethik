@@ -347,10 +347,10 @@
 
 ---
 % if module_list:
-title: "Python module list"
+title: "API"
 description: "A list of documented Python modules."
 % else:
-title: "${module.name} API documentation"
+title: "API"
 description: "${module.docstring | glimpse, trim, h}"
 % endif
 

@@ -1,20 +1,19 @@
 ---
+title: Tutorials
 css: |
   <style>
-    h2 {
-      margin-top: 80px;
+    .mdl-grid {
+      margin-top: 50px;
     }
 
-    .card-group {
-      display: flex;
+    .mdl-cell > h2 {
+      text-align: center;
+      margin-top: 0;
     }
 
-    .card-group .mdl-card {
-      margin: 10px;
-    }
-
-    .mdl-card__title a {
-
+    .mdl-card {
+      min-width: 200px;
+      margin: 20px auto;
     }
 
     .mdl-card__actions a {
@@ -23,137 +22,63 @@ css: |
     }
   </style>
 ---
+<div class="mdl-grid">
+  <div class="mdl-cell mdl-cell--4-col">
+    <h2 class="mdl-typography--display-1-color-contrast">1. Explore the features</h2>
 
-<div class="card-group">
-  <div class="mdl-card mdl-shadow--2dp">
-    <div class="mdl-card__title mdl-card--expand">
-      <h2 class="mdl-card__title-text">Get started</h2>
-    </div>
-    <div class="mdl-card__supporting-text">
-      Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-      Aenan convallis.
-    </div>
-    <div class="mdl-card__actions mdl-card--border">
-      <a class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" href="/tutorials/Binary classification.html">
-      Read
-      </a>
+    <div class="cards">
+      {% include tutorial_card.html
+        title="Get started"
+        description="Learn the basics of the package here."
+        url="/tutorials/Binary classification.html"
+      %}
+      {% include tutorial_card.html
+        title="Binary classification"
+        description="TODO"
+        url="/tutorials/Binary classification.html"
+      %}
+      {% include tutorial_card.html
+        title="Multi-class classification"
+        description="TODO"
+        url="/tutorials/Multi-class classification.html"
+      %}
+      {% include tutorial_card.html
+        title="Regression"
+        description="TODO"
+        url="/tutorials/Regression.html"
+      %}
+      {% include tutorial_card.html
+        title="Images"
+        description="TODO"
+        url="/tutorials/Image.html"
+      %}
     </div>
   </div>
-</div>
+  <div class="mdl-cell mdl-cell--4-col">
+    <h2 class="mdl-typography--display-1-color-contrast">2. Conduct real-world analyses</h2>
 
-<h2>Explore the features</h2>
-
-<div class="card-group">
-  <div class="mdl-card mdl-shadow--2dp">
-    <div class="mdl-card__title mdl-card--expand">
-      <h2 class="mdl-card__title-text">Binary classification</h2>
-    </div>
-    <div class="mdl-card__supporting-text">
-      Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-      Aenan convallis.
-    </div>
-    <div class="mdl-card__actions mdl-card--border">
-      <a class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" href="/tutorials/Binary classification.html">
-      Read
-      </a>
+    <div class="cards">
+      {% include tutorial_card.html
+        title="Heart disease"
+        description="TODO"
+        url="/tutorials/Heart disease.html"
+      %}
+      {% include tutorial_card.html
+        title="Diabetes"
+        description="TODO"
+        url="/tutorials/Diabetes.html"
+      %}
     </div>
   </div>
+  <div class="mdl-cell mdl-cell--4-col">
+    <h2 class="mdl-typography--display-1-color-contrast">3. Compare to alternatives</h2>
 
-  <div class="mdl-card mdl-shadow--2dp">
-    <div class="mdl-card__title mdl-card--expand">
-      <h2 class="mdl-card__title-text">Multi-class classification</h2>
-    </div>
-    <div class="mdl-card__supporting-text">
-      Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-      Aenan convallis.
-    </div>
-    <div class="mdl-card__actions mdl-card--border">
-      <a class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" href="/tutorials/Multi-class classification.html">
-      Read
-      </a>
-    </div>
-  </div>
-
-  <div class="mdl-card mdl-shadow--2dp">
-    <div class="mdl-card__title mdl-card--expand">
-      <h2 class="mdl-card__title-text">Regression</h2>
-    </div>
-    <div class="mdl-card__supporting-text">
-      Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-      Aenan convallis.
-    </div>
-    <div class="mdl-card__actions mdl-card--border">
-      <a class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" href="/tutorials/Regression.html">
-      Read
-      </a>
-    </div>
-  </div>
-
-  <div class="mdl-card mdl-shadow--2dp">
-    <div class="mdl-card__title mdl-card--expand">
-      <h2 class="mdl-card__title-text">Images</h2>
-    </div>
-    <div class="mdl-card__supporting-text">
-      Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-      Aenan convallis.
-    </div>
-    <div class="mdl-card__actions mdl-card--border">
-      <a class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" href="/tutorials/Image.html">
-      Read
-      </a>
-    </div>
-  </div>
-</div>
-
-<h2>Conduct real-world analyses</h2>
-
-<div class="card-group">
-  <div class="mdl-card mdl-shadow--2dp">
-    <div class="mdl-card__title mdl-card--expand">
-      <h2 class="mdl-card__title-text">Diabetes</h2>
-    </div>
-    <div class="mdl-card__supporting-text">
-      Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-      Aenan convallis.
-    </div>
-    <div class="mdl-card__actions mdl-card--border">
-      <a class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" href="/tutorials/Diabetes.html">
-      Read
-      </a>
-    </div>
-  </div>
-
-  <div class="mdl-card mdl-shadow--2dp">
-    <div class="mdl-card__title mdl-card--expand">
-      <h2 class="mdl-card__title-text">Heart disease</h2>
-    </div>
-    <div class="mdl-card__supporting-text">
-      Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-      Aenan convallis.
-    </div>
-    <div class="mdl-card__actions mdl-card--border">
-      <a class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" href="/tutorials/Heart disease.html">
-      Read
-      </a>
-    </div>
-  </div>
-</div>
-
-<h2>Compare to alternatives</h2>
-
-<div class="card-group">
-  <div class="mdl-card mdl-shadow--2dp">
-    <div class="mdl-card__title mdl-card--expand">
-      <h2 class="mdl-card__title-text">Partial Dependence Plot</h2>
-    </div>
-    <div class="mdl-card__supporting-text">
-      Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-      Aenan convallis.
-    </div>
-    <div class="mdl-card__actions mdl-card--border">
-      <a class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect" href="/tutorials/Partial Dependence Plot.html">
-      Read
-      </a>
+    <div class="cards">
+      {% include tutorial_card.html
+        title="Partial Dependence Plot"
+        description="TODO"
+        url="/tutorials/Partial Dependence Plot.html"
+      %}
     </div>
   </div>
 </div>
