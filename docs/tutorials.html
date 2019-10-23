@@ -2,6 +2,31 @@
 title: Tutorials
 css: |
   <style>
+    .installation {
+      text-align: center;
+    }
+
+    .installation .command {
+      margin-top: 50px;
+      border: 1px solid #000;
+      font-family: monospace;
+      font-size: 20px;
+      text-align: center;
+      padding: 10px;
+    }
+
+    .installation .help {
+      margin-top: 5px;
+      opacity: 0.5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .installation .help i {
+      margin-right: 5px;
+    }
+
     .mdl-grid {
       margin-top: 50px;
     }
@@ -23,8 +48,12 @@ css: |
   </style>
 ---
 
-<div class="install">
-  pip install ethik
+<div class="installation">
+  <input type="text" class="command mdl-color--accent" readonly="" value="pip3 install ethik" size="20" />
+  <div class="help">
+    <i class="material-icons">warning</i>
+    Requires Python 3.6+
+  </div>
 </div>
 
 <div class="mdl-grid">
