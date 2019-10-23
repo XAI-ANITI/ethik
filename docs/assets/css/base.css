@@ -1,6 +1,9 @@
+.ethik-font {
+  font-family: 'Righteous', cursive;
+}
+
 header .mdl-layout-title a,
 .mdl-layout__drawer .mdl-layout-title a {
-  font-family: 'Righteous', cursive;
   text-decoration: none;
   font-size: 26px;
 }

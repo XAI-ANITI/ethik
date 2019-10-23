@@ -1,4 +1,71 @@
 ---
+css: |
+  <style>
+    .header {
+      text-align: center;
+      padding: 50px 20px 0 20px;
+    }
+
+    .header .shortcuts {
+      position: relative;
+      top: 40px;
+      font-size: 21px;
+    }
+
+    .header .shortcuts .mdl-button {
+      margin-top: 10px;
+    }
+
+    .content {
+      padding: 20px;
+    }
+  </style>
 ---
 
-Index
+<div class="header mdl-color--accent">
+  <h1 class="mdl-typography ethik-font">
+    Ethik AI
+  </h1>
+  <h2 class="mdl-typography--display-1 mdl-typography--font-light">
+    A Python package for AI fairness and interpretability.
+  </h2>
+
+  <div class="mdl-grid shortcuts">
+    <div class="mdl-cell mdl-cell--4-col">
+      {% include home_shortcut.html
+        text="Learn what we do"
+        url="#what-we-do"
+      %}
+    </div>
+    <div class="mdl-cell mdl-cell--4-col">
+      {% include home_shortcut.html
+        text="Understand our method"
+        url="#our-method"
+      %}
+    </div>
+    <div class="mdl-cell mdl-cell--4-col">
+      {% include home_shortcut.html
+        text="Use our package"
+        url="#our-package"
+      %}
+    </div>
+  </div>
+</div>
+
+<div class="content">
+  <h3 id="what-we-do" class="mdl-typography--display-1 mdl-typography--font-light">
+    Learn what we do
+  </h3>
+
+  <h3 id="our method" class="mdl-typography--display-1 mdl-typography--font-light">
+    Understand our method
+  </h3>
+
+  <h3 id="our-package" class="mdl-typography--display-1 mdl-typography--font-light">
+    Use our package
+  </h3>
+
+  <h3 id="about" class="mdl-typography--display-1 mdl-typography--font-light">
+    About
+  </h3>
+</div>
