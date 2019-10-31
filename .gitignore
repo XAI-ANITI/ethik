@@ -111,5 +111,6 @@ notebooks/temp-plot.html
 docs/api/
 docs/tutorials/
 docs/_site/
+docs/assets/plots/
 Gemfile.lock
 *.swp

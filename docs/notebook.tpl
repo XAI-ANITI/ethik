@@ -11,7 +11,7 @@
 layout: notebook
 title: "{{nb_title}}"
 widgets: {{widgets}}
-css: |
+head: |
   {% for css in resources.inlining.css -%}
   <style type="text/css">
   {{ css|indent }}

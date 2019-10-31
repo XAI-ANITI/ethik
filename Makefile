@@ -32,7 +32,10 @@ api_ref:
 	mv docs/ethik/* docs/api/
 	rm -r docs/ethik/
 
-doc: nb_to_html api_ref
+doc_plots:
+	python docs/create_header_plots.py
+
+doc: nb_to_html api_ref doc_plots
 
 deploy_doc: doc
 	git clone -b gh-pages "https://${GH_USER}:${GH_PASSWORD}@github.com/${TRAVIS_REPO_SLUG}.git" gh-pages

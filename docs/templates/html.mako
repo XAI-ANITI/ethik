@@ -354,7 +354,7 @@ title: "API"
 description: "${module.docstring | glimpse, trim, h}"
 % endif
 
-css: |
+head: |
   <link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.0/normalize.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/8.0.0/sanitize.min.css" rel="stylesheet">
   % if syntax_highlighting:

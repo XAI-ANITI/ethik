@@ -1,15 +1,47 @@
 ---
-css: |
+head: |
   <style>
     .header {
       text-align: center;
-      padding: 50px 20px 0 20px;
+      padding: 50px 20px 20px 20px;
+    }
+
+    .header .plots {
+      display: flex;
+      justify-content: space-around;
+    }
+
+    .header .plots > div {
+      height: 300px;
+    }
+
+    .header .plots .modebar {
+      display: none;
     }
 
     .content {
       padding: 20px;
     }
   </style>
+js: |
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script>
+    (function() {
+      for (var id of ["header-plot-left", "header-plot-right"]) {
+        (function(id) {
+          var baseUrl = ""; // TODO
+          var dataUrl = "assets/plots/" + id + ".json";
+          fetch(baseUrl + dataUrl)
+          .then(function(resp) {
+            return resp.json();
+          })
+          .then(function(json) {
+            Plotly.plot(document.getElementById(id), json.data, json.layout);
+          });
+        })(id);
+      }
+    })();
+  </script>
 ---
 
 <div class="header mdl-color--accent">
@@ -21,7 +53,8 @@ css: |
   </h2>
 
   <div class="plots">
-    Plots TODO
+    <div id="header-plot-left"></div>
+    <div id="header-plot-right"></div>
   </div>
 </div>
 
