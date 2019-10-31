@@ -355,8 +355,8 @@ description: "${module.docstring | glimpse, trim, h}"
 % endif
 
 css: |
-  <link href='https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.0/normalize.min.css' rel='stylesheet'>
-  <link href='https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/8.0.0/sanitize.min.css' rel='stylesheet'>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.0/normalize.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/8.0.0/sanitize.min.css" rel="stylesheet">
   % if syntax_highlighting:
   <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/${hljs_style}.min.css" rel="stylesheet">
   %endif
@@ -379,11 +379,11 @@ js: |
     window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
     ga('create', '${google_analytics}', 'auto'); ga('send', 'pageview');
   </script>
-  <script async src='https://www.google-analytics.com/analytics.js'></script>
+  <script async src="https://www.google-analytics.com/analytics.js"></script>
   % endif
 
   % if latex_math:
-  <script async src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_CHTML'></script>
+  <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_CHTML"></script>
   % endif
 ---
 

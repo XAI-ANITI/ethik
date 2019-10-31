@@ -112,3 +112,4 @@ docs/api/
 docs/tutorials/
 docs/_site/
 Gemfile.lock
+*.swp

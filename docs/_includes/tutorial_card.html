@@ -6,7 +6,7 @@
     {{ include.description }}
   </div>
   <div class="mdl-card__actions">
-    <a class="mdl-button mdl-typography--text-uppercase" href="{{ include.url }}">
+    <a class="mdl-button mdl-typography--text-uppercase" href="{{ include.url | relative_url }}">
     Read
     <i class="material-icons">chevron_right</i>
     </a>
