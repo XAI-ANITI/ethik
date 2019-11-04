@@ -36,6 +36,13 @@ head: |
       margin: 0px;
       margin-bottom: 15px;
     }
+
+    .content .buttons {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-top: 40px;
+    }
   </style>
 js: |
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
@@ -95,19 +102,23 @@ js: |
     We have more plans for the future.
   </p>
 
-  <a href="{{ "/ai-fairness-and-interpretability" | relative_url }}">Learn more about AI fairness and interpretability</a>
-
-  <h3 class="mdl-typography--display-1 mdl-typography--font-light">
-    Understand our method
-  </h3>
-  <hr class="title-underline mdl-color--accent" />
-
-  <a href="{{ "/how-it-works" | relative_url }}">Learn more about our method</a>
-
-  <h3 class="mdl-typography--display-1 mdl-typography--font-light">
-    Use our package
-  </h3>
-  <hr class="title-underline mdl-color--accent" />
+  <div class="buttons">
+    <a href="{{ "/ai-fairness-and-interpretability" | relative_url }}">
+      <button class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored">
+        Learn our problematic
+      </button>
+    </a>
+    <a href="{{ "/tutorials/how-it-works" | relative_url }}">
+      <button class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored">
+        Understand our method
+      </button>
+    </a>
+    <a href="{{ "/tutorials/" | relative_url }}">
+      <button class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored">
+        Use our package
+      </button>
+    </a>
+  </div>
 
   <h3 id="about" class="mdl-typography--display-1 mdl-typography--font-light">
     About
