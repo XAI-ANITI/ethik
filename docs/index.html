@@ -80,8 +80,29 @@ js: |
 </div>
 
 <div class="content">
-  <p class="introduction">
-    <code>ethik</code> is a Python package for performing <a href="https://perso.math.univ-toulouse.fr/loubes/fairness-robustness-in-machine-learning/">fair</a> and <a href="https://www.wikiwand.com/en/Explainable_artificial_intelligence">explainable</a> machine learning. At it's core, the approach of <code>ethik</code> is to build <strong>counterfactual distributions</strong> that permit answering "what if?" scenarios. The idea is that we are able to stress one or more variables and observe how a machine learning model reacts to the stress. The stress is based on a statistical re-weighting scheme called <strong>entropic variable projection</strong>. The main benefit of our method is that it will only consider realistic scenarios, and will not build fake examples. You may find more information by reading <a href="https://arxiv.org/abs/1810.07924">this paper</a> as well as the <a href="{{ "/tutorials/binary-classification" | relative_url }}">Get started</a> tutorial.
+  <p>
+    Machine learning models can largely outperform classical algorithms to make predictions
+    about complexe problems, e.g. recognizing trees (which can vary a lot depending on
+    the season, the species...). To do so, they learn from data (either from examples or experience)
+    instead of following a well-defined sequence of instructions (like a cooking recipe). We humans
+    do the same to teach our kids to recognize trees: we don't provide instructions but examples.
+  </p>
+  <p>
+    It leads to the kids not always being able to clearly explain their decisions. Similarly,
+    machine learning models can look like black-box decision-making programs. The question is:
+    <strong>can we trust them?</strong> Understanding <strong>why a prediction was
+    made</strong> is crucial to answer this question. As a bank customer, I want to know why
+    the machine doesn't want to lend me money. This is known as <strong>model interpretability</strong>.
+  </p>
+  <p>
+    Model interpretability opens the door to <strong>model fairness</strong>. Was the
+    decision made based on an unfair view of the world? We don't want our models to reproduce 
+    human discrimination that probably reflects in data. Model fairness consists
+    in making sure a decision was not based on protected attributes (e.g. gender, race...
+    for a bank loan).
+  </p>
+  <p>
+    <code>ethik</code> is a Python package for performing <a href="{{ "/ai-fairness-and-interpretability" | relative_url }}">fair and explainable</a> machine learning. At it's core, the approach of <code>ethik</code> is to build <strong>counterfactual distributions</strong> that permit answering "what if?" scenarios. The idea is that we are able to stress one or more variables and observe how a machine learning model reacts to the stress. The stress is based on a statistical re-weighting scheme called <strong>entropic variable projection</strong>. The main benefit of our method is that it will only consider realistic scenarios, and will not build fake examples. You may find more information by reading <a href="https://arxiv.org/abs/1810.07924">this paper</a>, the <a href="{{ "/tutorials/binary-classification" | relative_url }}">Get started</a> tutorial and the <a href="{{ "/tutorials/how-it-works" | relative_url }}">How it works</a> page.
   </p>
 
 <div align="center">
