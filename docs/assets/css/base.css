@@ -9,6 +9,10 @@ header .mdl-layout-title a,
 }
 
 header .mdl-navigation__link {
-    font-weight: 700;
-    font-size: 14px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+footer li a {
+  color: #000;
 }

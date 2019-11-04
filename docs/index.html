@@ -24,6 +24,18 @@ head: |
       max-width: 800px;
       margin: auto;
     }
+
+    .content h3 {
+      margin: 0px;
+      margin-top: 60px;
+    }
+
+    .content .title-underline {
+      border: none;
+      height: 2px;
+      margin: 0px;
+      margin-bottom: 15px;
+    }
   </style>
 js: |
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
@@ -88,14 +100,42 @@ js: |
   <h3 class="mdl-typography--display-1 mdl-typography--font-light">
     Understand our method
   </h3>
+  <hr class="title-underline mdl-color--accent" />
 
   <a href="{{ "/how-it-works" | relative_url }}">Learn more about our method</a>
 
   <h3 class="mdl-typography--display-1 mdl-typography--font-light">
     Use our package
   </h3>
+  <hr class="title-underline mdl-color--accent" />
 
   <h3 id="about" class="mdl-typography--display-1 mdl-typography--font-light">
     About
   </h3>
+  <hr class="title-underline mdl-color--accent" />
+
+  <p>
+    This work is led by members of the <a href="https://www.math.univ-toulouse.fr/?lang=en">Toulouse Institute of Mathematics</a>, namely:
+  </p>
+
+  <ul>
+    <li><a href="https://www.math.univ-toulouse.fr/~fbachoc/">François Bachoc</a></li>
+    <li><a href="https://www.math.univ-toulouse.fr/~gamboa/newwab/Pages_Fabrice_Gamboa/Main_Page.html">Fabrice Gamboa</a></li>
+    <li><a href="https://maxhalford.github.io/">Max Halford</a></li>
+    <li><a href="https://vayel.github.io/">Vincent Lefoulon</a></li>
+    <li><a href="https://perso.math.univ-toulouse.fr/loubes/">Jean-Michel Loubes</a></li>
+    <li><a href="http://laurent.risser.free.fr/menuEng.html">Laurent Risser</a></li>
+  </ul>
+
+  <p>
+    You can contact us at <a href="mailto:jm.loubes@gmail.com">jm.loubes@gmail.com</a> and/or <a href="mailto:maxhalford25@gmail.com">maxhalford25@gmail.com</a>.
+  </p>
+
+  <p>
+  This work is supported by the <a href="http://www.cnrs.fr/">Centre National de la Recherche Scientifique (CNRS)</a> and is done in the context of the <a href="https://en.univ-toulouse.fr/aniti">Artificial and Natural Intelligence Toulouse Institute (ANITI)</a> project.
+  </p>
+
+  <p>
+    This software is released under the <a href="https://github.com/MaxHalford/ethik/blob/master/LICENSE">GPL license</a>.
+  </p>
 </div>
