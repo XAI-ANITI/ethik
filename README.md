@@ -36,10 +36,10 @@
 
 ## Introduction
 
-`ethik` is a Python package for performing [fair](https://perso.math.univ-toulouse.fr/loubes/fairness-robustness-in-machine-learning/) and [explainable](https://www.wikiwand.com/en/Explainable_artificial_intelligence) machine learning. At it's core, the approach of `ethik` is to build *counterfactual distributions* that permit answering "what if?" scenarios. The idea is that we are able to stress one or more variables and observe how a machine learning model reacts to the stress. The stress is based on a statistical re-weighting scheme called *entropic variable projection*. The main benefit of our method is that it will only consider realistic scenarios, and will not build fake examples. You may find more information by reading [this paper](https://arxiv.org/abs/1810.07924) as well as the ["How It Works" notebook](notebooks/How%20It%20Works.ipynb).
+`ethik` is a Python package for performing [fair](https://perso.math.univ-toulouse.fr/loubes/fairness-robustness-in-machine-learning/) and [explainable](https://www.wikiwand.com/en/Explainable_artificial_intelligence) machine learning. At it's core, the approach of `ethik` is to build *counterfactual distributions* that permit answering "what if?" scenarios. The idea is that we are able to stress one or more variables and observe how a machine learning model reacts to the stress. The stress is based on a statistical re-weighting scheme called *entropic variable projection*. The main benefit of our method is that it will only consider realistic scenarios, and will not build fake examples. You may find more information by reading [this paper](https://arxiv.org/abs/1810.07924) as well as the ["How It Works" notebook](notebooks/how-it-works.ipynb).
 
 <div align="center">
-  <img src="docs/figures/overview.svg" width="660px" alt="overview"/>
+  <img src="docs/assets/img/overview.svg" width="660px" alt="overview"/>
 </div>
 
 Currently, `ethik` can be used for:
@@ -80,7 +80,7 @@ We have more plans for the future.
 
 ## User guide
 
-:point_up: Please check out [this notebook](notebooks/Binary%20classification.ipynb) for more detailed code.
+:point_up: Please check out [this notebook](notebooks/binary-classification.ipynb) for more detailed code.
 
 In the following example we'll be using the ["Adult" dataset](https://archive.ics.uci.edu/ml/datasets/adult). This dataset contains a binary label indicating if a person's annual income is larger than $50k. `ethik` can diagnose a model by looking at the predictions the model makes on a test set. Consequently, you first have to split your dataset in two (train and test).
 
@@ -119,7 +119,7 @@ explainer.plot_influence(X_test=X_test['age'], y_pred=y_pred)
 ```
 
 <div align="center">
-  <img src="docs/figures/age_influence.svg" alt="Age influence" />
+  <img src="docs/assets/img/age_influence.svg" alt="Age influence" />
 </div>
 
 Recall that the target indicates if a person's annual salary is above $50k. **We can see that the model predicts higher probabilities for older people**. This isn't a surprising result, and could have just as well been observed by looking at the data. However, we can see that the predictions plateau at around 50 years old. Indeed, although salary is correlated with age, some people may retire early or lose their job. Furthermore we can see that the model understands the fact that salaries shrink once people get in age of retiring. This up-and-down relationship is in nature non-linear, and isn't picked up by summary statistics such as correlation coefficients, [odds ratios](https://www.wikiwand.com/en/Odds_ratio), and feature importances in general. Although the observations we made are quite obvious and rather intuitive, it's always good to confirm what the model is thinking. The point is that the curves produced by `plot_predictions` represent the relationship between a variable and the target according to the model, rather than the data.
@@ -131,7 +131,7 @@ explainer.plot_influence(X_test=X_test[['age', 'education-num']], y_pred=y_pred)
 ```
 
 <div align="center">
-  <img src="docs/figures/age_education_influence.svg" alt="Age and education influence" />
+  <img src="docs/assets/img/age_education_influence.svg" alt="Age and education influence" />
 </div>
 
 We can observe that the model assigns higher probabilities to people with higher degrees, which makes perfect sense. Again, this conveys much more of a story than summary statistics.
@@ -150,7 +150,7 @@ explainer.plot_performance(
 ```
 
 <div align="center">
-  <img src="docs/figures/age_accuracy.svg" alt="Age accuracy" />
+  <img src="docs/assets/img/age_accuracy.svg" alt="Age accuracy" />
 </div>
 
 In the above figure **we can see that the model is more reliable for younger people than for older ones**. Having a fine-grained understanding of the accuracy of a model can be of extreme help in real-life scenarios. Indeed this can help you understand where the error of the model is coming from and guide your data science process.
@@ -167,7 +167,7 @@ explainer.plot_performance(
 ```
 
 <div align="center">
-  <img src="docs/figures/age_education_accuracy.svg" alt="Age and education accuracy" />
+  <img src="docs/assets/img/age_education_accuracy.svg" alt="Age and education accuracy" />
 </div>
 
 ### Support for image classification
@@ -191,7 +191,7 @@ explainer.plot_influence(x_test, y_pred)
 ```
 
 <div align="center">
-  <img width="75%" src="docs/figures/mnist_influence_explanation.svg" alt="Image influence explanation" />
+  <img width="75%" src="docs/assets/img/mnist_influence_explanation.svg" alt="Image influence explanation" />
 </div>
 
 This takes around 15 seconds to run on a mid-tier laptop. The previous plot highlights the regions of importance for identifying each digit. More precisely, the intensity of each pixel corresponds to the probability increase of saturating or not the pixel. A value of 0.28 means that saturating the pixel increases the probability predicted by the model by 0.28. Note that we do not saturate and desaturate the pixels independently. Instead, our method understands which pixels are linked together and saturates them in a realistic manner. The previous images show that the CNN seems to be using the same visual cues as a human. However, we can see that is uses very specific regions on images to identify particular digits. For instance, the top-right region of an image seems to trigger the "5" digit, whereas the bottom parts of the images seem to be linked with the "7" digit. Meanwhile, the colder areas correspond to regions that lower the predicted probabilities when the corresponding pixels are "turned on", which is why the center of the "0" digit figure is blue.
