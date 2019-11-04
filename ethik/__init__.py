@@ -1,7 +1,9 @@
 """
 ## Installation
 
-**/!\ Python 3.6 or above is required /!\ **
+<div style="display: flex; align-items: center; margin-bottom: 20px;">
+    <i class="material-icons" style="margin-right: 10px; color: red;">warning</i> Python 3.6 or above is required
+</div>
 
 **Via [PyPI](https://pypi.org/project/ethik/)**
 
