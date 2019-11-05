@@ -2,13 +2,13 @@ import colorlover as cl
 import pandas as pd
 from plotly.subplots import make_subplots
 
-from .explainer import Explainer
+from .cache_explainer import CacheExplainer
 from .utils import to_pandas
 
 __all__ = ["ClassificationExplainer"]
 
 
-class ClassificationExplainer(Explainer):
+class ClassificationExplainer(CacheExplainer):
     def plot_influence(self, X_test, y_pred, colors=None, yrange=None, size=None):
         """Plot the influence for the features in `X_test`.
 
