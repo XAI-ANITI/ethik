@@ -151,21 +151,26 @@ class BaseExplainer:
         Returns:
             str: The name of the column.
         """
-        return metric.__name__
+        name = metric.__name__
+        if name in ["feature", "value", "label", "influence", "ksi"]:
+            raise ValueError(
+                f"Cannot use {name} as a metric name, already a column name"
+            )
+        return name
 
-    def _fill_ksis(self, X_test, y_pred, info):
+    def _fill_ksis(self, X_test, y_pred, query):
         """
 
         Parameters:
             X_test (pd.DataFrame): A dataframe with categorical features ALREADY 
                 one-hot encoded.
             y_pred (pd.DataFrame):
-            info (pd.DataFrame):
+            query (pd.DataFrame):
         """
-        if "ksi" not in info.columns:
-            info["ksi"] = None
+        if "ksi" not in query.columns:
+            query["ksi"] = None
 
-        info_to_complete = info[info["ksi"].isnull()]
+        query_to_complete = query[query["ksi"].isnull()]
         ksis = joblib.Parallel(n_jobs=self.n_jobs)(
             joblib.delayed(compute_ksis)(
                 x=X_test[feature],
@@ -173,25 +178,25 @@ class BaseExplainer:
                 max_iterations=self.max_iterations,
                 tol=self.tol,
             )
-            for feature, part in info_to_complete.groupby("feature")
+            for feature, part in query_to_complete.groupby("feature")
         )
         ksis = dict(collections.ChainMap(*ksis))
 
-        info["ksi"] = info.apply(
+        query["ksi"] = query.apply(
             lambda r: ksis.get((r["feature"], r["value"]), r["ksi"]), axis="columns"
         )
-        info["ksi"] = info["ksi"].fillna(0.0)
-        return info
+        query["ksi"] = query["ksi"].fillna(0.0)
+        return query
 
     def _explain(
-        self, X_test, y_pred, dest_col, key_cols, compute, info, compute_kwargs=None
+        self, X_test, y_pred, dest_col, key_cols, compute, query, compute_kwargs=None
     ):
         if compute_kwargs is None:
             compute_kwargs = {}
-        if dest_col not in info.columns:
-            info[dest_col] = None
-            info[f"{dest_col}_low"] = None
-            info[f"{dest_col}_high"] = None
+        if dest_col not in query.columns:
+            query[dest_col] = None
+            query[f"{dest_col}_low"] = None
+            query[f"{dest_col}_high"] = None
 
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
@@ -201,16 +206,16 @@ class BaseExplainer:
         if len(X_test) != len(y_pred):
             raise ValueError("X_test and y_pred are not of the same length")
 
-        info = self._fill_ksis(X_test, y_pred, info)
+        query = self._fill_ksis(X_test, y_pred, query)
 
-        info_to_complete = info[
-            info["feature"].isin(X_test.columns)
-            & info["label"].isin(y_pred.columns)
-            & info[dest_col].isnull()
+        query_to_complete = query[
+            query["feature"].isin(X_test.columns)
+            & query["label"].isin(y_pred.columns)
+            & query[dest_col].isnull()
         ]
 
-        if info_to_complete.empty:
-            return info
+        if query_to_complete.empty:
+            return query
 
         # `compute()` will return something like:
         # [
@@ -222,7 +227,7 @@ class BaseExplainer:
         #   ...
         # ]
         explanation = compute(
-            X_test=X_test, y_pred=y_pred, info=info_to_complete, **compute_kwargs
+            X_test=X_test, y_pred=y_pred, query=query_to_complete, **compute_kwargs
         )
         # We group by the key to gather the samples and compute the confidence
         #  interval
@@ -240,12 +245,12 @@ class BaseExplainer:
             ]
         )
 
-        # Merge the new information with the current information
-        info = join_with_overlap(left=info, right=explanation, on=key_cols)
-        return info
+        # Merge the new queryrmation with the current queryrmation
+        query = join_with_overlap(left=query, right=explanation, on=key_cols)
+        return query
 
-    def _compute_influence(self, X_test, y_pred, info):
-        keys = info.groupby(["feature", "label", "ksi"]).groups.keys()
+    def _compute_influence(self, X_test, y_pred, query):
+        keys = query.groupby(["feature", "label", "ksi"]).groups.keys()
         return pd.DataFrame(
             [
                 (
@@ -276,19 +281,19 @@ class BaseExplainer:
             columns=["feature", "label", "ksi", "sample_index", "influence"],
         )
 
-    def _explain_influence(self, X_test, y_pred, info):
+    def _explain_influence(self, X_test, y_pred, query):
         return self._explain(
             X_test=X_test,
             y_pred=y_pred,
             dest_col="influence",
             key_cols=["feature", "label", "ksi"],
             compute=self._compute_influence,
-            info=info,
+            query=query,
         )
 
-    def _compute_performance(self, X_test, y_pred, info, y_test, metric):
+    def _compute_performance(self, X_test, y_pred, query, y_test, metric):
         metric_name = self.get_metric_name(metric)
-        keys = info.groupby(["feature", "ksi"]).groups.keys()
+        keys = query.groupby(["feature", "ksi"]).groups.keys()
         return pd.DataFrame(
             [
                 (
@@ -319,7 +324,7 @@ class BaseExplainer:
             columns=["feature", "ksi", "sample_index", metric_name],
         )
 
-    def _explain_performance(self, X_test, y_test, y_pred, metric, info):
+    def _explain_performance(self, X_test, y_test, y_pred, metric, query):
         metric_name = self.get_metric_name(metric)
         return self._explain(
             X_test=X_test,
@@ -327,7 +332,7 @@ class BaseExplainer:
             dest_col=metric_name,
             key_cols=["feature", "ksi"],
             compute=self._compute_performance,
-            info=info,
+            query=query,
             compute_kwargs=dict(y_test=np.asarray(y_test), metric=metric),
         )
 

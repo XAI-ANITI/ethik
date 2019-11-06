@@ -200,7 +200,7 @@ class CacheExplainer(BaseExplainer):
 
         additional_info = self._build_additional_info(X_test, y_pred)
         self.info = self.info.append(additional_info, ignore_index=True, sort=False)
-        self.info = explain(info=self.info)
+        self.info = explain(query=self.info)
 
         return self.info[
             self.info["feature"].isin(X_test.columns)
