@@ -337,6 +337,100 @@ class BaseExplainer:
             compute_kwargs=dict(y_test=np.asarray(y_test), metric=metric),
         )
 
+    def _compare_individuals(
+        self,
+        X_test,
+        y_pred,
+        reference,
+        compared,
+        explain,
+        dest_col,
+        explain_kwargs=None,
+    ):
+        def get_features(individual):
+            individual = pd.Series(individual)
+            individual = pd.get_dummies(
+                data=pd.DataFrame(  #  A DataFrame is needed for get_dummies
+                    [individual.values], columns=individual.index
+                ),
+                prefix_sep=self.CAT_COL_SEP,
+            ).iloc[0]
+            return list(individual.keys())
+
+        if explain_kwargs is None:
+            explain_kwargs = {}
+
+        X_test = pd.DataFrame(to_pandas(X_test))
+        y_pred = pd.DataFrame(to_pandas(y_pred))
+        # One-hot encode the categorical features
+        X_test = pd.get_dummies(data=X_test, prefix_sep=self.CAT_COL_SEP)
+
+        features = (
+            set(get_features(reference))
+            & set(get_features(compared))
+            & set(X_test.columns)
+        )
+        labels = y_pred.columns
+        query = pd.DataFrame(
+            [
+                dict(feature=feature, target=individual[feature], label=label)
+                for individual in [reference, compared]
+                for feature in features
+                for label in labels
+            ]
+        )
+        info = explain(X_test=X_test, y_pred=y_pred, query=query, **explain_kwargs)
+
+        rows = []
+        for feature in features:
+            for label in labels:
+                ref = info[(info["feature"] == feature) & (info["label"] == label)][
+                    dest_col
+                ].iloc[0]
+                comp = info[(info["feature"] == feature) & (info["label"] == label)][
+                    dest_col
+                ].iloc[1]
+                rows.append(
+                    {
+                        "feature": feature,
+                        "label": label,
+                        f"reference_{dest_col}": ref,
+                        f"compared_{dest_col}": comp,
+                    }
+                )
+
+        return pd.DataFrame(
+            rows,
+            columns=[
+                "feature",
+                "label",
+                f"reference_{dest_col}",
+                f"compared_{dest_col}",
+            ],
+        )
+
+    def compare_influence(self, X_test, y_pred, reference, compared):
+        return self._compare_individuals(
+            X_test=X_test,
+            y_pred=y_pred,
+            reference=reference,
+            compared=compared,
+            explain=self._explain_influence,
+            dest_col="influence",
+        )
+
+    def compare_performance(self, X_test, y_test, y_pred, metric, reference, compared):
+        metric_name = self.get_metric_name(metric)
+        return self._compare_individuals(
+            X_test=X_test,
+            y_pred=y_pred,
+            reference=reference,
+            compared=compared,
+            explain=self._explain_performance,
+            dest_col=metric_name,
+            explain_kwargs=dict(y_test=np.asarray(y_test), metric=metric),
+        )
+
     def _plot_explanation(
         self, explanation, col, y_label, colors=None, yrange=None, size=None
     ):
