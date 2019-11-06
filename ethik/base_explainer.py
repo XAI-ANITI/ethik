@@ -3,6 +3,7 @@ import functools
 import itertools
 import warnings
 
+import colorlover as cl
 import joblib
 import numpy as np
 import pandas as pd
@@ -169,6 +170,7 @@ class BaseExplainer:
         if "ksi" not in query.columns:
             query["ksi"] = None
 
+        X_test = pd.DataFrame(to_pandas(X_test))
         query_to_complete = query[query["ksi"].isnull()]
         ksis = joblib.Parallel(n_jobs=self.n_jobs)(
             joblib.delayed(compute_ksis)(
@@ -451,5 +453,109 @@ class BaseExplainer:
         )
         fig.update_yaxes(
             showline=True, showgrid=True, linecolor="black", gridcolor="#eee"
+        )
+        return fig
+
+    def compute_distributions(self, X_test, targets, bins, y_pred=None, density=True):
+        query = pd.DataFrame(
+            dict(
+                feature=[X_test.name] * len(targets),
+                value=targets,
+                label=[""] * len(targets),
+            )
+        )
+        ksis = self._fill_ksis(X_test, query)["ksi"]
+
+        distributions = {}
+        for ksi, target in zip(ksis, targets):
+            weights = special.softmax(ksi * X_test)
+            densities, edges = np.histogram(
+                y_pred if y_pred is not None else X_test,
+                bins=bins,
+                weights=weights,
+                density=density,
+            )
+            distributions[target] = (
+                edges,
+                densities,
+                np.average(y_pred, weights=weights) if y_pred is not None else None,
+            )
+        return distributions
+
+    def plot_distributions(
+        self,
+        X_test,
+        y_pred=None,
+        bins=10,
+        targets=None,
+        colors=None,
+        dataset_color="black",
+        size=None,
+    ):
+        if targets is None:
+            targets = []
+
+        if colors is None:
+            colors = cl.interp(
+                cl.scales["11"]["qual"]["Paired"],
+                len(targets) + 1,  #  +1 otherwise it raises an error if ksis is empty
+            )
+
+        if dataset_color is not None:
+            targets = [X_test.mean(), *targets]  # Add the original mean
+            colors = [dataset_color, *colors]
+
+        fig = go.Figure()
+        shapes = []
+        distributions = self.compute_distributions(
+            X_test=X_test, targets=targets, bins=bins, y_pred=y_pred
+        )
+
+        for i, (target, color) in enumerate(zip(targets, colors)):
+            mean = target
+            trace_name = f"E[{X_test.name}] = {mean:.2f}"
+            edges, densities, y_pred_mean = distributions[target]
+            if y_pred is not None:
+                mean = y_pred_mean
+                trace_name += f", E[{y_pred.name}] = {mean:.2f}"
+            if i == 0:
+                trace_name += " (dataset)"
+
+            fig.add_bar(
+                x=edges[:-1],
+                y=densities,
+                name=trace_name,
+                opacity=0.5,
+                marker=dict(color=color),
+            )
+            shapes.append(
+                go.layout.Shape(
+                    type="line",
+                    x0=mean,
+                    y0=0,
+                    x1=mean,
+                    y1=1,
+                    yref="paper",
+                    line=dict(color=color, width=1),
+                )
+            )
+
+        width = height = None
+        if size is not None:
+            width, height = size
+
+        fig.update_layout(
+            bargap=0,
+            barmode="overlay",
+            showlegend=True,
+            xaxis=dict(
+                title=y_pred.name if y_pred is not None else X_test.name,
+                linecolor="black",
+            ),
+            yaxis=dict(title="Probability density", linecolor="black"),
+            shapes=shapes,
+            width=width,
+            height=height,
+            plot_bgcolor="#FFF",
         )
         return fig
