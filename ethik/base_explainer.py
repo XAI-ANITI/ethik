@@ -153,7 +153,7 @@ class BaseExplainer:
             str: The name of the column.
         """
         name = metric.__name__
-        if name in ["feature", "value", "label", "influence", "ksi"]:
+        if name in ["feature", "target", "label", "influence", "ksi"]:
             raise ValueError(
                 f"Cannot use {name} as a metric name, already a column name"
             )
@@ -175,7 +175,7 @@ class BaseExplainer:
         ksis = joblib.Parallel(n_jobs=self.n_jobs)(
             joblib.delayed(compute_ksis)(
                 x=X_test[feature],
-                target_means=part["value"].unique(),
+                target_means=part["target"].unique(),
                 max_iterations=self.max_iterations,
                 tol=self.tol,
             )
@@ -184,7 +184,7 @@ class BaseExplainer:
         ksis = dict(collections.ChainMap(*ksis))
 
         query["ksi"] = query.apply(
-            lambda r: ksis.get((r["feature"], r["value"]), r["ksi"]), axis="columns"
+            lambda r: ksis.get((r["feature"], r["target"]), r["ksi"]), axis="columns"
         )
         query["ksi"] = query["ksi"].fillna(0.0)
         return query
@@ -357,7 +357,7 @@ class BaseExplainer:
 
             for i, feat in enumerate(features):
                 taus = explanation.query(f'feature == "{feat}"')["tau"]
-                values = explanation.query(f'feature == "{feat}"')["value"]
+                targets = explanation.query(f'feature == "{feat}"')["target"]
                 y = explanation.query(f'feature == "{feat}"')[col]
                 fig.add_trace(
                     go.Scatter(
@@ -366,7 +366,7 @@ class BaseExplainer:
                         mode="lines+markers",
                         hoverinfo="y",
                         name=feat,
-                        customdata=list(zip(taus, values)),
+                        customdata=list(zip(taus, targets)),
                         marker=dict(color=colors.get(feat)),
                     )
                 )
@@ -399,7 +399,7 @@ class BaseExplainer:
         #  There is only one feature, we plot it with its nominal values.
         feat = features[0]
         fig = go.Figure()
-        x = explanation.query(f'feature == "{feat}"')["value"]
+        x = explanation.query(f'feature == "{feat}"')["target"]
         y = explanation.query(f'feature == "{feat}"')[col]
         mean_row = explanation.query(f'feature == "{feat}" and tau == 0').iloc[0]
 
@@ -430,7 +430,7 @@ class BaseExplainer:
         )
         fig.add_trace(
             go.Scatter(
-                x=[mean_row["value"]],
+                x=[mean_row["target"]],
                 y=[mean_row[col]],
                 text=["Dataset mean"],
                 showlegend=False,
@@ -460,7 +460,7 @@ class BaseExplainer:
         query = pd.DataFrame(
             dict(
                 feature=[X_test.name] * len(targets),
-                value=targets,
+                target=targets,
                 label=[""] * len(targets),
             )
         )

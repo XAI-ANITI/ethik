@@ -88,7 +88,7 @@ class CacheExplainer(BaseExplainer):
             columns=[
                 "feature",
                 "tau",
-                "value",
+                "target",
                 "ksi",
                 "label",
                 "influence",
@@ -166,7 +166,7 @@ class CacheExplainer(BaseExplainer):
                 pd.DataFrame(
                     {
                         "tau": self.taus,
-                        "value": [
+                        "target": [
                             means[feature]
                             + tau
                             * (
@@ -222,7 +222,7 @@ class CacheExplainer(BaseExplainer):
 
         Returns:
             pd.DataFrame:
-                A dataframe with columns `(feature, tau, value, ksi, label,
+                A dataframe with columns `(feature, tau, target, ksi, label,
                 influence, influence_low, influence_high)`. If `explainer.n_samples` is `1`,
                 no confidence interval is computed and `influence = influence_low = influence_high`.
                 The value of `label` is not important for regression.
@@ -302,7 +302,7 @@ class CacheExplainer(BaseExplainer):
 
         Returns:
             pd.DataFrame:
-                A dataframe with columns `(feature, tau, value, ksi, label,
+                A dataframe with columns `(feature, tau, target, ksi, label,
                 influence, influence_low, influence_high, <metric_name>, <metric_name_low>, <metric_name_high>)`.
                 If `explainer.n_samples` is `1`, no confidence interval is computed
                 and `<metric_name> = <metric_name_low> = <metric_name_high>`.
