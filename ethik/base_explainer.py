@@ -158,13 +158,12 @@ class BaseExplainer:
             )
         return name
 
-    def _fill_ksis(self, X_test, y_pred, query):
+    def _fill_ksis(self, X_test, query):
         """
 
         Parameters:
             X_test (pd.DataFrame): A dataframe with categorical features ALREADY 
                 one-hot encoded.
-            y_pred (pd.DataFrame):
             query (pd.DataFrame):
         """
         if "ksi" not in query.columns:
@@ -206,7 +205,7 @@ class BaseExplainer:
         if len(X_test) != len(y_pred):
             raise ValueError("X_test and y_pred are not of the same length")
 
-        query = self._fill_ksis(X_test, y_pred, query)
+        query = self._fill_ksis(X_test, query)
 
         query_to_complete = query[
             query["feature"].isin(X_test.columns)
