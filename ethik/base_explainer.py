@@ -394,20 +394,12 @@ class BaseExplainer:
                     {
                         "feature": feature,
                         "label": label,
-                        f"reference_{dest_col}": ref,
-                        f"compared_{dest_col}": comp,
+                        "reference": ref,
+                        "compared": comp,
                     }
                 )
 
-        return pd.DataFrame(
-            rows,
-            columns=[
-                "feature",
-                "label",
-                f"reference_{dest_col}",
-                f"compared_{dest_col}",
-            ],
-        )
+        return pd.DataFrame(rows, columns=["feature", "label", "reference", "compared"])
 
     def compare_influence(self, X_test, y_pred, reference, compared):
         return self._compare_individuals(
@@ -430,6 +422,32 @@ class BaseExplainer:
             dest_col=metric_name,
             explain_kwargs=dict(y_test=np.asarray(y_test), metric=metric),
         )
+
+    def compute_distributions(self, X_test, targets, bins, y_pred=None, density=True):
+        query = pd.DataFrame(
+            dict(
+                feature=[X_test.name] * len(targets),
+                target=targets,
+                label=[""] * len(targets),
+            )
+        )
+        ksis = self._fill_ksis(X_test, query)["ksi"]
+
+        distributions = {}
+        for ksi, target in zip(ksis, targets):
+            weights = special.softmax(ksi * X_test)
+            densities, edges = np.histogram(
+                y_pred if y_pred is not None else X_test,
+                bins=bins,
+                weights=weights,
+                density=density,
+            )
+            distributions[target] = (
+                edges,
+                densities,
+                np.average(y_pred, weights=weights) if y_pred is not None else None,
+            )
+        return distributions
 
     def _plot_explanation(
         self, explanation, col, y_label, colors=None, yrange=None, size=None
@@ -550,32 +568,6 @@ class BaseExplainer:
         )
         return fig
 
-    def compute_distributions(self, X_test, targets, bins, y_pred=None, density=True):
-        query = pd.DataFrame(
-            dict(
-                feature=[X_test.name] * len(targets),
-                target=targets,
-                label=[""] * len(targets),
-            )
-        )
-        ksis = self._fill_ksis(X_test, query)["ksi"]
-
-        distributions = {}
-        for ksi, target in zip(ksis, targets):
-            weights = special.softmax(ksi * X_test)
-            densities, edges = np.histogram(
-                y_pred if y_pred is not None else X_test,
-                bins=bins,
-                weights=weights,
-                density=density,
-            )
-            distributions[target] = (
-                edges,
-                densities,
-                np.average(y_pred, weights=weights) if y_pred is not None else None,
-            )
-        return distributions
-
     def plot_distributions(
         self,
         X_test,
@@ -653,3 +645,116 @@ class BaseExplainer:
             plot_bgcolor="#FFF",
         )
         return fig
+
+    def _plot_comparison(
+        self,
+        comparison,
+        title_prefix,
+        reference_name,
+        compared_name,
+        colors=None,
+        yrange=None,
+        size=None,
+    ):
+        comparison["delta"] = comparison["compared"] - comparison["reference"]
+        comparison = comparison.sort_values(by=["delta"], ascending=True)
+        features = comparison["feature"]
+
+        if type(colors) is dict:
+            # Put the colors in the right order
+            colors = [colors.get(feature) for feature in features]
+
+        width = 500
+        height = 100 + 60 * len(features)
+        if size is not None:
+            width, height = size
+
+        reference_name = reference_name or '"reference"'
+        compared_name = compared_name or '"compared"'
+        title = f"{title_prefix} for {compared_name} compared to {reference_name}"
+
+        fig = go.Figure()
+        fig.add_trace(
+            go.Bar(
+                x=comparison["delta"],
+                y=features,
+                orientation="h",
+                hoverinfo="x",
+                marker=dict(color=colors),
+            )
+        )
+        fig.update_layout(
+            xaxis=dict(
+                title=title,
+                range=yrange,
+                showline=True,
+                linewidth=1,
+                linecolor="black",
+                zeroline=False,
+                gridcolor="#eee",
+                side="top",
+                fixedrange=True,
+            ),
+            yaxis=dict(
+                showline=False,
+                zeroline=False,
+                fixedrange=True,
+                linecolor="black",
+                automargin=True,
+            ),
+            shapes=[
+                go.layout.Shape(
+                    type="line",
+                    x0=0,
+                    y0=0,
+                    x1=0,
+                    y1=1,
+                    yref="paper",
+                    line=dict(color="black", width=1),
+                )
+            ],
+            plot_bgcolor="white",
+            width=width,
+            height=height,
+        )
+        return fig
+
+    def plot_influence_comparison(
+        self, X_test, y_pred, reference, compared, colors=None, yrange=None, size=None
+    ):
+        comparison = self.compare_influence(X_test, y_pred, reference, compared)
+        return self._plot_comparison(
+            comparison,
+            title_prefix="Influence",
+            reference_name=reference.name,
+            compared_name=compared.name,
+            colors=colors,
+            size=size,
+            yrange=yrange,
+        )
+
+    def plot_performance_comparison(
+        self,
+        X_test,
+        y_test,
+        y_pred,
+        metric,
+        reference,
+        compared,
+        colors=None,
+        yrange=None,
+        size=None,
+    ):
+        comparison = self.compare_performance(
+            X_test, y_test, y_pred, metric, reference, compared
+        )
+        metric_name = self.get_metric_name(metric)
+        return self._plot_comparison(
+            comparison,
+            title_prefix=metric_name,
+            reference_name=reference.name,
+            compared_name=compared.name,
+            colors=colors,
+            size=size,
+            yrange=yrange,
+        )
