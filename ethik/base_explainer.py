@@ -192,6 +192,8 @@ class BaseExplainer:
     def _explain(
         self, X_test, y_pred, dest_col, key_cols, compute, query, compute_kwargs=None
     ):
+        query = query.copy()
+
         if compute_kwargs is None:
             compute_kwargs = {}
         if dest_col not in query.columns:
