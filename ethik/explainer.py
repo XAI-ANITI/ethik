@@ -7,6 +7,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
+from scipy import optimize
 from scipy import special
 from tqdm import tqdm
 
@@ -20,6 +21,39 @@ CAT_COL_SEP = " = "
 
 class ConvergenceWarning(UserWarning):
     """Custom warning to capture convergence problems."""
+
+
+class ConvergenceSuccess(Exception):
+    """Custom warning to capture convergence success.
+
+    This is necessary to monkey-patch scipy's minimize function in order to manually stop the
+    minimization process.
+
+    """
+
+
+class F:
+
+    def __init__(self, x, target_mean, tol=3):
+        self.x = x
+        self.target_mean = target_mean
+        self.tol = tol
+
+    def __call__(self, ksi):
+        """Returns the loss and the gradient for a particular ksi value."""
+
+        self.ksi = ksi[0]
+        lambdas = special.softmax(self.ksi * self.x)
+        current_mean = np.average(self.x, weights=lambdas)
+
+        f = (current_mean - self.target_mean) ** 2
+
+        if f < self.tol:
+            raise ConvergenceSuccess
+
+        g = current_mean - self.target_mean
+
+        return f, np.array([g])
 
 
 def compute_ksis(x, target_means, max_iterations, tol):
@@ -45,53 +79,32 @@ def compute_ksis(x, target_means, max_iterations, tol):
                 }
     """
 
-    mean = x.mean()
     ksis = {}
 
     for target_mean in target_means:
 
-        ksi = 0
-        current_mean = mean
-        n_iterations = 0
+        f = F(x=x, target_mean=target_mean, tol=tol)
+        success = False
+        try:
+            res = optimize.minimize(
+                fun=f,
+                x0=[0],  # Initial ksi value
+                jac=True,
+                method='BFGS'
+            )
+        except ConvergenceSuccess:
+            success = True
 
-        while n_iterations < max_iterations:
-            n_iterations += 1
-
-            # Stop if the target mean has been reached
-            if current_mean == target_mean:
-                break
-
-            # Update the sample weights and obtain the new mean of the distribution
-            # TODO: if ksi * x is too large then sample_weights might only contain zeros, which
-            # leads to hess being equal to 0
-            lambdas = special.softmax(ksi * x)
-            current_mean = np.average(x, weights=lambdas)
-
-            # Do a Newton step using the difference between the mean and the
-            # target mean
-            grad = current_mean - target_mean
-            hess = np.average((x - current_mean) ** 2, weights=lambdas)
-
-            # We use a magic number for the step size if the hessian is nil
-            step = (1e-5 * grad) if hess == 0 else (grad / hess)
-            ksi -= step
-
-            # Stop if the gradient is small enough
-            if abs(grad) < tol:
-                break
-
-        # Warn the user if the algorithm didn't converge
-        else:
+        if not success:
             warnings.warn(
                 message=(
-                    f"Gradient descent failed to converge after {max_iterations} iterations "
-                    + f"(name={x.name}, mean={mean}, target_mean={target_mean}, "
-                    + f"current_mean={current_mean}, grad={grad}, hess={hess}, step={step}, ksi={ksi})"
+                    f"convergence warning for {x.name}, with target mean {target_mean}:\n\n" +
+                    str(res)
                 ),
                 category=ConvergenceWarning,
             )
 
-        ksis[(x.name, target_mean)] = ksi
+        ksis[(x.name, target_mean)] = f.ksi
 
     return ksis
 
@@ -151,7 +164,7 @@ class Explainer:
         tol (float): The bottom threshold for the gradient of the optimization
             procedure. When reached, the procedure stops. Otherwise, a warning
             is raised about the fact that the optimization did not converge.
-            Default is `1e-3`.
+            Default is `1e-4`.
         n_jobs (int): The number of jobs to use for parallel computations. See
             `joblib.Parallel()`. Default is `-1`.
         memoize (bool): Indicates whether or not memoization should be used or not. If `True`, then
@@ -172,7 +185,7 @@ class Explainer:
         sample_frac=0.8,
         conf_level=0.05,
         max_iterations=15,
-        tol=1e-3,
+        tol=1e-4,
         n_jobs=1,  # Parallelism is only worth it if the dataset is "large"
         memoize=False,
         verbose=True,
