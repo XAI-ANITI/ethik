@@ -30,7 +30,6 @@ class ConvergenceSuccess(Exception):
 
 
 class F:
-
     def __init__(self, x, target_mean, tol=3):
         self.x = x
         self.target_mean = target_mean
@@ -78,16 +77,16 @@ def compute_ksis(x, target_means, max_iterations, tol):
 
     ksis = {}
 
+    mean, std = x.mean(), x.std()
+    x = (x - mean) / std
+
     for target_mean in target_means:
 
-        f = F(x=x, target_mean=target_mean, tol=tol)
+        f = F(x=x, target_mean=(target_mean - mean) / std, tol=tol)
         success = False
         try:
             res = optimize.minimize(
-                fun=f,
-                x0=[0],  # Initial ksi value
-                jac=True,
-                method='BFGS'
+                fun=f, x0=[0], jac=True, method="BFGS"  # Initial ksi value
             )
         except ConvergenceSuccess:
             success = True
@@ -95,8 +94,8 @@ def compute_ksis(x, target_means, max_iterations, tol):
         if not success:
             warnings.warn(
                 message=(
-                    f"convergence warning for {x.name}, with target mean {target_mean}:\n\n" +
-                    str(res)
+                    f"convergence warning for {x.name}, with target mean {target_mean}:\n\n"
+                    + str(res)
                 ),
                 category=ConvergenceWarning,
             )
@@ -394,6 +393,9 @@ class Explainer:
             & self.info["label"].isin(y_pred.columns)
             & self.info[dest_col].isnull()
         ]
+
+        # Scale the features
+        X_test = (X_test - X_test.mean()) / X_test.std()
 
         if not relevant.empty:
             # `compute()` will return something like:

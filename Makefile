@@ -8,7 +8,7 @@ test_nb:
 	pytest --nbval-lax --current-env notebooks
 
 test_unit:
-	pytest
+	pytest -m "not perf"
 
 test_syntax:
 	black --check ethik tests
