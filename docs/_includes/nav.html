@@ -2,10 +2,10 @@
   <div class="mdl-layout__header-row">
     <!-- Title -->
     <span class="mdl-layout-title">
-      {% if site.logo != "" %}
+      {% if site.logo and site.logo != "" %}
         <img src="{{ site.logo | relative_url }}" alt="Logo" />
       {% endif %}
-      <a class="mdl-color-text--accent mdl-typography--text-uppercase ethik-font" href="{{ "/" | relative_url }}">Ethik AI</a>
+      <a class="mdl-typography--text-uppercase ethik-font" href="{{ "/" | relative_url }}">Ethik AI</a>
     </span>
     <!-- Add spacer, to align navigation to the right -->
     <div class="mdl-layout-spacer"></div>
@@ -22,7 +22,7 @@
 </header>
 <div class="mdl-layout__drawer">
   <span class="mdl-layout-title">
-    <a class="mdl-navigation__link mdl-typography--text-uppercase" href="{{ "/" | relative_url }}">Ethik AI</a>
+    <a class="mdl-navigation__link mdl-typography--text-uppercase ethik-font mdl-color-text--accent" href="{{ "/" | relative_url }}">Ethik AI</a>
   </span>
   <nav class="mdl-navigation">
     <a class="mdl-navigation__link mdl-typography--text-uppercase" href="{{ "/ai-fairness" | relative_url }}">AI fairness</a>
