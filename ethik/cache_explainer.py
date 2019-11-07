@@ -571,6 +571,10 @@ class CacheExplainer(BaseExplainer):
             if explanation[metric_name].between(0, 1).all():
                 yrange = [0, 1]
 
+        #  The performance is the same for all labels, we remove duplicates
+        label = explanation["label"].unique()[0]
+        explanation = explanation[explanation["label"] == label]
+
         return self._plot_explanation(
             explanation,
             metric_name,
