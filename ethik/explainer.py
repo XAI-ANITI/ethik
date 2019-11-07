@@ -12,15 +12,12 @@ from scipy import special
 from tqdm import tqdm
 
 from .utils import decimal_range, join_with_overlap, to_pandas
+from .warnings import ConstantWarning, ConvergenceWarning
 
 __all__ = ["Explainer"]
 
 
 CAT_COL_SEP = " = "
-
-
-class ConvergenceWarning(UserWarning):
-    """Custom warning to capture convergence problems."""
 
 
 class ConvergenceSuccess(Exception):
@@ -308,6 +305,15 @@ class Explainer:
 
         # Make the epsilons for each (feature, label, tau) triplet
         quantiles = X_test.quantile(q=[self.alpha, 1.0 - self.alpha])
+
+        # Issue a warning if a feature doesn't have distinct quantiles
+        for feature, n_unique in quantiles.nunique().to_dict().items():
+            if n_unique == 1:
+                warnings.warn(
+                    message=f"all the values of feature {feature} are identical",
+                    category=ConstantWarning,
+                )
+
         q_mins = quantiles.loc[self.alpha].to_dict()
         q_maxs = quantiles.loc[1.0 - self.alpha].to_dict()
         means = X_test.mean().to_dict()
@@ -750,9 +756,9 @@ class Explainer:
             fig = go.Figure()
 
             for i, feat in enumerate(features):
-                taus = explanation.query(f'feature == "{feat}"')["tau"]
-                values = explanation.query(f'feature == "{feat}"')["value"]
-                y = explanation.query(f'feature == "{feat}"')[col]
+                taus = explanation.loc[explanation["feature"] == feat, "tau"]
+                values = explanation.loc[explanation["feature"] == feat, "value"]
+                y = explanation.loc[explanation["feature"] == feat, col]
                 fig.add_trace(
                     go.Scatter(
                         x=taus,
@@ -790,16 +796,18 @@ class Explainer:
             )
             return fig
 
-        #  There is only one feature, we plot it with its nominal values.
+        # There is only one feature, we plot it with its nominal values.
         feat = features[0]
         fig = go.Figure()
-        x = explanation.query(f'feature == "{feat}"')["value"]
-        y = explanation.query(f'feature == "{feat}"')[col]
-        mean_row = explanation.query(f'feature == "{feat}" and tau == 0').iloc[0]
+        x = explanation.loc[explanation["feature"] == feat, "value"]
+        y = explanation.loc[explanation["feature"] == feat, col]
+        mean_row = explanation[
+            (explanation["feature"] == feat) & (explanation["tau"] == 0)
+        ].iloc[0]
 
         if self.n_samples > 1:
-            low = explanation.query(f'feature == "{feat}"')[f"{col}_low"]
-            high = explanation.query(f'feature == "{feat}"')[f"{col}_high"]
+            low = explanation.loc[explanation["feature"] == feat, f"{col}_low"]
+            high = explanation.loc[explanation["feature"] == feat, f"{col}_high"]
             fig.add_trace(
                 go.Scatter(
                     x=np.concatenate((x, x[::-1])),
@@ -919,7 +927,7 @@ class Explainer:
         labels = explanation["label"].unique()
         if len(labels) > 1:
             raise ValueError("Cannot plot multiple labels")
-        y_label = f'Average "{labels[0]}"'
+        y_label = f"Average '{labels[0]}'"
         return self._plot_explanation(
             explanation, "influence", y_label, colors=colors, yrange=yrange, size=size
         )
