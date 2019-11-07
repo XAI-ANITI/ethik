@@ -337,59 +337,58 @@ class BaseExplainer:
             compute_kwargs=dict(y_test=np.asarray(y_test), metric=metric),
         )
 
-    def _compare_individuals(
-        self,
-        X_test,
-        y_pred,
-        reference,
-        compared,
-        explain,
-        dest_col,
-        explain_kwargs=None,
-    ):
-        def get_features(individual):
-            individual = pd.Series(individual)
+    def _get_comparison_features(self, X_test, *individuals):
+        features = set(X_test.columns)
+        for individual in individuals:
+            # One-hot encode the categorical features
             individual = pd.get_dummies(
                 data=pd.DataFrame(  #  A DataFrame is needed for get_dummies
                     [individual.values], columns=individual.index
                 ),
                 prefix_sep=self.CAT_COL_SEP,
             ).iloc[0]
-            return list(individual.keys())
+            features &= set(individual.keys())
+        return features
 
-        if explain_kwargs is None:
-            explain_kwargs = {}
-
+    def compare_influence(self, X_test, y_pred, reference, compared):
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
         # One-hot encode the categorical features
         X_test = pd.get_dummies(data=X_test, prefix_sep=self.CAT_COL_SEP)
 
-        features = (
-            set(get_features(reference))
-            & set(get_features(compared))
-            & set(X_test.columns)
-        )
+        features = self._get_comparison_features(X_test, reference, compared)
         labels = y_pred.columns
         query = pd.DataFrame(
             [
-                dict(feature=feature, target=individual[feature], label=label)
-                for individual in [reference, compared]
+                dict(
+                    feature=feature,
+                    target=individual[feature],
+                    label=label,
+                    individual=name,
+                )
+                for name, individual in (
+                    ("reference", reference),
+                    ("compared", compared),
+                )
                 for feature in features
                 for label in labels
             ]
         )
-        info = explain(X_test=X_test, y_pred=y_pred, query=query, **explain_kwargs)
+        info = self._explain_influence(X_test=X_test, y_pred=y_pred, query=query)
 
         rows = []
         for feature in features:
             for label in labels:
-                ref = info[(info["feature"] == feature) & (info["label"] == label)][
-                    dest_col
-                ].iloc[0]
-                comp = info[(info["feature"] == feature) & (info["label"] == label)][
-                    dest_col
-                ].iloc[1]
+                ref = info[
+                    (info["feature"] == feature)
+                    & (info["label"] == label)
+                    & (info["individual"] == "reference")
+                ]["influence"].iloc[0]
+                comp = info[
+                    (info["feature"] == feature)
+                    & (info["label"] == label)
+                    & (info["individual"] == "compared")
+                ]["influence"].iloc[0]
                 rows.append(
                     {
                         "feature": feature,
@@ -398,30 +397,49 @@ class BaseExplainer:
                         "compared": comp,
                     }
                 )
-
-        return pd.DataFrame(rows, columns=["feature", "label", "reference", "compared"])
-
-    def compare_influence(self, X_test, y_pred, reference, compared):
-        return self._compare_individuals(
-            X_test=X_test,
-            y_pred=y_pred,
-            reference=reference,
-            compared=compared,
-            explain=self._explain_influence,
-            dest_col="influence",
-        )
+        return pd.DataFrame(rows)
 
     def compare_performance(self, X_test, y_test, y_pred, metric, reference, compared):
         metric_name = self.get_metric_name(metric)
-        return self._compare_individuals(
-            X_test=X_test,
-            y_pred=y_pred,
-            reference=reference,
-            compared=compared,
-            explain=self._explain_performance,
-            dest_col=metric_name,
-            explain_kwargs=dict(y_test=np.asarray(y_test), metric=metric),
+        X_test = pd.DataFrame(to_pandas(X_test))
+        y_pred = pd.DataFrame(to_pandas(y_pred))
+        # One-hot encode the categorical features
+        X_test = pd.get_dummies(data=X_test, prefix_sep=self.CAT_COL_SEP)
+
+        features = self._get_comparison_features(X_test, reference, compared)
+        query = pd.DataFrame(
+            [
+                dict(
+                    feature=feature,
+                    target=individual[feature],
+                    label=label,
+                    individual=name,
+                )
+                for name, individual in (
+                    ("reference", reference),
+                    ("compared", compared),
+                )
+                for feature in features
+                for label in y_pred.columns
+            ]
         )
+        info = self._explain_performance(
+            X_test=X_test,
+            y_test=np.asarray(y_test),
+            y_pred=y_pred,
+            metric=metric,
+            query=query,
+        )
+
+        rows = []
+        for feature in features:
+            row = dict(feature=feature)
+            for name in ("reference", "compared"):
+                row[name] = info[
+                    (info["feature"] == feature) & (info["individual"] == name)
+                ][metric_name].iloc[0]
+            rows.append(row)
+        return pd.DataFrame(rows)
 
     def compute_distributions(self, X_test, targets, bins, y_pred=None, density=True):
         query = pd.DataFrame(
@@ -722,7 +740,12 @@ class BaseExplainer:
     def plot_influence_comparison(
         self, X_test, y_pred, reference, compared, colors=None, yrange=None, size=None
     ):
-        comparison = self.compare_influence(X_test, y_pred, reference, compared)
+        y_pred = pd.DataFrame(to_pandas(y_pred))
+        if len(y_pred.columns) > 1:
+            raise ValueError("Cannot plot multiple labels")
+        comparison = self.compare_influence(
+            X_test, y_pred.iloc[:, 0], reference, compared
+        )
         return self._plot_comparison(
             comparison,
             title_prefix="Influence",
