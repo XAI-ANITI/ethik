@@ -20,7 +20,7 @@ a {
   transition: color .3s ease-in-out;
 }
 
-main > .content {
+main > .content-wrapper {
   margin: auto;
   max-width: 1000px;
 }
