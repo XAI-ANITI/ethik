@@ -24,7 +24,13 @@ class ConvergenceSuccess(Exception):
     This is necessary to monkey-patch scipy's minimize function in order to manually stop the
     minimization process.
 
+    Parameters:
+        ksi (float)
+
     """
+
+    def __init__(self, ksi):
+        self.ksi = ksi
 
 
 class F:
@@ -45,14 +51,14 @@ class F:
     def __call__(self, ksi):
         """Returns the loss and the gradient for a particular ksi value."""
 
-        self.ksi = ksi[0]
-        lambdas = special.softmax(self.ksi * self.x)
+        ksi = ksi[0]
+        lambdas = special.softmax(ksi * self.x)
         current_mean = np.average(self.x, weights=lambdas)
 
         f = (current_mean - self.target_mean) ** 2
 
         if f < self.tol:
-            raise ConvergenceSuccess
+            raise ConvergenceSuccess(ksi=ksi)
 
         g = current_mean - self.target_mean
 
@@ -94,13 +100,16 @@ def compute_ksis(x, target_means, max_iterations, tol):
             ksis[(x.name, target_mean)] = 0.0
             continue
 
-        f = F(x=x, target_mean=(target_mean - mean) / std, tol=tol)
         success = False
         try:
             res = optimize.minimize(
-                fun=f, x0=[0], jac=True, method="BFGS"  # Initial ksi value
+                fun=F(x=x, target_mean=(target_mean - mean) / std, tol=tol),
+                x0=[0],  # Initial ksi value
+                jac=True,
+                method="BFGS"
             )
-        except ConvergenceSuccess:
+        except ConvergenceSuccess as cs:
+            ksi = cs.ksi
             success = True
 
         if not success:
@@ -112,7 +121,7 @@ def compute_ksis(x, target_means, max_iterations, tol):
                 category=ConvergenceWarning,
             )
 
-        ksis[(x.name, target_mean)] = f.ksi
+        ksis[(x.name, target_mean)] = ksi
 
     return ksis
 
