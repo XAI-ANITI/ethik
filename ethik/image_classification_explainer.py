@@ -37,7 +37,7 @@ class ImageClassificationExplainer(CacheExplainer):
         tol (float): The bottom threshold for the gradient of the optimization
             procedure. When reached, the procedure stops. Otherwise, a warning
             is raised about the fact that the optimization did not converge.
-            Default is `1e-3`.
+            Default is `1e-4`.
         n_jobs (int): The number of jobs to use for parallel computations. See
             `joblib.Parallel()`. Default is `-1`.
         memoize (bool): Indicates whether or not memoization should be used or not. If `True`, then
@@ -54,7 +54,7 @@ class ImageClassificationExplainer(CacheExplainer):
         self,
         alpha=0.05,
         max_iterations=10,
-        tol=1e-3,
+        tol=1e-4,
         n_jobs=-1,
         memoize=True,
         verbose=True,

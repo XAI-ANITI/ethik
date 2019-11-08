@@ -91,7 +91,7 @@ def compute_ksis(x, target_means, max_iterations, tol):
 
         # Skip edge case
         if target_mean == mean:
-            ksis[(x.name, target_mean)] = 0.
+            ksis[(x.name, target_mean)] = 0.0
             continue
 
         f = F(x=x, target_mean=(target_mean - mean) / std, tol=tol)
@@ -128,7 +128,7 @@ class BaseExplainer:
         sample_frac=0.8,
         conf_level=0.05,
         max_iterations=15,
-        tol=1e-3,
+        tol=1e-4,
         n_jobs=1,  # Parallelism is only worth it if the dataset is "large"
         verbose=True,
     ):
@@ -254,6 +254,10 @@ class BaseExplainer:
         #   ],
         #   ...
         # ]
+
+        # Standard scale the features
+        X_test = (X_test - X_test.mean()) / X_test.std()
+
         explanation = compute(
             X_test=X_test, y_pred=y_pred, query=query_to_complete, **compute_kwargs
         )

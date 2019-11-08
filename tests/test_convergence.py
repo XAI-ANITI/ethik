@@ -27,7 +27,7 @@ def test_boston():
 
     with warnings.catch_warnings(record=True) as caught_warnings:
         warnings.simplefilter("ignore", category=ethik.warnings.ConstantWarning)
-        explainer = ethik.RegressionExplainer(alpha=0.05, verbose=False)
+        explainer = ethik.RegressionExplainer(alpha=0, verbose=False)
         explainer.explain_influence(X_test=X_test, y_pred=y_pred)
 
     assert len(caught_warnings) == 0
