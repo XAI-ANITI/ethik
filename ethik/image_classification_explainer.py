@@ -6,7 +6,8 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from . import explainer
+from . import base_explainer
+from .cache_explainer import CacheExplainer
 from .warnings import ConstantWarning
 
 
@@ -18,7 +19,7 @@ def images_to_dataframe(images):
     )
 
 
-class ImageClassificationExplainer(explainer.Explainer):
+class ImageClassificationExplainer(CacheExplainer):
     """An explainer specially suited for image classification.
 
     This has exactly the same API as `Explainer`, but expects to be provided with an array of
@@ -125,7 +126,7 @@ class ImageClassificationExplainer(explainer.Explainer):
         self._set_image_shape(images=X_test)
 
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=explainer.ConstantWarning)
+            warnings.simplefilter("ignore", category=ConstantWarning)
             return super().explain_performance(
                 X_test=images_to_dataframe(X_test),
                 y_test=y_test,

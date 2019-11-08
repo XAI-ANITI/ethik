@@ -2,7 +2,49 @@ import os
 
 import pandas as pd
 
-__all__ = ["load_diabetes", "load_heart_disease", "load_law_school"]
+__all__ = ["load_adult", "load_diabetes", "load_heart_disease", "load_law_school"]
+
+
+def load_adult():
+    """https://archive.ics.uci.edu/ml/datasets/Adult"""
+    names = [
+        "age",
+        "workclass",
+        "fnlwgt",
+        "education",
+        "education-num",
+        "marital-status",
+        "occupation",
+        "relationship",
+        "race",
+        "gender",
+        "capital-gain",
+        "capital-loss",
+        "hours-per-week",
+        "native-country",
+        "salary",
+    ]
+    dtypes = {
+        "workclass": "category",
+        "education": "category",
+        "marital-status": "category",
+        "occupation": "category",
+        "relationship": "category",
+        "race": "category",
+        "gender": "category",
+        "native-country": "category",
+    }
+    X = pd.read_csv(
+        os.path.join(os.path.dirname(__file__), "data", "adult.csv"),
+        names=names,
+        header=None,
+        dtype=dtypes,
+    )
+    X["gender"] = (
+        X["gender"].str.strip().astype("category")
+    )  # Remove leading whitespace
+    y = X.pop("salary").map({" <=50K": False, " >50K": True})
+    return X, y
 
 
 def load_law_school():

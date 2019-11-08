@@ -53,3 +53,31 @@ def join_with_overlap(left, right, on):
     for col in overlap:
         left[col] = left[col].fillna(overlap[col])
     return left
+
+
+def yield_masks(n_masks, n, p):
+    """Generates a list of `n_masks` to keep a proportion `p` of `n` items.
+
+    Args:
+        n_masks (int): The number of masks to yield. It corresponds to the number
+            of samples we use to compute the confidence interval.
+        n (int): The number of items being filtered. It corresponds to the size
+            of the dataset.
+        p (float): The proportion of items to keep.
+
+    Returns:
+        generator: A generator of `n_masks` lists of `n` booleans being generated
+            with a binomial distribution. As it is a probabilistic approach,
+            we may get more or fewer than `p*n` items kept, but it is not a problem
+            with large datasets.
+    """
+
+    if p < 0 or p > 1:
+        raise ValueError(f"p must be between 0 and 1, got {p}")
+
+    if p < 1:
+        for _ in range(n_masks):
+            yield np.random.binomial(1, p, size=n).astype(bool)
+    else:
+        for _ in range(n_masks):
+            yield np.full(shape=n, fill_value=True)
