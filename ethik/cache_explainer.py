@@ -133,9 +133,7 @@ class CacheExplainer(BaseExplainer):
     def _build_additional_info(self, X_test, y_pred):
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
-
-        # One-hot encode the categorical features
-        X_test = pd.get_dummies(data=X_test, prefix_sep=self.CAT_COL_SEP)
+        X_test = self._one_hot_encode(X_test)
 
         # Check which (feature, label) pairs have to be done
         to_do_map = self._determine_pairs_to_do(
@@ -196,7 +194,7 @@ class CacheExplainer(BaseExplainer):
         # following methods, we do it now.
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
-        X_test = pd.get_dummies(data=X_test, prefix_sep=self.CAT_COL_SEP)
+        X_test = self._one_hot_encode(X_test)
 
         additional_info = self._build_additional_info(X_test, y_pred)
         self.info = self.info.append(additional_info, ignore_index=True, sort=False)
@@ -567,9 +565,8 @@ class CacheExplainer(BaseExplainer):
         explanation = self.explain_performance(
             X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
         )
-        if yrange is None:
-            if explanation[metric_name].between(0, 1).all():
-                yrange = [0, 1]
+        if yrange is None and explanation[metric_name].between(0, 1).all():
+            yrange = [0, 1]
 
         #  The performance is the same for all labels, we remove duplicates
         label = explanation["label"].unique()[0]

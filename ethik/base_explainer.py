@@ -203,8 +203,7 @@ class BaseExplainer:
 
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
-        # One-hot encode the categorical features
-        X_test = pd.get_dummies(data=X_test, prefix_sep=self.CAT_COL_SEP)
+        X_test = self._one_hot_encode(X_test)
 
         if len(X_test) != len(y_pred):
             raise ValueError("X_test and y_pred are not of the same length")
@@ -339,26 +338,49 @@ class BaseExplainer:
             compute_kwargs=dict(y_test=np.asarray(y_test), metric=metric),
         )
 
-    def _get_comparison_features(self, X_test, *individuals):
-        features = set(X_test.columns)
-        for individual in individuals:
-            # One-hot encode the categorical features
-            individual = pd.get_dummies(
-                data=pd.DataFrame(  #  A DataFrame is needed for get_dummies
-                    [individual.values], columns=individual.index
-                ),
-                prefix_sep=self.CAT_COL_SEP,
-            ).iloc[0]
-            features &= set(individual.keys())
-        return features
+    def _one_hot_encode(self, x):
+        if isinstance(x, pd.DataFrame):
+            return pd.get_dummies(data=x, prefix_sep=self.CAT_COL_SEP)
 
-    def compare_influence(self, X_test, y_pred, reference, compared):
+        return pd.get_dummies(
+            # A DataFrame is needed for get_dummies
+            data=pd.DataFrame([x.values], columns=x.index),
+            prefix_sep=self.CAT_COL_SEP,
+        ).iloc[0]
+
+    def _revert_dummies_names(self, x):
+        x = pd.DataFrame(to_pandas(x))
+        x = x.select_dtypes(include=["category", "object"])
+        dummies_names = {}
+        for col in x.columns:
+            for cat in x[col].unique():
+                dummies_name = f"{col}{self.CAT_COL_SEP}{cat}"
+                dummies_names[dummies_name] = col
+        return dummies_names
+
+    def _compare_individuals(
+        self, X_test, y_pred, reference, compared, dest_col, key_cols, explain
+    ):
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
-        # One-hot encode the categorical features
-        X_test = pd.get_dummies(data=X_test, prefix_sep=self.CAT_COL_SEP)
+        # We first need to get the non-encoded features, otherwise we may miss
+        #  categorical ones.
+        #  For instance, if `reference` is a male and `compared` a female, after
+        # one-hot encoding, the first will have the feature "gender = male" and
+        # the second will have "gender = female" and we won't be able to detect
+        # that it refers to the same feature "gender".
+        features = set(X_test.columns) & set(reference.keys()) & set(compared.keys())
+        X_test = X_test[features]  #  Just keep the features in common
 
-        features = self._get_comparison_features(X_test, reference, compared)
+        reference = reference.rename("reference")
+        compared = compared.rename("compared")
+
+        individuals = pd.DataFrame(
+            [reference, compared], index=[reference.name, compared.name]
+        )[features]
+        dummies_to_features = self._revert_dummies_names(individuals)
+        individuals = self._one_hot_encode(individuals)
+
         labels = y_pred.columns
         query = pd.DataFrame(
             [
@@ -368,80 +390,84 @@ class BaseExplainer:
                     label=label,
                     individual=name,
                 )
-                for name, individual in (
-                    ("reference", reference),
-                    ("compared", compared),
-                )
-                for feature in features
+                for name, individual in individuals.iterrows()
                 for label in labels
+                for feature in individuals.columns
             ]
         )
-        info = self._explain_influence(X_test=X_test, y_pred=y_pred, query=query)
+        info = explain(X_test=X_test, y_pred=y_pred, query=query)
 
-        rows = []
-        for feature in features:
-            for label in labels:
-                ref = info[
-                    (info["feature"] == feature)
-                    & (info["label"] == label)
-                    & (info["individual"] == "reference")
-                ]["influence"].iloc[0]
-                comp = info[
-                    (info["feature"] == feature)
-                    & (info["label"] == label)
-                    & (info["individual"] == "compared")
-                ]["influence"].iloc[0]
-                rows.append(
-                    {
-                        "feature": feature,
-                        "label": label,
-                        "reference": ref,
-                        "compared": comp,
-                    }
-                )
-        return pd.DataFrame(rows)
+        #  `info` looks like:
+        #
+        #          feature target label individual ksi influence influence_low influence_high
+        #              age     20 >$50k  reference ...       ...           ...            ...
+        #              age     20 >$50k   compared ...       ...           ...            ...
+        #  gender = Female      0 >$50k  reference ...       ...           ...            ...
+        #    gender = Male      1 >$50k  reference ...       ...           ...            ...
+        #  gender = Female      1 >$50k   compared ...       ...           ...            ...
+        #    gender = Male      0 >$50k   compared ...       ...           ...            ...
+        #               ...
+        #
+        # For every individual and every categorical feature, we want to keep the
+        # one-hot encoded line that corresponds to the original value:
+        #
+        #          feature target label individual ksi influence influence_low influence_high
+        #              age     20 >$50k  reference ...       ...           ...            ...
+        #              age     20 >$50k   compared ...       ...           ...            ...
+        #    gender = Male      1 >$50k  reference ...       ...           ...            ...
+        #  gender = Female      1 >$50k   compared ...       ...           ...            ...
+        #               ...
+        #
+        # And, to compare them, we want to rename the encoded features back to their
+        # original name:
+        #
+        # feature target label individual ksi influence influence_low influence_high
+        #     age     20 >$50k  reference ...       ...           ...            ...
+        #     age     20 >$50k   compared ...       ...           ...            ...
+        #  gender      1 >$50k  reference ...       ...           ...            ...
+        #  gender      1 >$50k   compared ...       ...           ...            ...
+        #      ...
+
+        rows = collections.defaultdict(dict)
+        for individual in (reference, compared):
+            encoded = self._one_hot_encode(individual)
+            individual_info = info[
+                (info["individual"] == individual.name)
+                & (info["feature"].isin(encoded.keys()))
+            ]
+            for _, row in individual_info.iterrows():
+                row = row.replace(dummies_to_features)
+                key = tuple(zip(key_cols, row[key_cols]))
+                rows[key][individual.name] = row[dest_col]
+
+        return pd.DataFrame(
+            [{**dict(keys), **individuals} for keys, individuals in rows.items()]
+        )
+
+    def compare_influence(self, X_test, y_pred, reference, compared):
+        return self._compare_individuals(
+            X_test=X_test,
+            y_pred=y_pred,
+            reference=reference,
+            compared=compared,
+            dest_col="influence",
+            key_cols=["feature", "label"],
+            explain=self._explain_influence,
+        )
 
     def compare_performance(self, X_test, y_test, y_pred, metric, reference, compared):
         metric_name = self.get_metric_name(metric)
-        X_test = pd.DataFrame(to_pandas(X_test))
-        y_pred = pd.DataFrame(to_pandas(y_pred))
-        # One-hot encode the categorical features
-        X_test = pd.get_dummies(data=X_test, prefix_sep=self.CAT_COL_SEP)
-
-        features = self._get_comparison_features(X_test, reference, compared)
-        query = pd.DataFrame(
-            [
-                dict(
-                    feature=feature,
-                    target=individual[feature],
-                    label=label,
-                    individual=name,
-                )
-                for name, individual in (
-                    ("reference", reference),
-                    ("compared", compared),
-                )
-                for feature in features
-                for label in y_pred.columns
-            ]
-        )
-        info = self._explain_performance(
+        return self._compare_individuals(
             X_test=X_test,
-            y_test=np.asarray(y_test),
             y_pred=y_pred,
-            metric=metric,
-            query=query,
+            reference=reference,
+            compared=compared,
+            dest_col=metric_name,
+            key_cols=["feature"],
+            explain=functools.partial(
+                self._explain_performance, y_test=np.asarray(y_test), metric=metric
+            ),
         )
-
-        rows = []
-        for feature in features:
-            row = dict(feature=feature)
-            for name in ("reference", "compared"):
-                row[name] = info[
-                    (info["feature"] == feature) & (info["individual"] == name)
-                ][metric_name].iloc[0]
-            rows.append(row)
-        return pd.DataFrame(rows)
 
     def compute_distributions(self, X_test, targets, bins, y_pred=None, density=True):
         query = pd.DataFrame(
@@ -774,6 +800,11 @@ class BaseExplainer:
             X_test, y_test, y_pred, metric, reference, compared
         )
         metric_name = self.get_metric_name(metric)
+        if (
+            yrange is None
+            and comparison[["reference", "compared"]].stack().between(0, 1).all()
+        ):
+            yrange = [-1, 1]
         return self._plot_comparison(
             comparison,
             title_prefix=metric_name,
