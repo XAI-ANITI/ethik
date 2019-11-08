@@ -21,8 +21,22 @@ head: |
 
     .content {
       padding: 20px;
-      max-width: 800px;
+      max-width: 1000px;
       margin: auto;
+    }
+
+    .context {
+      display: flex;
+      flex-wrap: wrap;
+      margin-bottom: 50px;
+    }
+
+    .context > p {
+      margin: 0px 20px;
+      text-align: justify;
+      text-indent: 30px;
+      flex-grow: 1;
+      max-width: 275px;
     }
 
     .content h3 {
@@ -35,32 +49,64 @@ head: |
       height: 2px;
       margin: 0px;
       margin-bottom: 15px;
+      max-width: 300px;
     }
 
     .content .buttons {
       display: flex;
       justify-content: space-between;
       flex-wrap: wrap;
+      margin: auto;
       margin-top: 40px;
+      max-width: 700px;
+    }
+
+    #gallery {
+      display: grid;
+      grid-template-columns: 600px 1fr;
+      grid-row-gap: 50px;
+      grid-column-gap: 30px;
+    }
+
+    #gallery .plot {
     }
   </style>
 js: |
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <script>
     (function() {
-      for (var id of ["header-plot-left", "header-plot-right"]) {
-        (function(id) {
-          var baseUrl = ""; // TODO
-          var dataUrl = "assets/plots/" + id + ".json";
-          fetch(baseUrl + dataUrl)
-          .then(function(resp) {
-            return resp.json();
-          })
-          .then(function(json) {
-            Plotly.plot(document.getElementById(id), json.data, json.layout);
-          });
-        })(id);
+      var baseUrl = "assets/plots/";
+      var gallery = document.getElementById("gallery");
+
+      function loadJson(name) {
+        return fetch(baseUrl + name).then(function(resp) {
+          return resp.json();
+        });
       }
+
+      function addPlot(name, description, fig) {
+        var plot = document.createElement("div");
+        plot.className = "plot";
+
+        var desc = document.createElement("div");
+        desc.className = "description";
+        desc.innerHTML = description;
+
+        gallery.appendChild(plot); 
+        gallery.appendChild(desc); 
+
+        Plotly.plot(plot, fig.data, fig.layout);
+      }
+
+      loadJson("metadata.json").then(function(metadata) {
+        for (var plot of metadata.plots) {
+          (function(plot) {
+            loadJson(plot.name + ".json").then(function(json) {
+              addPlot(plot.name, plot.description, json);
+            }); 
+          })(plot);
+        }
+      });
     })();
   </script>
 ---
@@ -73,34 +119,38 @@ js: |
     A Python package for AI fairness and interpretability.
   </h2>
 
+  <!--
   <div class="plots">
     <div id="header-plot-left"></div>
     <div id="header-plot-right"></div>
   </div>
+  -->
 </div>
 
 <div class="content">
-  <p>
-    Machine learning models can largely outperform classical algorithms to make predictions
-    about complexe problems, e.g. recognizing trees (which can vary a lot depending on
-    the season, the species...). To do so, they learn from data (either from examples or experience)
-    instead of following a well-defined sequence of instructions (like a cooking recipe). We humans
-    do the same to teach our kids to recognize trees: we don't provide instructions but examples.
-  </p>
-  <p>
-    It leads to the kids not always being able to clearly explain their decisions. Similarly,
-    machine learning models can look like black-box decision-making programs. The question is:
-    <strong>can we trust them?</strong> Understanding <strong>why a prediction was
-    made</strong> is crucial to answer this question. As a bank customer, I want to know why
-    the machine doesn't want to lend me money. This is known as <strong>model interpretability</strong>.
-  </p>
-  <p>
-    Model interpretability opens the door to <strong>model fairness</strong>. Was the
-    decision made based on an unfair view of the world? We don't want our models to reproduce 
-    human discrimination that probably reflects in data. Model fairness consists
-    in making sure a decision was not based on protected attributes (e.g. gender, race...
-    for a bank loan).
-  </p>
+  <div class="context">
+    <p>
+      Machine learning models can largely outperform classical algorithms to make predictions
+      about complexe problems, e.g. recognizing trees (which can vary a lot depending on
+      the season, the species...). To do so, they learn from data (either from examples or experience)
+      instead of following a well-defined sequence of instructions (like a cooking recipe). We humans
+      do the same to teach our kids to recognize trees: we don't provide instructions but examples.
+    </p>
+    <p>
+      It leads to the kids not always being able to clearly explain their decisions. Similarly,
+      machine learning models can look like black-box decision-making programs. The question is:
+      <strong>can we trust them?</strong> Understanding <strong>why a prediction was
+      made</strong> is crucial to answer this question. As a bank customer, I want to know why
+      the machine doesn't want to lend me money. This is known as <strong>model interpretability</strong>.
+    </p>
+    <p>
+      Model interpretability opens the door to <strong>model fairness</strong>. Was the
+      decision made based on an unfair view of the world? <strong>We don't want our models to reproduce 
+      human discrimination</strong> that probably reflects in data. Model fairness consists
+      in making sure a decision was not based on protected attributes (e.g. gender, race...
+      for a bank loan).
+    </p>
+  </div>
   <p>
     <code>ethik</code> is a Python package for performing <a href="{{ "/ai-fairness" | relative_url }}">fair and explainable</a> machine learning. At it's core, the approach of <code>ethik</code> is to build <strong>counterfactual distributions</strong> that permit answering "what if?" scenarios. The idea is that we are able to stress one or more variables and observe how a machine learning model reacts to the stress. The stress is based on a statistical re-weighting scheme called <strong>entropic variable projection</strong>. The main benefit of our method is that it will only consider realistic scenarios, and will not build fake examples. You may find more information by reading <a href="https://arxiv.org/abs/1810.07924">this paper</a>, the <a href="{{ "/tutorials/binary-classification" | relative_url }}">Get started</a> tutorial and the <a href="{{ "/tutorials/how-it-works" | relative_url }}">How it works</a> page.
   </p>
@@ -139,6 +189,14 @@ js: |
         Use our package
       </button>
     </a>
+  </div>
+
+  <h3 class="mdl-typography--display-1 mdl-typography--font-light">
+    Gallery
+  </h3>
+  <hr class="title-underline mdl-color--accent" />
+
+  <div id="gallery">
   </div>
 
   <h3 id="about" class="mdl-typography--display-1 mdl-typography--font-light">

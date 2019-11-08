@@ -32,8 +32,8 @@ api_ref:
 	mv docs/ethik/* docs/api/
 	rm -r docs/ethik/
 
-doc_plots:
-	python docs/create_header_plots.py
+gallery:
+	python docs/create_gallery.py
 
 doc: nb_to_html api_ref doc_plots
 

@@ -1,3 +1,4 @@
+import shutil
 import os
 
 import ethik
@@ -12,14 +13,11 @@ from plotly.utils import PlotlyJSONEncoder
 from sklearn import model_selection
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+DEST_FOLDER = os.path.join(HERE, "assets", "plots")
 
 
 def save_fig(fig, name):
-    folder = os.path.join(HERE, "assets", "plots")
-    path = os.path.join(folder, f"{name}.json")
-
-    if not os.path.exists(folder):
-        os.makedirs(folder)
+    path = os.path.join(DEST_FOLDER, f"{name}.json")
 
     fig.update_layout(
         plot_bgcolor="rgba(255, 255, 255, 0)", paper_bgcolor="rgba(255, 255, 255, 0)"
@@ -28,9 +26,8 @@ def save_fig(fig, name):
     data = json.loads(json.dumps(fig.data, cls=PlotlyJSONEncoder))
     layout = json.loads(json.dumps(fig.layout, cls=PlotlyJSONEncoder))
 
-    fig_json = json.dumps({"data": data, "layout": layout})
     with open(path, "w") as f:
-        f.write(fig_json)
+        json.dump({"data": data, "layout": layout}, f)
 
 
 def setup_adult():
@@ -116,27 +113,41 @@ def setup_mnist():
 
 
 if __name__ == "__main__":
+    shutil.rmtree(DEST_FOLDER)
+    os.makedirs(DEST_FOLDER)
+
+    plots = []
+
     explainer, X_test, y_pred, y_test = setup_adult()
-    save_fig(
-        explainer.plot_influence(X_test=X_test["education-num"], y_pred=y_pred),
-        "header-plot-left",
+    plots.append(
+        dict(
+            fig=explainer.plot_influence(
+                X_test=X_test[["age", "education-num"]], y_pred=y_pred
+            ),
+            name="influence_multiple_features",
+            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor. Sed sagittis orci ut turpis suscipit consectetur. Integer libero ante, sollicitudin ac nibh ut, semper auctor dolor. Donec sit amet erat a est tincidunt accumsan id eu tellus. Proin in vulputate quam, ac congue neque. Vestibulum tempor vulputate dui, nec gravida quam. Etiam facilisis dui turpis, vel molestie ligula luctus at. Aenean consequat velit ut nunc tincidunt facilisis. Nam nunc quam, volutpat id lacus eu, efficitur consequat justo. Nunc a nibh accumsan, feugiat risus in, faucibus ante. Cras bibendum massa tellus, in sodales mauris feugiat in. Donec ligula tellus, placerat non nibh at, faucibus fermentum diam. Praesent vel iaculis nunc. Cras malesuada tristique tellus, eu dapibus felis venenatis eget.",
+        )
     )
 
-    save_fig(
-        explainer.plot_influence(
-            X_test=X_test[["age", "education-num", "hours-per-week"]], y_pred=y_pred
-        ),
-        "header-plot-right",
-    )
-
-    """
     explainer, X_test, y_pred, y_test = setup_mnist()
-    save_fig(
-        explainer.plot_influence(
-            X_test=X_test,
-            y_pred=y_pred,
-            cell_width=100
-        ),
-        "header-plot-right",
+    plots.append(
+        dict(
+            fig=explainer.plot_influence(X_test=X_test, y_pred=y_pred, cell_width=130),
+            name="influence_image",
+            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor. Sed sagittis orci ut turpis suscipit consectetur. Integer libero ante, sollicitudin ac nibh ut, semper auctor dolor. Donec sit amet erat a est tincidunt accumsan id eu tellus. Proin in vulputate quam, ac congue neque. Vestibulum tempor vulputate dui, nec gravida quam. Etiam facilisis dui turpis, vel molestie ligula luctus at. Aenean consequat velit ut nunc tincidunt facilisis. Nam nunc quam, volutpat id lacus eu, efficitur consequat justo. Nunc a nibh accumsan, feugiat risus in, faucibus ante. Cras bibendum massa tellus, in sodales mauris feugiat in. Donec ligula tellus, placerat non nibh at, faucibus fermentum diam. Praesent vel iaculis nunc. Cras malesuada tristique tellus, eu dapibus felis venenatis eget.",
+        )
     )
-    """
+
+    for plot in plots:
+        save_fig(plot["fig"], plot["name"])
+
+    with open(os.path.join(DEST_FOLDER, "metadata.json"), "w") as f:
+        json.dump(
+            dict(
+                plots=[
+                    dict(name=plot["name"], description=plot["description"])
+                    for plot in plots
+                ]
+            ),
+            f,
+        )
