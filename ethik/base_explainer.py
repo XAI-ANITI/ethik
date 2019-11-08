@@ -28,7 +28,16 @@ class ConvergenceSuccess(Exception):
 
 
 class F:
-    def __init__(self, x, target_mean, tol=3):
+    """Dummy class for monkey-patching the minimize function from scipy.optimize.
+
+    We want to be able to early-stop the minimize function whenever the difference between the
+    target mean and the current is under a certain tolerance threshold. As of writing this code,
+    the only way to do this is to issue an exception whenever the threshold is reached.
+    Encapsulating this logic inside a class seems like a reasonable idea.
+
+    """
+
+    def __init__(self, x, target_mean, tol):
         self.x = x
         self.target_mean = target_mean
         self.tol = tol
@@ -79,6 +88,11 @@ def compute_ksis(x, target_means, max_iterations, tol):
     x = (x - mean) / std
 
     for target_mean in target_means:
+
+        # Skip edge case
+        if target_mean == mean:
+            ksis[(x.name, target_mean)] = 0.
+            continue
 
         f = F(x=x, target_mean=(target_mean - mean) / std, tol=tol)
         success = False
