@@ -7,16 +7,22 @@
 * Added the Pima indians diabetes dataset via the `datasets.load_diabetes` function.
 * Added the UCI heart disease dataset via the `datasets.load_heart_disease` function.
 * A `ConstantWarning` will now be raised when a feature has only one single value.
+* `BaseExplainer.compute_distributions()` and `BaseExplainer.plot_distributions()` to compute and visualize stressed distributions.
+* `BaseExplainer.compare_influence()` and `BaseExplainer.compare_performance()` to visualize how the model behaves on average for two individuals. If my friend got the loan and I didn't, this plot tells use which features were responsible of the difference.
+* `datasets.load_adult()` to easily load the Adult dataset.
 
 ### Changed
 
 * In `ImageClassificationExplainer`, the image plot size will now adapt better to the desired number of rows and columns.
 * `Explainer.explain_bias()` renamed into `Explainer.explain_influence()` as "bias" means something specific in statistics.
 * Renamed "bias" to "influence" across the library.
+* Created a class `BaseExplainer` to do the computations only. `Explainer` was renamed into `CacheExplainer`, inherits from `BaseExplainer` and handles caching and querying (by building a list of taus).
+* `value` columns was renamed into `target` in the `.info` to better reflects the paper.
 
 ### Fixed
 
 * Fixed an issue where an `IndexError` would be raised if a column name wasn't of type `str`.
+* Fixed duplicates when calling `plot_performance()` with multiple labels.
 
 ## 0.0.2 - 02/10/19
 

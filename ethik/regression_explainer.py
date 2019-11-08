@@ -1,7 +1,7 @@
-from .explainer import Explainer
+from .cache_explainer import CacheExplainer
 
 __all__ = ["RegressionExplainer"]
 
 
-class RegressionExplainer(Explainer):
+class RegressionExplainer(CacheExplainer):
     pass
