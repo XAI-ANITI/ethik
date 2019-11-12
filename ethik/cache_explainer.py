@@ -464,7 +464,7 @@ class CacheExplainer(BaseExplainer):
                 )
             ],
             layout=go.Layout(
-                margin=dict(b=0, t=40),
+                margin=dict(b=0, t=40, r=10),
                 xaxis=dict(
                     title=title,
                     range=[0, 1],
@@ -482,7 +482,12 @@ class CacheExplainer(BaseExplainer):
                     linecolor="black",
                     automargin=True,
                 ),
-                plot_bgcolor="white",
+                modebar=dict(
+                    orientation="v",
+                    color="rgba(0, 0, 0, 0)",
+                    activecolor="rgba(0, 0, 0, 0)",
+                    bgcolor="rgba(0, 0, 0, 0)",
+                ),
             ),
         )
 

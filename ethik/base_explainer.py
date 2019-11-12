@@ -8,12 +8,15 @@ import joblib
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
+import plotly.io as pio
 from scipy import optimize
 from scipy import special
 from tqdm import tqdm
 
 from .utils import join_with_overlap, to_pandas, yield_masks
 from .warnings import ConvergenceWarning
+
+pio.templates.default = "plotly_white"
 
 __all__ = ["BaseExplainer"]
 
@@ -767,7 +770,7 @@ class BaseExplainer:
                 )
 
             fig.update_layout(
-                margin=dict(t=50, r=50),
+                margin=dict(t=30, r=50, b=40),
                 xaxis=dict(
                     title="tau",
                     nticks=5,
@@ -785,7 +788,6 @@ class BaseExplainer:
                     linecolor="black",
                     gridcolor="#eee",
                 ),
-                plot_bgcolor="white",
                 width=width,
                 height=height,
             )
@@ -836,10 +838,9 @@ class BaseExplainer:
             )
         )
         fig.update_layout(
-            margin=dict(t=50, r=50),
+            margin=dict(t=30, r=0, b=40),
             xaxis=dict(title=f"Average {feat}", zeroline=False),
             yaxis=dict(title=y_label, range=yrange, showline=True),
-            plot_bgcolor="white",
             width=width,
             height=height,
         )
@@ -931,6 +932,7 @@ class BaseExplainer:
         fig.update_layout(
             bargap=0,
             barmode="overlay",
+            margin=dict(t=30, b=40),
             showlegend=True,
             xaxis=dict(
                 title=y_pred.name if y_pred is not None else feature_values.name,
@@ -940,7 +942,6 @@ class BaseExplainer:
             shapes=shapes,
             width=width,
             height=height,
-            plot_bgcolor="#FFF",
         )
         return fig
 
@@ -1011,9 +1012,15 @@ class BaseExplainer:
                     line=dict(color="black", width=1),
                 )
             ],
-            plot_bgcolor="white",
             width=width,
             height=height,
+            margin=dict(b=0, t=40, r=10),
+            modebar=dict(
+                orientation="v",
+                color="rgba(0, 0, 0, 0)",
+                activecolor="rgba(0, 0, 0, 0)",
+                bgcolor="rgba(0, 0, 0, 0)",
+            ),
         )
         return fig
 
