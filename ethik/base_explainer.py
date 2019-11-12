@@ -92,12 +92,13 @@ def compute_ksis(x, target_means, max_iterations, tol):
 
 
 class BaseExplainer:
+    """Explains the influence of features on model predictions and performance."""
+
     CAT_COL_SEP = " = "
 
     def __init__(
         self,
         alpha=0.05,
-        n_taus=41,
         n_samples=1,
         sample_frac=0.8,
         conf_level=0.05,
@@ -108,11 +109,6 @@ class BaseExplainer:
     ):
         if not 0 <= alpha < 0.5:
             raise ValueError(f"alpha must be between 0 and 0.5, got {alpha}")
-
-        if not n_taus > 0:
-            raise ValueError(
-                f"n_taus must be a strictly positive integer, got {n_taus}"
-            )
 
         if n_samples < 1:
             raise ValueError(f"n_samples must be strictly positive, got {n_samples}")
@@ -133,7 +129,6 @@ class BaseExplainer:
             raise ValueError(f"tol must be a strictly positive number, got {tol}")
 
         self.alpha = alpha
-        self.n_taus = n_taus
         self.n_samples = n_samples
         self.sample_frac = sample_frac if n_samples > 1 else 1
         self.conf_level = conf_level
@@ -161,11 +156,14 @@ class BaseExplainer:
 
     def _fill_ksis(self, X_test, query):
         """
-
         Parameters:
             X_test (pd.DataFrame): A dataframe with categorical features ALREADY 
                 one-hot encoded.
-            query (pd.DataFrame):
+            query (pd.DataFrame): A dataframe with at least two columns "feature"
+                and "target". This dataframe will be altered.
+
+        Returns:
+            pd.DataFrame: The `query` dataframe with an additional column "ksi".
         """
         if "ksi" not in query.columns:
             query["ksi"] = None
@@ -192,6 +190,33 @@ class BaseExplainer:
     def _explain(
         self, X_test, y_pred, dest_col, key_cols, compute, query, compute_kwargs=None
     ):
+        """
+        Parameters:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                `pd.Series` is expected. For multi-label classification, a
+                pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            dest_col (str): The name of the column that is created by `compute`.
+                Either "influence" or the name of a metric.
+            key_cols (list of str): The set of columns that is used to identify
+                the parameters of a result. For instance, for the influence, we
+                need the feature, the label and the ksi to map the explanation back
+                to the query. For performance, all the labels give the same result
+                so we just need the feature and the ksi.
+            compute (callable): A callable that takes at least three parameters
+                (`X_test`, `y_pred`, `query`) and returns the query completed
+                with explanations.
+            query (pd.DataFrame): The query for the explanation. A dataframe with
+                at least three columns ("feature", "label" and "target").
+            compute_kwargs (dict, optional): An optional dictionary of named parameters
+                for `compute()`.
+            
+        Returns:
+        """
         query = query.copy()
 
         if compute_kwargs is None:
@@ -349,6 +374,29 @@ class BaseExplainer:
         ).iloc[0]
 
     def _revert_dummies_names(self, x):
+        """Build a dictionary that enables us to find the original feature back
+        after `pd.get_dummies()` was called.
+
+        Examples:
+            >>> x = pd.DataFrame({"gender": ["Male", "Female", "Male"]})
+            >>> x
+            gender
+            ------
+              Male
+            Female
+              Male
+            >>> pd.get_dummies(x)
+            gender = Male  gender = Female
+            ------------------------------
+                        1                0
+                        0                1
+                        1                0
+            >>> self._revert_dummies_names(x)
+            {
+                "gender = Male": "gender",
+                "gender = Female": "gender",
+            }
+        """
         x = pd.DataFrame(to_pandas(x))
         x = x.select_dtypes(include=["category", "object"])
         dummies_names = {}
@@ -445,6 +493,29 @@ class BaseExplainer:
         )
 
     def compare_influence(self, X_test, y_pred, reference, compared):
+        """Compare the influence of features in `X_test` on `y_pred` for the
+        individual `compared` compared to `reference`. Basically, we look at how
+        the model would behave if the average individual were `compared` and
+        `reference`.
+
+        Parameters:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                `pd.Series` is expected. For multi-label classification, a
+                pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            reference (pd.Series): A row of `X_test`.
+            compared (pd.Series): A row of `X_test`.
+
+        Returns:
+            pd.DataFrame: A dataframe with four columns ("feature", "label",
+                "reference" and "compared"). For each couple `(feature, label)`,
+                `reference` (resp. `compared`) is the average output of the model
+                if the average individual were `reference` (resp. `compared`).
+        """
         return self._compare_individuals(
             X_test=X_test,
             y_pred=y_pred,
@@ -456,6 +527,36 @@ class BaseExplainer:
         )
 
     def compare_performance(self, X_test, y_test, y_pred, metric, reference, compared):
+        """Compare the influence of features in `X_test` on the performance for the
+        individual `compared` compared to `reference`. Basically, we look at how
+        the model would perform if the average individual were `compared` and
+        `reference`.
+
+        Parameters:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_test (pd.DataFrame or pd.Series): The true values
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series` is expected. For multi-label classification,
+                a pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. The format is the same as `y_test`.
+            metric (callable): A scikit-learn-like metric
+                `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+                to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+                "the set of labels predicted for a sample must exactly match the
+                corresponding set of labels in `y_true`".
+            reference (pd.Series): A row of `X_test`.
+            compared (pd.Series): A row of `X_test`.
+
+        Returns:
+            pd.DataFrame: A dataframe with three columns ("feature", "reference"
+                and "compared"). For each couple `(feature, label)`, `reference`
+                (resp. `compared`) is the average output of the model if the
+                average individual were `reference` (resp. `compared`).
+        """
         metric_name = self.get_metric_name(metric)
         return self._compare_individuals(
             X_test=X_test,
@@ -469,21 +570,116 @@ class BaseExplainer:
             ),
         )
 
-    def compute_distributions(self, X_test, targets, bins, y_pred=None, density=True):
+    def compute_distributions(
+        self, feature_values, targets, y_pred=None, bins=None, density=True
+    ):
+        """Compute the stressed distributions of `feature_values` or `y_pred` (if specified)
+        for the `feature_values` targets `targets`. As explained in the paper,
+        the stressed distributions are computed to minimize the Kullback-Leibler
+        divergence with the original distribution.
+
+        Parameters:
+            feature_values (pd.Series): A named pandas series containing the dataset values
+                for a given feature.
+            targets (list): A list of means to reach for the feature `feature_values`.
+                All of them must be between `feature_values.min()` and `feature_values.max()`.
+            bins (int, optional): See `numpy.histogram()`. If `None` (the default),
+                we use `bins = int(log(len(feature_values)))`.
+            y_pred (pd.Series, optional): The model output corresponding to the
+                input `feature_values`. For a multi-class problem, `y_pred` is the output
+                for a single label. If specified, the stressed output is returned
+                instead of the stressed input.
+            density (bool, optional): See `numpy.histogram()`.
+
+        Returns:
+            dict: The keys are the targets and the values are tuples
+                `(edges, densities, average)`. The edges are those of the histogram
+                returned by `numpy.histogram()`, as are the densities of the
+                stressed distribution. Let's notice that
+                `len(edges) == len(densities) + 1`. `average` is its average.
+                If `y_pred` is not specified, the stressed distribution is the
+                model input `feature_values`, otherwise it is the model output `y_pred`.
+
+        Examples:
+            Let's look at what the distribution of `age` is when its mean is 20
+            and 30:
+
+            >>> age = X_test["age"]
+            >>> explainer.compute_distributions(
+            ...     age,
+            ...     targets=[20, 30],
+            ...     bins=int(np.log(len(age))),
+            ... )
+            {
+                    20: (
+                        array([17., 25.11111111, 33.22222222, 41.33333333,
+                               49.44444444, 57.55555556, 65.66666667, 73.77777778,
+                               81.88888889, 90.]),
+                        array([1.16244590e-01, 6.58705227e-03, 4.33729224e-04,
+                               2.12458531e-05, 1.01796253e-06, 3.48115986e-08,
+                               8.26655152e-10, 1.42059530e-11, 2.47889541e-13]),
+                        20
+                    ),
+                    30: (
+                        array([17., 25.11111111, 33.22222222, 41.33333333,
+                               49.44444444, 57.55555556, 65.66666667, 73.77777778,
+                               81.88888889, 90.]),
+                        array([5.18628655e-02, 3.27327495e-02, 2.11589662e-02,
+                               1.06194485e-02, 4.79868544e-03, 1.63681028e-03,
+                               3.87471788e-04, 7.50608721e-05, 1.56131574e-05]),
+                        30
+                    )
+                }
+
+            Now, let's look at what the distribution of the *output* is when the
+            mean age is 20 and 30:
+
+            >>> explainer.compute_distributions(
+            ...     age,
+            ...     targets=[20, 30],
+            ...     bins=int(np.log(len(age))),
+            ...     y_pred=y_pred,
+            ... )
+            {
+                    20: (
+                        array([1.65011502e-04, 1.11128109e-01, 2.22091206e-01,
+                               3.33054303e-01, 4.44017400e-01, 5.54980497e-01,
+                               6.65943594e-01, 7.76906691e-01, 8.87869788e-01,
+                               9.98832885e-01]),
+                        array([8.76434680e+00, 8.93703011e-02, 5.56748231e-02,
+                               2.83077489e-02, 1.73814831e-02, 1.47207642e-02,
+                               1.29008052e-02, 5.98377861e-03, 2.33186218e-02]),
+                        0.014498758429833029
+                    ),
+                    30: (
+                        array([1.65011502e-04, 1.11128109e-01, 2.22091206e-01,
+                               3.33054303e-01, 4.44017400e-01, 5.54980497e-01,
+                               6.65943594e-01, 7.76906691e-01, 8.87869788e-01,
+                               9.98832885e-01]),
+                        array([6.27202882, 0.68415, 0.48993501, 0.2951375,
+                               0.25163192, 0.25192098, 0.24374755, 0.14946323,
+                               0.37399013]),
+                        0.1559407087557414
+                    )
+                }
+        """
         query = pd.DataFrame(
             dict(
-                feature=[X_test.name] * len(targets),
+                feature=[feature_values.name] * len(targets),
                 target=targets,
                 label=[""] * len(targets),
             )
         )
-        ksis = self._fill_ksis(X_test, query)["ksi"]
+        ksis = self._fill_ksis(feature_values, query)["ksi"]
+
+        if bins is None:
+            bins = int(np.log(len(feature_values)))
 
         distributions = {}
         for ksi, target in zip(ksis, targets):
-            weights = special.softmax(ksi * X_test)
+            weights = special.softmax(ksi * feature_values)
             densities, edges = np.histogram(
-                y_pred if y_pred is not None else X_test,
+                y_pred if y_pred is not None else feature_values,
                 bins=bins,
                 weights=weights,
                 density=density,
@@ -491,7 +687,7 @@ class BaseExplainer:
             distributions[target] = (
                 edges,
                 densities,
-                np.average(y_pred, weights=weights) if y_pred is not None else None,
+                np.average(y_pred, weights=weights) if y_pred is not None else target,
             )
         return distributions
 
@@ -616,14 +812,29 @@ class BaseExplainer:
 
     def plot_distributions(
         self,
-        X_test,
-        y_pred=None,
-        bins=10,
+        feature_values,
         targets=None,
+        y_pred=None,
+        bins=None,
         colors=None,
         dataset_color="black",
         size=None,
     ):
+        """Plot the stressed distribution of `feature_values` or `y_pred` if specified
+        for each mean of `feature_values` in `targets`.
+        
+        Parameters:
+            feature_values (pd.Series): See `BaseExplainer.compute_distributions()`.
+            targets (list, optional): See `BaseExplainer.compute_distributions()`.
+                If `None` (the default), only the original distribution is plotted.
+            y_pred (pd.Series, optional): See `BaseExplainer.compute_distributions()`.
+            bins (int, optional): See `BaseExplainer.compute_distributions()`.
+            colors (list, optional): An optional list of colors for all targets.
+            dataset_color (str, optional): An optional color for the original
+                distribution. Default is `"black"`. If `None`, the original
+                distribution is not plotted.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+        """
         if targets is None:
             targets = []
 
@@ -634,18 +845,18 @@ class BaseExplainer:
             )
 
         if dataset_color is not None:
-            targets = [X_test.mean(), *targets]  # Add the original mean
+            targets = [feature_values.mean(), *targets]  # Add the original mean
             colors = [dataset_color, *colors]
 
         fig = go.Figure()
         shapes = []
         distributions = self.compute_distributions(
-            X_test=X_test, targets=targets, bins=bins, y_pred=y_pred
+            feature_values=feature_values, targets=targets, bins=bins, y_pred=y_pred
         )
 
         for i, (target, color) in enumerate(zip(targets, colors)):
             mean = target
-            trace_name = f"E[{X_test.name}] = {mean:.2f}"
+            trace_name = f"E[{feature_values.name}] = {mean:.2f}"
             edges, densities, y_pred_mean = distributions[target]
             if y_pred is not None:
                 mean = y_pred_mean
@@ -681,7 +892,7 @@ class BaseExplainer:
             barmode="overlay",
             showlegend=True,
             xaxis=dict(
-                title=y_pred.name if y_pred is not None else X_test.name,
+                title=y_pred.name if y_pred is not None else feature_values.name,
                 linecolor="black",
             ),
             yaxis=dict(title="Probability density", linecolor="black"),
@@ -768,6 +979,38 @@ class BaseExplainer:
     def plot_influence_comparison(
         self, X_test, y_pred, reference, compared, colors=None, yrange=None, size=None
     ):
+        """Plot the influence of features in `X_test` on `y_pred` for the
+        individual `compared` compared to `reference`. Basically, we look at how
+        the model would behave if the average individual were `compared` and take
+        the difference with what the output would be if the average were `reference`.
+
+        Parameters:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                `pd.Series` is expected. For multi-label classification, a
+                pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            reference (pd.Series): A row of `X_test`.
+            compared (pd.Series): A row of `X_test`.
+            colors (dict or list, optional): The colors for the features. If a list,
+                the first color corresponds to the feature with the lowest value
+                `influence(compared) - influence(reference)`. If a dictionary,
+                the keys are the names of the features and the values are valid
+                Plotly colors. Default is `None` and the colors are automatically
+                choosen.
+            yrange (list, optional): A two-item list `[low, high]`. Default is
+                `None` and the range is based on the data.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            pd.DataFrame: A dataframe with four columns ("feature", "label",
+                "reference" and "compared"). For each couple `(feature, label)`,
+                `reference` (resp. `compared`) is the average output of the model
+                if the average individual were `reference` (resp. `compared`).
+        """
         y_pred = pd.DataFrame(to_pandas(y_pred))
         if len(y_pred.columns) > 1:
             raise ValueError("Cannot plot multiple labels")
@@ -796,6 +1039,45 @@ class BaseExplainer:
         yrange=None,
         size=None,
     ):
+        """Plot the influence of features in `X_test` on performance for the
+        individual `compared` compared to `reference`. Basically, we look at how
+        the model would behave if the average individual were `compared` and take
+        the difference with what the output would be if the average were `reference`.
+
+        Parameters:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_test (pd.DataFrame or pd.Series): The true values
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series` is expected. For multi-label classification,
+                a pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. The format is the same as `y_test`.
+            metric (callable): A scikit-learn-like metric
+                `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+                to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+                "the set of labels predicted for a sample must exactly match the
+                corresponding set of labels in `y_true`".
+            reference (pd.Series): A row of `X_test`.
+            compared (pd.Series): A row of `X_test`.
+            colors (dict or list, optional): The colors for the features. If a list,
+                the first color corresponds to the feature with the lowest value
+                `influence(compared) - influence(reference)`. If a dictionary,
+                the keys are the names of the features and the values are valid
+                Plotly colors. Default is `None` and the colors are automatically
+                choosen.
+            yrange (list, optional): A two-item list `[low, high]`. Default is
+                `None` and the range is based on the data.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            pd.DataFrame: A dataframe with four columns ("feature", "label",
+                "reference" and "compared"). For each couple `(feature, label)`,
+                `reference` (resp. `compared`) is the average output of the model
+                if the average individual were `reference` (resp. `compared`).
+        """
         comparison = self.compare_performance(
             X_test, y_test, y_pred, metric, reference, compared
         )

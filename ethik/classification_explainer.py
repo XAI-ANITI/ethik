@@ -13,7 +13,7 @@ class ClassificationExplainer(CacheExplainer):
     def plot_influence(self, X_test, y_pred, colors=None, yrange=None, size=None):
         """Plot the influence for the features in `X_test`.
 
-        See `ethik.explainer.Explainer.plot_influence()`.
+        See `ethik.cache_explainer.CacheExplainer.plot_influence()`.
         """
         if yrange is None:
             yrange = [0, 1]
@@ -84,7 +84,7 @@ class ClassificationExplainer(CacheExplainer):
 
     def plot_distributions(
         self,
-        X_test,
+        feature_values,
         y_pred=None,
         bins=10,
         targets=None,
@@ -92,9 +92,14 @@ class ClassificationExplainer(CacheExplainer):
         dataset_color="black",
         size=None,
     ):
+        """Plot the stressed distribution of `feature_values` or `y_pred` if specified
+        for each mean of `feature_values` in `targets`.
+
+        See `ethik.base_explainer.BaseExplainer.plot_distributions()`.
+        """
         if y_pred is None:
             return super().plot_distributions(
-                X_test=X_test,
+                feature_values=feature_values,
                 bins=bins,
                 targets=targets,
                 colors=colors,
@@ -105,7 +110,7 @@ class ClassificationExplainer(CacheExplainer):
         y_pred = pd.DataFrame(to_pandas(y_pred))
         if len(y_pred.columns) == 1:
             return super().plot_distributions(
-                X_test=X_test,
+                feature_values=feature_values,
                 y_pred=y_pred.iloc[:, 0],
                 bins=bins,
                 targets=targets,
@@ -119,8 +124,8 @@ class ClassificationExplainer(CacheExplainer):
         for label in labels:
             plots.append(
                 super().plot_distributions(
-                    X_test,
-                    y_pred[label],
+                    feature_values=feature_values,
+                    y_pred=y_pred[label],
                     bins=bins,
                     targets=targets,
                     colors=colors,
@@ -160,6 +165,13 @@ class ClassificationExplainer(CacheExplainer):
     def plot_influence_comparison(
         self, X_test, y_pred, reference, compared, colors=None, yrange=None, size=None
     ):
+        """Plot the influence of features in `X_test` on `y_pred` for the
+        individual `compared` compared to `reference`. Basically, we look at how
+        the model would behave if the average individual were `compared` and take
+        the difference with what the output would be if the average were `reference`.
+
+        See `ethik.base_explainer.BaseExplainer.plot_influence_comparison()`.
+        """
         if yrange is None:
             yrange = [-1, 1]
 
