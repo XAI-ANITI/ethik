@@ -18,7 +18,7 @@ class CacheExplainer(BaseExplainer):
     """Explains the influence of features on model predictions and performance.
 
     Parameters:
-        alpha (float): A `float` between `0` and `0.5` which indicates by how close the `Explainer`
+        alpha (float): A `float` between `0` and `0.5` which indicates by how close the `CacheExplainer`
             should look at extreme values of a distribution. The closer to zero, the more so
             extreme values will be accounted for. The default is `0.05` which means that all values
             beyond the 5th and 95th quantiles are ignored.
@@ -69,7 +69,6 @@ class CacheExplainer(BaseExplainer):
     ):
         super().__init__(
             alpha=alpha,
-            n_taus=n_taus,
             n_samples=n_samples,
             sample_frac=sample_frac,
             conf_level=conf_level,
@@ -78,6 +77,13 @@ class CacheExplainer(BaseExplainer):
             n_jobs=n_jobs,
             verbose=verbose,
         )
+
+        if not n_taus > 0:
+            raise ValueError(
+                f"n_taus must be a strictly positive integer, got {n_taus}"
+            )
+
+        self.n_taus = n_taus
         self.memoize = memoize
         self.metric_names = set()
         self._reset_info()
@@ -485,12 +491,13 @@ class CacheExplainer(BaseExplainer):
         """Plot the influence of the model for the features in `X_test`.
 
         Args:
-            X_test (pd.DataFrame or np.array): See `Explainer.explain_influence()`.
-            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_influence()`.
+            X_test (pd.DataFrame or np.array): See `CacheExplainer.explain_influence()`.
+            y_pred (pd.DataFrame or pd.Series): See `CacheExplainer.explain_influence()`.
             colors (dict, optional): A dictionary that maps features to colors.
                 Default is `None` and the colors are choosen automatically.
             yrange (list, optional): A two-item list `[low, high]`. Default is
                 `None` and the range is based on the data.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
 
         Returns:
             plotly.graph_objs.Figure:
@@ -519,13 +526,13 @@ class CacheExplainer(BaseExplainer):
         """Plot the ranking of the features based on their influence.
 
         Args:
-            X_test (pd.DataFrame or np.array): See `Explainer.explain_influence()`.
-            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_influence()`.
+            X_test (pd.DataFrame or np.array): See `CacheExplainer.explain_influence()`.
+            y_pred (pd.DataFrame or pd.Series): See `CacheExplainer.explain_influence()`.
             n_features (int, optional): The number of features to plot. With the
                 default (`None`), all of them are shown. For a positive value,
                 we keep the `n_features` first features (the most impactful). For
                 a negative value, we keep the `n_features` last features.
-            colors (dict, optional): See `Explainer.plot_influence()`.
+            colors (dict, optional): See `CacheExplainer.plot_influence()`.
 
         Returns:
             plotly.graph_objs.Figure:
@@ -548,12 +555,13 @@ class CacheExplainer(BaseExplainer):
         """Plot the performance of the model for the features in `X_test`.
 
         Args:
-            X_test (pd.DataFrame or np.array): See `Explainer.explain_performance()`.
-            y_test (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
-            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
-            metric (callable): See `Explainer.explain_performance()`.
-            colors (dict, optional): See `Explainer.plot_influence()`.
-            yrange (list, optional): See `Explainer.plot_influence()`.
+            X_test (pd.DataFrame or np.array): See `CacheExplainer.explain_performance()`.
+            y_test (pd.DataFrame or pd.Series): See `CacheExplainer.explain_performance()`.
+            y_pred (pd.DataFrame or pd.Series): See `CacheExplainer.explain_performance()`.
+            metric (callable): See `CacheExplainer.explain_performance()`.
+            colors (dict, optional): See `CacheExplainer.plot_influence()`.
+            yrange (list, optional): See `CacheExplainer.plot_influence()`.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
 
         Returns:
             plotly.graph_objs.Figure:
@@ -587,18 +595,18 @@ class CacheExplainer(BaseExplainer):
         """Plot the performance of the model for the features in `X_test`.
 
         Args:
-            X_test (pd.DataFrame or np.array): See `Explainer.explain_performance()`.
-            y_test (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
-            y_pred (pd.DataFrame or pd.Series): See `Explainer.explain_performance()`.
-            metric (callable): See `Explainer.explain_performance()`.
+            X_test (pd.DataFrame or np.array): See `CacheExplainer.explain_performance()`.
+            y_test (pd.DataFrame or pd.Series): See `CacheExplainer.explain_performance()`.
+            y_pred (pd.DataFrame or pd.Series): See `CacheExplainer.explain_performance()`.
+            metric (callable): See `CacheExplainer.explain_performance()`.
             criterion (str): Either "min" or "max" to determine whether, for a
                 given feature, we keep the worst or the best performance for all
-                the values taken by the mean. See `Explainer.rank_by_performance()`.
+                the values taken by the mean. See `CacheExplainer.rank_by_performance()`.
             n_features (int, optional): The number of features to plot. With the
                 default (`None`), all of them are shown. For a positive value,
                 we keep the `n_features` first features (the most impactful). For
                 a negative value, we keep the `n_features` last features.
-            colors (dict, optional): See `Explainer.plot_influence_ranking()`.
+            colors (dict, optional): See `CacheExplainer.plot_influence_ranking()`.
 
         Returns:
             plotly.graph_objs.Figure:
