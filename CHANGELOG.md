@@ -23,6 +23,7 @@
 
 * Fixed an issue where an `IndexError` would be raised if a column name wasn't of type `str`.
 * Fixed duplicates when calling `plot_performance()` with multiple labels.
+* Fixed convergence issues of the optimization algorithm. Each feature is now standard scaled and we use the `scipy.optimize` module instead of our own procedure.
 
 ## 0.0.2 - 02/10/19
 

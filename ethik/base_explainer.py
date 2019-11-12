@@ -8,13 +8,61 @@ import joblib
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
+from scipy import optimize
 from scipy import special
 from tqdm import tqdm
 
-from .utils import decimal_range, join_with_overlap, to_pandas, yield_masks
+from .utils import join_with_overlap, to_pandas, yield_masks
 from .warnings import ConvergenceWarning
 
 __all__ = ["BaseExplainer"]
+
+
+class ConvergenceSuccess(Exception):
+    """Custom warning to capture convergence success.
+
+    This is necessary to monkey-patch scipy's minimize function in order to manually stop the
+    minimization process.
+
+    Parameters:
+        ksi (float)
+
+    """
+
+    def __init__(self, ksi):
+        self.ksi = ksi
+
+
+class F:
+    """Dummy class for monkey-patching the minimize function from scipy.optimize.
+
+    We want to be able to early-stop the minimize function whenever the difference between the
+    target mean and the current is under a certain tolerance threshold. As of writing this code,
+    the only way to do this is to issue an exception whenever the threshold is reached.
+    Encapsulating this logic inside a class seems like a reasonable idea.
+
+    """
+
+    def __init__(self, x, target_mean, tol):
+        self.x = x
+        self.target_mean = target_mean
+        self.tol = tol
+
+    def __call__(self, ksi):
+        """Returns the loss and the gradient for a particular ksi value."""
+
+        ksi = ksi[0]
+        lambdas = special.softmax(ksi * self.x)
+        current_mean = np.average(self.x, weights=lambdas)
+
+        f = (current_mean - self.target_mean) ** 2
+
+        if f < self.tol:
+            raise ConvergenceSuccess(ksi=ksi)
+
+        g = current_mean - self.target_mean
+
+        return f, np.array([g])
 
 
 def compute_ksis(x, target_means, max_iterations, tol):
@@ -40,48 +88,35 @@ def compute_ksis(x, target_means, max_iterations, tol):
                 }
     """
 
-    mean = x.mean()
     ksis = {}
+
+    mean, std = x.mean(), x.std()
+    x = (x - mean) / std
 
     for target_mean in target_means:
 
-        ksi = 0
-        current_mean = mean
-        n_iterations = 0
+        # Skip edge case
+        if target_mean == mean:
+            ksis[(x.name, target_mean)] = 0.0
+            continue
 
-        while n_iterations < max_iterations:
-            n_iterations += 1
+        success = False
+        try:
+            res = optimize.minimize(
+                fun=F(x=x, target_mean=(target_mean - mean) / std, tol=tol),
+                x0=[0],  # Initial ksi value
+                jac=True,
+                method="BFGS",
+            )
+        except ConvergenceSuccess as cs:
+            ksi = cs.ksi
+            success = True
 
-            # Stop if the target mean has been reached
-            if current_mean == target_mean:
-                break
-
-            # Update the sample weights and obtain the new mean of the distribution
-            # TODO: if ksi * x is too large then sample_weights might only contain zeros, which
-            # leads to hess being equal to 0
-            lambdas = special.softmax(ksi * x)
-            current_mean = np.average(x, weights=lambdas)
-
-            # Do a Newton step using the difference between the mean and the
-            # target mean
-            grad = current_mean - target_mean
-            hess = np.average((x - current_mean) ** 2, weights=lambdas)
-
-            # We use a magic number for the step size if the hessian is nil
-            step = (1e-5 * grad) if hess == 0 else (grad / hess)
-            ksi -= step
-
-            # Stop if the gradient is small enough
-            if abs(grad) < tol:
-                break
-
-        # Warn the user if the algorithm didn't converge
-        else:
+        if not success:
             warnings.warn(
                 message=(
-                    f"Gradient descent failed to converge after {max_iterations} iterations "
-                    + f"(name={x.name}, mean={mean}, target_mean={target_mean}, "
-                    + f"current_mean={current_mean}, grad={grad}, hess={hess}, step={step}, ksi={ksi})"
+                    f"convergence warning for {x.name}, with target mean {target_mean}:\n\n"
+                    + str(res)
                 ),
                 category=ConvergenceWarning,
             )
@@ -103,7 +138,7 @@ class BaseExplainer:
         sample_frac=0.8,
         conf_level=0.05,
         max_iterations=15,
-        tol=1e-3,
+        tol=1e-4,
         n_jobs=1,  # Parallelism is only worth it if the dataset is "large"
         verbose=True,
     ):
@@ -157,7 +192,7 @@ class BaseExplainer:
     def _fill_ksis(self, X_test, query):
         """
         Parameters:
-            X_test (pd.DataFrame): A dataframe with categorical features ALREADY 
+            X_test (pd.DataFrame): A dataframe with categorical features ALREADY
                 one-hot encoded.
             query (pd.DataFrame): A dataframe with at least two columns "feature"
                 and "target". This dataframe will be altered.
@@ -253,6 +288,10 @@ class BaseExplainer:
         #   ],
         #   ...
         # ]
+
+        # Standard scale the features
+        X_test = (X_test - X_test.mean()) / X_test.std()
+
         explanation = compute(
             X_test=X_test, y_pred=y_pred, query=query_to_complete, **compute_kwargs
         )
