@@ -35,7 +35,7 @@ api_ref:
 gallery:
 	python docs/create_gallery.py
 
-doc: nb_to_html api_ref doc_plots
+doc: tutorials api_ref gallery
 
 deploy_doc: doc
 	git clone -b gh-pages "https://${GH_USER}:${GH_PASSWORD}@github.com/${TRAVIS_REPO_SLUG}.git" gh-pages
