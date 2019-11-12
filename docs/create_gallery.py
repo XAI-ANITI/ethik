@@ -10,7 +10,7 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 from plotly.utils import PlotlyJSONEncoder
-from sklearn import model_selection
+from sklearn import metrics, model_selection
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEST_FOLDER = os.path.join(HERE, "assets", "plots")
@@ -121,11 +121,66 @@ if __name__ == "__main__":
     explainer, X_test, y_pred, y_test = setup_adult()
     plots.append(
         dict(
+            fig=explainer.plot_influence(X_test=X_test["age"], y_pred=y_pred),
+            name="influence_age",
+            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor. Sed sagittis orci ut turpis suscipit consectetur. Integer libero ante, sollicitudin ac nibh ut, semper auctor dolor.",
+        )
+    )
+
+    plots.append(
+        dict(
             fig=explainer.plot_influence(
                 X_test=X_test[["age", "education-num"]], y_pred=y_pred
             ),
             name="influence_multiple_features",
-            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor. Sed sagittis orci ut turpis suscipit consectetur. Integer libero ante, sollicitudin ac nibh ut, semper auctor dolor. Donec sit amet erat a est tincidunt accumsan id eu tellus. Proin in vulputate quam, ac congue neque. Vestibulum tempor vulputate dui, nec gravida quam. Etiam facilisis dui turpis, vel molestie ligula luctus at. Aenean consequat velit ut nunc tincidunt facilisis. Nam nunc quam, volutpat id lacus eu, efficitur consequat justo. Nunc a nibh accumsan, feugiat risus in, faucibus ante. Cras bibendum massa tellus, in sodales mauris feugiat in. Donec ligula tellus, placerat non nibh at, faucibus fermentum diam. Praesent vel iaculis nunc. Cras malesuada tristique tellus, eu dapibus felis venenatis eget.",
+            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor.",
+        )
+    )
+
+    plots.append(
+        dict(
+            fig=explainer.plot_influence_ranking(
+                X_test=X_test[["age", "education-num", "hours-per-week", "gender"]],
+                y_pred=y_pred,
+            ),
+            name="influence_ranking",
+            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor.",
+        )
+    )
+
+    plots.append(
+        dict(
+            fig=explainer.plot_influence_comparison(
+                X_test=X_test[["age", "education-num", "hours-per-week", "gender"]],
+                y_pred=y_pred,
+                reference=X_test.iloc[2].rename("bob"),
+                compared=X_test.iloc[1].rename("mary"),
+            ),
+            name="influence_comparison",
+            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor.",
+        )
+    )
+
+    plots.append(
+        dict(
+            fig=explainer.plot_performance(
+                X_test=X_test["age"],
+                y_test=y_test,
+                y_pred=y_pred > 0.5,
+                metric=metrics.accuracy_score,
+            ),
+            name="performance_age",
+            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor.",
+        )
+    )
+
+    plots.append(
+        dict(
+            fig=explainer.plot_distributions(
+                feature_values=X_test["age"], targets=[27, 45], bins=60
+            ),
+            name="stressed_distributions",
+            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor.",
         )
     )
 
@@ -134,7 +189,7 @@ if __name__ == "__main__":
         dict(
             fig=explainer.plot_influence(X_test=X_test, y_pred=y_pred, cell_width=130),
             name="influence_image",
-            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor. Sed sagittis orci ut turpis suscipit consectetur. Integer libero ante, sollicitudin ac nibh ut, semper auctor dolor. Donec sit amet erat a est tincidunt accumsan id eu tellus. Proin in vulputate quam, ac congue neque. Vestibulum tempor vulputate dui, nec gravida quam. Etiam facilisis dui turpis, vel molestie ligula luctus at. Aenean consequat velit ut nunc tincidunt facilisis. Nam nunc quam, volutpat id lacus eu, efficitur consequat justo. Nunc a nibh accumsan, feugiat risus in, faucibus ante. Cras bibendum massa tellus, in sodales mauris feugiat in. Donec ligula tellus, placerat non nibh at, faucibus fermentum diam. Praesent vel iaculis nunc. Cras malesuada tristique tellus, eu dapibus felis venenatis eget.",
+            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor.",
         )
     )
 
