@@ -714,9 +714,11 @@ class BaseExplainer:
         if bins is None:
             bins = int(np.log(len(feature_values)))
 
+        scaled_values = (feature_values - feature_values.mean()) / feature_values.std()
+
         distributions = {}
         for ksi, target in zip(ksis, targets):
-            weights = special.softmax(ksi * feature_values)
+            weights = special.softmax(ksi * scaled_values)
             densities, edges = np.histogram(
                 y_pred if y_pred is not None else feature_values,
                 bins=bins,
