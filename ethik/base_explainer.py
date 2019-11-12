@@ -13,10 +13,10 @@ from scipy import optimize
 from scipy import special
 from tqdm import tqdm
 
-from .utils import join_with_overlap, to_pandas, yield_masks
+from .utils import join_with_overlap, plot_template, to_pandas, yield_masks
 from .warnings import ConvergenceWarning
 
-pio.templates.default = "plotly_white"
+pio.templates.default = plot_template
 
 __all__ = ["BaseExplainer"]
 
@@ -771,23 +771,8 @@ class BaseExplainer:
 
             fig.update_layout(
                 margin=dict(t=30, r=50, b=40),
-                xaxis=dict(
-                    title="tau",
-                    nticks=5,
-                    showline=True,
-                    showgrid=True,
-                    zeroline=False,
-                    linecolor="black",
-                    gridcolor="#eee",
-                ),
-                yaxis=dict(
-                    title=y_label,
-                    range=yrange,
-                    showline=True,
-                    showgrid=True,
-                    linecolor="black",
-                    gridcolor="#eee",
-                ),
+                xaxis=dict(title="tau", nticks=5),
+                yaxis=dict(title=y_label, range=yrange),
                 width=width,
                 height=height,
             )
@@ -839,16 +824,10 @@ class BaseExplainer:
         )
         fig.update_layout(
             margin=dict(t=30, r=0, b=40),
-            xaxis=dict(title=f"Average {feat}", zeroline=False),
-            yaxis=dict(title=y_label, range=yrange, showline=True),
+            xaxis=dict(title=f"Average {feat}"),
+            yaxis=dict(title=y_label, range=yrange),
             width=width,
             height=height,
-        )
-        fig.update_xaxes(
-            showline=True, showgrid=True, linecolor="black", gridcolor="#eee"
-        )
-        fig.update_yaxes(
-            showline=True, showgrid=True, linecolor="black", gridcolor="#eee"
         )
         return fig
 
@@ -935,10 +914,9 @@ class BaseExplainer:
             margin=dict(t=30, b=40),
             showlegend=True,
             xaxis=dict(
-                title=y_pred.name if y_pred is not None else feature_values.name,
-                linecolor="black",
+                title=y_pred.name if y_pred is not None else feature_values.name
             ),
-            yaxis=dict(title="Probability density", linecolor="black"),
+            yaxis=dict(title="Probability density"),
             shapes=shapes,
             width=width,
             height=height,
@@ -983,24 +961,8 @@ class BaseExplainer:
             )
         )
         fig.update_layout(
-            xaxis=dict(
-                title=title,
-                range=yrange,
-                showline=True,
-                linewidth=1,
-                linecolor="black",
-                zeroline=False,
-                gridcolor="#eee",
-                side="top",
-                fixedrange=True,
-            ),
-            yaxis=dict(
-                showline=False,
-                zeroline=False,
-                fixedrange=True,
-                linecolor="black",
-                automargin=True,
-            ),
+            xaxis=dict(title=title, range=yrange, side="top", fixedrange=True),
+            yaxis=dict(showline=False, automargin=True),
             shapes=[
                 go.layout.Shape(
                     type="line",
@@ -1014,7 +976,7 @@ class BaseExplainer:
             ],
             width=width,
             height=height,
-            margin=dict(b=0, t=40, r=10),
+            margin=dict(b=0, t=60, r=10),
             modebar=dict(
                 orientation="v",
                 color="rgba(0, 0, 0, 0)",

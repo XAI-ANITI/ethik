@@ -446,12 +446,19 @@ class CacheExplainer(BaseExplainer):
             .reset_index()
         )
 
-    def _plot_ranking(self, ranking, score_column, title, n_features=None, colors=None):
+    def _plot_ranking(
+        self, ranking, score_column, title, n_features=None, colors=None, size=None
+    ):
         if n_features is None:
             n_features = len(ranking)
         ascending = n_features >= 0
         ranking = ranking.sort_values(by=[score_column], ascending=ascending)
         n_features = abs(n_features)
+
+        width = 500
+        height = 100 + 60 * n_features
+        if size is not None:
+            width, height = size
 
         return go.Figure(
             data=[
@@ -464,24 +471,11 @@ class CacheExplainer(BaseExplainer):
                 )
             ],
             layout=go.Layout(
+                width=width,
+                height=height,
                 margin=dict(b=0, t=40, r=10),
-                xaxis=dict(
-                    title=title,
-                    range=[0, 1],
-                    showline=True,
-                    zeroline=False,
-                    linecolor="black",
-                    gridcolor="#eee",
-                    side="top",
-                    fixedrange=True,
-                ),
-                yaxis=dict(
-                    showline=True,
-                    zeroline=False,
-                    fixedrange=True,
-                    linecolor="black",
-                    automargin=True,
-                ),
+                xaxis=dict(title=title, range=[0, 1], side="top", fixedrange=True),
+                yaxis=dict(fixedrange=True, automargin=True),
                 modebar=dict(
                     orientation="v",
                     color="rgba(0, 0, 0, 0)",
@@ -526,7 +520,9 @@ class CacheExplainer(BaseExplainer):
             explanation, "influence", y_label, colors=colors, yrange=yrange, size=size
         )
 
-    def plot_influence_ranking(self, X_test, y_pred, n_features=None, colors=None):
+    def plot_influence_ranking(
+        self, X_test, y_pred, n_features=None, colors=None, size=None
+    ):
         """Plot the ranking of the features based on their influence.
 
         Args:
@@ -537,6 +533,7 @@ class CacheExplainer(BaseExplainer):
                 we keep the `n_features` first features (the most impactful). For
                 a negative value, we keep the `n_features` last features.
             colors (dict, optional): See `CacheExplainer.plot_influence()`.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
 
         Returns:
             plotly.graph_objs.Figure:
@@ -551,6 +548,7 @@ class CacheExplainer(BaseExplainer):
             title="Importance",
             n_features=n_features,
             colors=colors,
+            size=size,
         )
 
     def plot_performance(
@@ -594,7 +592,15 @@ class CacheExplainer(BaseExplainer):
         )
 
     def plot_performance_ranking(
-        self, X_test, y_test, y_pred, metric, criterion, n_features=None, colors=None
+        self,
+        X_test,
+        y_test,
+        y_pred,
+        metric,
+        criterion,
+        n_features=None,
+        colors=None,
+        size=None,
     ):
         """Plot the performance of the model for the features in `X_test`.
 
@@ -611,6 +617,7 @@ class CacheExplainer(BaseExplainer):
                 we keep the `n_features` first features (the most impactful). For
                 a negative value, we keep the `n_features` last features.
             colors (dict, optional): See `CacheExplainer.plot_influence_ranking()`.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
 
         Returns:
             plotly.graph_objs.Figure:
@@ -628,4 +635,5 @@ class CacheExplainer(BaseExplainer):
             title=f"{criterion} {metric_name}",
             n_features=n_features,
             colors=colors,
+            size=size,
         )
