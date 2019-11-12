@@ -106,7 +106,7 @@ def compute_ksis(x, target_means, max_iterations, tol):
                 fun=F(x=x, target_mean=(target_mean - mean) / std, tol=tol),
                 x0=[0],  # Initial ksi value
                 jac=True,
-                method="BFGS"
+                method="BFGS",
             )
         except ConvergenceSuccess as cs:
             ksi = cs.ksi
