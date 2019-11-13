@@ -235,7 +235,6 @@ class ImageClassificationExplainer(CacheExplainer):
             width=width,
             height=height,
             autosize=False,
-            plot_bgcolor="white",
         )
         return fig
 
@@ -297,7 +296,6 @@ class ImageClassificationExplainer(CacheExplainer):
             height=fig_width * height / width,
             xaxis=dict(visible=False),
             yaxis=dict(visible=False, scaleanchor="x", scaleratio=height / width),
-            plot_bgcolor="white",
         )
 
         return fig

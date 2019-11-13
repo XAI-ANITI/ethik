@@ -2,8 +2,32 @@ import decimal
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objs as go
 
 __all__ = ["decimal_range", "extract_category", "join_with_overlap", "to_pandas"]
+
+
+plot_template = go.layout.Template(
+    layout=go.Layout(
+        plot_bgcolor="white",
+        xaxis=dict(
+            showline=True,
+            linewidth=1,
+            linecolor="black",
+            zeroline=False,
+            showgrid=True,
+            gridcolor="#eee",
+        ),
+        yaxis=dict(
+            showline=True,
+            linewidth=1,
+            linecolor="black",
+            zeroline=False,
+            showgrid=True,
+            gridcolor="#eee",
+        ),
+    )
+)
 
 
 def extract_category(X, cat):

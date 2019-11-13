@@ -8,12 +8,15 @@ import joblib
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
+import plotly.io as pio
 from scipy import optimize
 from scipy import special
 from tqdm import tqdm
 
-from .utils import join_with_overlap, to_pandas, yield_masks
+from .utils import join_with_overlap, plot_template, to_pandas, yield_masks
 from .warnings import ConvergenceWarning
+
+pio.templates.default = plot_template
 
 __all__ = ["BaseExplainer"]
 
@@ -714,9 +717,11 @@ class BaseExplainer:
         if bins is None:
             bins = int(np.log(len(feature_values)))
 
+        scaled_values = (feature_values - feature_values.mean()) / feature_values.std()
+
         distributions = {}
         for ksi, target in zip(ksis, targets):
-            weights = special.softmax(ksi * feature_values)
+            weights = special.softmax(ksi * scaled_values)
             densities, edges = np.histogram(
                 y_pred if y_pred is not None else feature_values,
                 bins=bins,
@@ -765,25 +770,9 @@ class BaseExplainer:
                 )
 
             fig.update_layout(
-                margin=dict(t=50, r=50),
-                xaxis=dict(
-                    title="tau",
-                    nticks=5,
-                    showline=True,
-                    showgrid=True,
-                    zeroline=False,
-                    linecolor="black",
-                    gridcolor="#eee",
-                ),
-                yaxis=dict(
-                    title=y_label,
-                    range=yrange,
-                    showline=True,
-                    showgrid=True,
-                    linecolor="black",
-                    gridcolor="#eee",
-                ),
-                plot_bgcolor="white",
+                margin=dict(t=30, r=50, b=40),
+                xaxis=dict(title="tau", nticks=5),
+                yaxis=dict(title=y_label, range=yrange),
                 width=width,
                 height=height,
             )
@@ -834,18 +823,11 @@ class BaseExplainer:
             )
         )
         fig.update_layout(
-            margin=dict(t=50, r=50),
-            xaxis=dict(title=f"Average {feat}", zeroline=False),
-            yaxis=dict(title=y_label, range=yrange, showline=True),
-            plot_bgcolor="white",
+            margin=dict(t=30, r=0, b=40),
+            xaxis=dict(title=f"Average {feat}"),
+            yaxis=dict(title=y_label, range=yrange),
             width=width,
             height=height,
-        )
-        fig.update_xaxes(
-            showline=True, showgrid=True, linecolor="black", gridcolor="#eee"
-        )
-        fig.update_yaxes(
-            showline=True, showgrid=True, linecolor="black", gridcolor="#eee"
         )
         return fig
 
@@ -929,16 +911,15 @@ class BaseExplainer:
         fig.update_layout(
             bargap=0,
             barmode="overlay",
+            margin=dict(t=30, b=40),
             showlegend=True,
             xaxis=dict(
-                title=y_pred.name if y_pred is not None else feature_values.name,
-                linecolor="black",
+                title=y_pred.name if y_pred is not None else feature_values.name
             ),
-            yaxis=dict(title="Probability density", linecolor="black"),
+            yaxis=dict(title="Probability density"),
             shapes=shapes,
             width=width,
             height=height,
-            plot_bgcolor="#FFF",
         )
         return fig
 
@@ -980,24 +961,8 @@ class BaseExplainer:
             )
         )
         fig.update_layout(
-            xaxis=dict(
-                title=title,
-                range=yrange,
-                showline=True,
-                linewidth=1,
-                linecolor="black",
-                zeroline=False,
-                gridcolor="#eee",
-                side="top",
-                fixedrange=True,
-            ),
-            yaxis=dict(
-                showline=False,
-                zeroline=False,
-                fixedrange=True,
-                linecolor="black",
-                automargin=True,
-            ),
+            xaxis=dict(title=title, range=yrange, side="top", fixedrange=True),
+            yaxis=dict(showline=False, automargin=True),
             shapes=[
                 go.layout.Shape(
                     type="line",
@@ -1009,9 +974,15 @@ class BaseExplainer:
                     line=dict(color="black", width=1),
                 )
             ],
-            plot_bgcolor="white",
             width=width,
             height=height,
+            margin=dict(b=0, t=60, r=10),
+            modebar=dict(
+                orientation="v",
+                color="rgba(0, 0, 0, 0)",
+                activecolor="rgba(0, 0, 0, 0)",
+                bgcolor="rgba(0, 0, 0, 0)",
+            ),
         )
         return fig
 

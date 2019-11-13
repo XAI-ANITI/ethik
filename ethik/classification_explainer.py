@@ -75,7 +75,6 @@ class ClassificationExplainer(CacheExplainer):
                     if len(X_test.columns) > 1
                     else f"Average {X_test.columns[0]}"
                 ),
-                "plot_bgcolor": "white",
                 "width": width,
                 "height": height,
             }
@@ -159,7 +158,7 @@ class ClassificationExplainer(CacheExplainer):
         fig.update_yaxes(
             showline=True, showgrid=True, linecolor="black", gridcolor="#eee"
         )
-        fig.update_layout(plot_bgcolor="white", width=width, height=height)
+        fig.update_layout(width=width, height=height)
         return fig
 
     def plot_influence_comparison(
@@ -246,7 +245,6 @@ class ClassificationExplainer(CacheExplainer):
             showlegend=False,
             xaxis1=dict(title=title),
             shapes=shapes,
-            plot_bgcolor="white",
             width=width,
             height=height,
         )
