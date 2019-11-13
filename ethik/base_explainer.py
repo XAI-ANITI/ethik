@@ -13,7 +13,7 @@ from scipy import optimize
 from scipy import special
 from tqdm import tqdm
 
-from .utils import join_with_overlap, plot_template, to_pandas, yield_masks
+from .utils import join_with_overlap, plot_template, safe_scale, to_pandas, yield_masks
 from .warnings import ConvergenceWarning
 
 pio.templates.default = plot_template
@@ -94,7 +94,7 @@ def compute_ksis(x, target_means, max_iterations, tol):
     ksis = {}
 
     mean, std = x.mean(), x.std()
-    x = (x - mean) / std
+    x = safe_scale(x)
 
     for target_mean in target_means:
 
@@ -293,7 +293,7 @@ class BaseExplainer:
         # ]
 
         # Standard scale the features
-        X_test = (X_test - X_test.mean()) / X_test.std()
+        X_test = safe_scale(X_test)
 
         explanation = compute(
             X_test=X_test, y_pred=y_pred, query=query_to_complete, **compute_kwargs
@@ -717,7 +717,7 @@ class BaseExplainer:
         if bins is None:
             bins = int(np.log(len(feature_values)))
 
-        scaled_values = (feature_values - feature_values.mean()) / feature_values.std()
+        scaled_values = safe_scale(feature_values)
 
         distributions = {}
         for ksi, target in zip(ksis, targets):

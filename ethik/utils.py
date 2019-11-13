@@ -4,7 +4,14 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
 
-__all__ = ["decimal_range", "extract_category", "join_with_overlap", "to_pandas"]
+__all__ = [
+    "decimal_range",
+    "extract_category",
+    "join_with_overlap",
+    "safe_scale",
+    "to_pandas",
+    "yield_masks",
+]
 
 
 plot_template = go.layout.Template(
@@ -28,6 +35,14 @@ plot_template = go.layout.Template(
         ),
     )
 )
+
+
+def safe_scale(x):
+    # If the std is zero, the values are constant and equal to the mean, so
+    # the difference is zero.
+    if isinstance(x, pd.DataFrame):
+        return (x - x.mean()) / x.std().replace(0, 1)
+    return (x - x.mean()) / (x.std() or 1)
 
 
 def extract_category(X, cat):
