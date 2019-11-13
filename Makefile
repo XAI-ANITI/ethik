@@ -13,7 +13,7 @@ test_unit:
 test_syntax:
 	black --check ethik tests
 
-test: test_nb test_unit test_syntax
+test: test_syntax test_unit  test_nb
 
 update_nb:
 	jupyter nbconvert --execute --to notebook --inplace notebooks/*.ipynb --ExecutePreprocessor.kernel_name=${IPY_KERNEL} --ExecutePreprocessor.timeout=300
