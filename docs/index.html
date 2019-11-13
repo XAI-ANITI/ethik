@@ -85,25 +85,26 @@ js: |
         });
       }
 
-      function addPlot(name, description, fig) {
-        var plot = document.createElement("div");
-        plot.className = "plot";
+      function addPlot(plotContainer, descriptionContainer, description, fig) {
+        plotContainer.className = "plot";
 
-        var desc = document.createElement("div");
-        desc.className = "description";
-        desc.innerHTML = description;
+        descriptionContainer.className = "description";
+        descriptionContainer.innerHTML = description;
 
-        gallery.appendChild(plot); 
-        gallery.appendChild(desc); 
-
-        Plotly.plot(plot, fig.data, fig.layout);
+        Plotly.plot(plotContainer, fig.data, fig.layout);
       }
 
       loadJson("metadata.json").then(function(metadata) {
         for (var plot of metadata.plots) {
           (function(plot) {
-            loadJson(plot.name + ".json").then(function(json) {
-              addPlot(plot.name, plot.description, json);
+            var plotContainer = document.createElement("div");
+            var descriptionContainer = document.createElement("div");
+
+            gallery.appendChild(plotContainer);
+            gallery.appendChild(descriptionContainer);
+
+            loadJson(plot.name + ".json").then(function(fig) {
+              addPlot(plotContainer, descriptionContainer, plot.description, fig);
             }); 
           })(plot);
         }
