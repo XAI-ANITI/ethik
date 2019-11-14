@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  {% include head.html %}
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.0/normalize.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/8.0.0/sanitize.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/github.min.css" rel="stylesheet">
+
+  <style type="text/css">
+  /* Overrides of notebook CSS for static HTML export */
+  body {
+    overflow: visible;
+    padding: 8px;
+  }
+
+  div#notebook {
+    overflow: visible;
+    border-top: none;
+  }
+
+  @media print {
+    div.cell {
+      display: block;
+      page-break-inside: avoid;
+    } 
+    div.output_wrapper { 
+      display: block;
+      page-break-inside: avoid; 
+    }
+    div.output { 
+      display: block;
+      page-break-inside: avoid; 
+    }
+  }
+  </style>
+
+  <link rel="stylesheet" href="{{ "/assets/css/notebook.css" | relative_url }}">
+</head>
+<body>
+  <div class="mdl-layout mdl-js-layout mdl-layout--fixed-header">
+    {% include nav.html %}
+
+    <main class="mdl-layout__content">
+      <div class="content-wrapper">
+        {{ content }}
+      </div>
+
+      {% include footer.html %}
+    </main>
+  </div>
+
+  <script src="https://code.getmdl.io/1.3.0/material.min.js"></script>
+  {% if page.widgets %}
+    <script>
+    (function() {
+      function addWidgetsRenderer() {
+        var mimeElement = document.querySelector('script[type="application/vnd.jupyter.widget-view+json"]');
+        var scriptElement = document.createElement('script');
+        var widgetRendererSrc = '{{ resources.ipywidgets_base_url }}@jupyter-widgets/html-manager@*/dist/embed-amd.js';
+        var widgetState;
+
+        // Fallback for older version:
+        try {
+          widgetState = mimeElement && JSON.parse(mimeElement.innerHTML);
+
+          if (widgetState && (widgetState.version_major < 2 || !widgetState.version_major)) {
+            widgetRendererSrc = '{{ resources.ipywidgets_base_url }}jupyter-js-widgets@*/dist/embed.js';
+          }
+        } catch(e) {}
+
+        scriptElement.src = widgetRendererSrc;
+        document.body.appendChild(scriptElement);
+      }
+
+      document.addEventListener('DOMContentLoaded', addWidgetsRenderer);
+    }());
+    </script>
+  {% endif %}
+
+  {{ page.js }}
+</body>
+</html>

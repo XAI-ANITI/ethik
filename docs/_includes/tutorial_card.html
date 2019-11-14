@@ -1,0 +1,14 @@
+<div class="mdl-card mdl-shadow--2dp">
+  <div class="mdl-card__title mdl-color--accent">
+    <h3 class="mdl-card__title-text">{{ include.title }}</h3>
+  </div>
+  <div class="mdl-card__supporting-text mdl-card--expand">
+    {{ include.description }}
+  </div>
+  <div class="mdl-card__actions">
+    <a class="mdl-button mdl-typography--text-uppercase" href="{{ include.url | relative_url }}">
+    Read
+    <i class="material-icons">chevron_right</i>
+    </a>
+  </div>
+</div>

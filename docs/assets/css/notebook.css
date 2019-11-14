@@ -1,0 +1,30 @@
+body {
+  margin: 0;
+  padding: 0;
+  line-height: 1.5em;
+  font-size: 16px;
+}
+
+h1,
+.rendered_html h1 {
+  font-size: 2.5em;
+  line-height: 1.1em;
+  font-weight: 300;
+  margin: .67em 0;
+}
+
+a {
+  color: #058;
+  text-decoration: none;
+  transition: color .3s ease-in-out;
+}
+
+main > .content-wrapper {
+  margin: auto;
+  max-width: 1000px;
+}
+
+div#notebook-container{
+  box-shadow: none;
+  padding: 0;
+}

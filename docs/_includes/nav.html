@@ -1,0 +1,37 @@
+<header class="mdl-layout__header">
+  <div class="mdl-layout__header-row">
+    <!-- Title -->
+    <span class="mdl-layout-title">
+      {% if site.logo and site.logo != "" %}
+        <img src="{{ site.logo | relative_url }}" alt="Logo" />
+      {% endif %}
+      <a class="mdl-typography--text-uppercase ethik-font" href="{{ "/" | relative_url }}">Ethik AI</a>
+    </span>
+    <!-- Add spacer, to align navigation to the right -->
+    <div class="mdl-layout-spacer"></div>
+    <!-- Navigation -->
+    <nav class="mdl-navigation mdl-layout--large-screen-only">
+    <a class="mdl-navigation__link mdl-typography--text-uppercase" href="{{ "/ai-fairness" | relative_url }}">AI fairness</a>
+      <a class="mdl-navigation__link mdl-typography--text-uppercase" href="{{ "/#gallery" | relative_url }}">Features</a>
+      <a class="mdl-navigation__link mdl-typography--text-uppercase" href="{{ "/tutorials/" | relative_url }}">Tutorials</a>
+      <a class="mdl-navigation__link mdl-typography--text-uppercase" href="{{ "/api/" | relative_url }}">API</a>
+      <a class="mdl-navigation__link mdl-typography--text-uppercase" href="{{ "/tutorials/how-it-works" | relative_url }}">How it works</a>
+      <a class="mdl-navigation__link mdl-typography--text-uppercase" href="{{ "/#about" | relative_url }}">About</a>
+      <a class="mdl-navigation__link mdl-typography--text-uppercase" href="{{ site.github }}">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="mdl-layout__drawer">
+  <span class="mdl-layout-title">
+    <a class="mdl-navigation__link mdl-typography--text-uppercase ethik-font mdl-color-text--accent" href="{{ "/" | relative_url }}">Ethik AI</a>
+  </span>
+  <nav class="mdl-navigation">
+    <a class="mdl-navigation__link mdl-typography--text-uppercase" href="{{ "/ai-fairness" | relative_url }}">AI fairness</a>
+    <a class="mdl-navigation__link mdl-typography--text-uppercase" href="{{ "/#gallery" | relative_url }}">Features</a>
+    <a class="mdl-navigation__link mdl-typography--text-uppercase" href="{{ "/tutorials/" | relative_url }}">Tutorials</a>
+    <a class="mdl-navigation__link mdl-typography--text-uppercase" href="{{ "/api/" | relative_url }}">API</a>
+      <a class="mdl-navigation__link mdl-typography--text-uppercase" href="{{ "/tutorials/how-it-works" | relative_url }}">How it works</a>
+    <a class="mdl-navigation__link mdl-typography--text-uppercase" href="{{ "/#about" | relative_url }}">About</a>
+    <a class="mdl-navigation__link mdl-typography--text-uppercase" href="{{ site.github }}">GitHub</a>
+  </nav>
+</div>
