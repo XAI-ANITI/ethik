@@ -123,7 +123,7 @@ if __name__ == "__main__":
         dict(
             fig=explainer.plot_influence(X_test=X_test["age"], y_pred=y_pred),
             name="influence_age",
-            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor. Sed sagittis orci ut turpis suscipit consectetur. Integer libero ante, sollicitudin ac nibh ut, semper auctor dolor.",
+            description="We can plot the average output of a model relatively to the average value of a feature. Here, we can see that, on average, the older the richer until a certain limit. From about 50 year-old, the older the poorer, which probably reflects the fact that people are about to retire so companies don't especially want to invest in them.",
         )
     )
 
@@ -133,7 +133,7 @@ if __name__ == "__main__":
                 X_test=X_test[["age", "education-num"]], y_pred=y_pred
             ),
             name="influence_multiple_features",
-            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor.",
+            description="We can plot the influence of multiple features. The x axis represents the quantiles: -1 is 5%, 0 is the original mean and 1 is 95%.",
         )
     )
 
@@ -144,7 +144,7 @@ if __name__ == "__main__":
                 y_pred=y_pred,
             ),
             name="influence_ranking",
-            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor.",
+            description="We can rank the features by their influence on the model. Intuitively, a feature with no influence is an horizontal line <code>y = original mean</code>. To measure its influence, we compute the average distance to this reference line.",
         )
     )
 
@@ -157,7 +157,7 @@ if __name__ == "__main__":
                 compared=X_test.iloc[1].rename("mary"),
             ),
             name="influence_comparison",
-            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor.",
+            description="We can compare two individuals by looking at how the model would behave if the average individual of the dataset was different. On the left, we can see that people having Mary's age are on average 12.8% more likely to earn more than $50k a year than people with Bob's age. On the opposite, we can unfortunately see that Mary's gender is not helping her compared to Bob.",
         )
     )
 
@@ -170,7 +170,7 @@ if __name__ == "__main__":
                 metric=metrics.accuracy_score,
             ),
             name="performance_age",
-            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor.",
+            description="We can visualize how the model's performance changes with the average value of a feature. Here, we can see that the model performs worse for older people, so we are probably lacking such data samples.",
         )
     )
 
@@ -180,7 +180,7 @@ if __name__ == "__main__":
                 feature_values=X_test["age"], targets=[27, 45], bins=60
             ),
             name="stressed_distributions",
-            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor.",
+            description="As explained in the paper, we stress the probability distribution to obtain a different mean while minimizing the Kullback-Leibler divergence with the original distribution. We can visualize the stressed distributions.",
         )
     )
 
@@ -189,7 +189,7 @@ if __name__ == "__main__":
         dict(
             fig=explainer.plot_influence(X_test=X_test, y_pred=y_pred, cell_width=130),
             name="influence_image",
-            description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. In laoreet lectus vitae ipsum sollicitudin, nec venenatis lectus bibendum. Curabitur odio ligula, mollis quis nulla eu, porta congue dolor.",
+            description="For images, we can visualize the influence of the pixels on the output.",
         )
     )
 
