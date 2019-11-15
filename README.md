@@ -4,7 +4,7 @@
 
 <div align="center">
   <!-- Travis -->
-  <a href="https://travis-ci.org/MaxHalford/ethik">
+  <a href="https://travis-ci.org/XAI-ANITI/ethik">
     <img src="https://img.shields.io/travis/MaxHalford/ethik/master.svg?style=for-the-badge" alt="travis" />
   </a>
   <!-- PyPI -->
