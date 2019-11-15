@@ -1,0 +1,209 @@
+---
+title: "API"
+description: ""
+
+head: |
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.0/normalize.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/8.0.0/sanitize.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/github.min.css" rel="stylesheet">
+
+  
+  <style>.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{font-weight:bold}#index h4 + ul{margin-bottom:.6em}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+  <style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+  <style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+  <style media="screen and (min-width: 700px)">
+    main > .content-wrapper {
+      display: flex;
+      flex-direction: row-reverse;
+      justify-content: flex-end;
+    }
+  </style>
+
+js: |
+
+  <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_CHTML"></script>
+---
+
+  <article id="content">
+    
+  
+
+  
+
+  <header>
+  <h1 class="title">Module <code>ethik.regression_explainer</code></h1>
+  </header>
+
+  <section id="section-intro">
+  
+  
+    
+      <details class="source">
+        <summary>
+            <span>Expand source code</span>
+        </summary>
+        <pre><code class="python">from .cache_explainer import CacheExplainer
+
+__all__ = [&#34;RegressionExplainer&#34;]
+
+
+class RegressionExplainer(CacheExplainer):
+    pass</code></pre>
+      </details>
+
+  </section>
+
+  <section>
+  </section>
+
+  <section>
+  </section>
+
+  <section>
+  </section>
+
+  <section>
+    <h2 class="section-title" id="header-classes">Classes</h2>
+    <dl>
+      
+      <dt id="ethik.regression_explainer.RegressionExplainer"><code class="flex name class">
+          <span>class <span class="ident">RegressionExplainer</span></span>
+              <span>(</span><span>alpha=0.05, n_taus=41, n_samples=1, sample_frac=0.8, conf_level=0.05, max_iterations=15, tol=0.0001, n_jobs=1, memoize=False, verbose=True)</span>
+      </code></dt>
+
+      <dd>
+  
+  <section class="desc"><p>Explains the influence of features on model predictions and performance.</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>alpha</code></strong> :&ensp;<code>float</code></dt>
+<dd>A <code>float</code> between <code>0</code> and <code>0.5</code> which indicates by how close the <code>CacheExplainer</code>
+should look at extreme values of a distribution. The closer to zero, the more so
+extreme values will be accounted for. The default is <code>0.05</code> which means that all values
+beyond the 5th and 95th quantiles are ignored.</dd>
+<dt><strong><code>n_taus</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of τ values to consider. The results will be more fine-grained the
+higher this value is. However the computation time increases linearly with <code>n_taus</code>.
+The default is <code>41</code> and corresponds to each τ being separated by it's neighbors by
+<code>0.05</code>.</dd>
+<dt><strong><code>n_samples</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of samples to use for the confidence interval.
+If <code>1</code>, the default, no confidence interval is computed.</dd>
+<dt><strong><code>sample_frac</code></strong> :&ensp;<code>float</code></dt>
+<dd>The proportion of lines in the dataset sampled to
+generate the samples for the confidence interval. If <code>n_samples</code> is
+<code>1</code>, no confidence interval is computed and the whole dataset is used.
+Default is <code>0.8</code>.</dd>
+<dt><strong><code>conf_level</code></strong> :&ensp;<code>float</code></dt>
+<dd>A <code>float</code> between <code>0</code> and <code>0.5</code> which indicates the
+quantile used for the confidence interval. Default is <code>0.05</code>, which
+means that the confidence interval contains the data between the 5th
+and 95th quantiles.</dd>
+<dt><strong><code>max_iterations</code></strong> :&ensp;<code>int</code></dt>
+<dd>The maximum number of iterations used when applying the Newton step
+of the optimization procedure. Default is <code>5</code>.</dd>
+<dt><strong><code>tol</code></strong> :&ensp;<code>float</code></dt>
+<dd>The bottom threshold for the gradient of the optimization
+procedure. When reached, the procedure stops. Otherwise, a warning
+is raised about the fact that the optimization did not converge.
+Default is <code>1e-4</code>.</dd>
+<dt><strong><code>n_jobs</code></strong> :&ensp;<code>int</code></dt>
+<dd>The number of jobs to use for parallel computations. See
+<code>joblib.Parallel()</code>. Default is <code>-1</code>.</dd>
+<dt><strong><code>memoize</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Indicates whether or not memoization should be used or not. If <code>True</code>, then
+intermediate results will be stored in order to avoid recomputing results that can be
+reused by successively called methods. For example, if you call <code>plot_influence</code> followed by
+<code>plot_influence_ranking</code> and <code>memoize</code> is <code>True</code>, then the intermediate results required by
+<code>plot_influence</code> will be reused for <code>plot_influence_ranking</code>. Memoization is turned off by
+default because it can lead to unexpected behavior depending on your usage.</dd>
+<dt><strong><code>verbose</code></strong> :&ensp;<code>bool</code></dt>
+<dd>Whether or not to show progress bars during
+computations. Default is <code>True</code>.</dd>
+</dl></section>
+  
+    
+      <details class="source">
+        <summary>
+            <span>Expand source code</span>
+        </summary>
+        <pre><code class="python">class RegressionExplainer(CacheExplainer):
+    pass</code></pre>
+      </details>
+
+
+
+          <h3>Ancestors</h3>
+          <ul class="hlist">
+              <li><a title="ethik.cache_explainer.CacheExplainer" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer">CacheExplainer</a></li>
+              <li><a title="ethik.base_explainer.BaseExplainer" href="base_explainer.html#ethik.base_explainer.BaseExplainer">BaseExplainer</a></li>
+          </ul>
+
+
+          
+              <h3>Inherited members</h3>
+              <ul class="hlist">
+                  <li><code><b><a title="ethik.cache_explainer.CacheExplainer" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer">CacheExplainer</a></b></code>:
+                      <ul class="hlist">
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.CAT_COL_SEP" href="base_explainer.html#ethik.base_explainer.BaseExplainer.CAT_COL_SEP">CAT_COL_SEP</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.compare_influence" href="base_explainer.html#ethik.base_explainer.BaseExplainer.compare_influence">compare_influence</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.compare_performance" href="base_explainer.html#ethik.base_explainer.BaseExplainer.compare_performance">compare_performance</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.compute_distributions" href="base_explainer.html#ethik.base_explainer.BaseExplainer.compute_distributions">compute_distributions</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.compute_weights" href="base_explainer.html#ethik.base_explainer.BaseExplainer.compute_weights">compute_weights</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.explain_influence" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.explain_influence">explain_influence</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.explain_performance" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.explain_performance">explain_performance</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.get_metric_name" href="base_explainer.html#ethik.base_explainer.BaseExplainer.get_metric_name">get_metric_name</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_distributions" href="base_explainer.html#ethik.base_explainer.BaseExplainer.plot_distributions">plot_distributions</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_influence" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.plot_influence">plot_influence</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_influence_comparison" href="base_explainer.html#ethik.base_explainer.BaseExplainer.plot_influence_comparison">plot_influence_comparison</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_influence_ranking" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.plot_influence_ranking">plot_influence_ranking</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_performance" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.plot_performance">plot_performance</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_performance_comparison" href="base_explainer.html#ethik.base_explainer.BaseExplainer.plot_performance_comparison">plot_performance_comparison</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_performance_ranking" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.plot_performance_ranking">plot_performance_ranking</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.rank_by_influence" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.rank_by_influence">rank_by_influence</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.rank_by_performance" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.rank_by_performance">rank_by_performance</a></code></li>
+                      </ul>
+
+                  </li>
+              </ul>
+
+      </dd>
+    </dl>
+  </section>
+
+  </article>
+  
+  
+  <nav id="sidebar">
+
+    
+
+    <h1>Index</h1>
+    <div class="toc">
+<ul></ul>
+</div>
+    <ul id="index">
+    <li><h3>Super-module</h3>
+      <ul>
+        <li><code><a title="ethik" href="index.html">ethik</a></code></li>
+      </ul>
+    </li>
+
+
+
+
+    <li><h3><a href="#header-classes">Classes</a></h3>
+      <ul>
+        <li>
+        <h4><code><a title="ethik.regression_explainer.RegressionExplainer" href="#ethik.regression_explainer.RegressionExplainer">RegressionExplainer</a></code></h4>
+        
+        </li>
+      </ul>
+    </li>
+
+    </ul>
+  </nav>
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
+    <script>hljs.initHighlightingOnLoad()</script>

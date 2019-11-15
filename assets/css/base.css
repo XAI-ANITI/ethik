@@ -1,0 +1,22 @@
+.ethik-font {
+  font-family: "Righteous", cursive;
+}
+
+header .mdl-layout-title a,
+.mdl-layout__drawer .mdl-layout-title a {
+  text-decoration: none;
+  font-size: 26px;
+}
+
+header .mdl-layout-title a {
+  color: #FFF;
+}
+
+header .mdl-navigation__link {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+footer li a {
+  color: #000;
+}

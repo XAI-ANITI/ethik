@@ -1,0 +1,26 @@
+lang: en
+title: ""
+description: ""
+logo: "" #/assets/img/logo.png
+image: "" #/assets/img/thumbnail.png
+baseurl: "/ethik"
+twitter:
+  card: summary_large_image
+github: https://github.com/MaxHalford/ethik
+
+plugins:
+  - jekyll-redirect-from
+  - jekyll-seo-tag
+
+whitelist:
+  - jekyll-redirect-from
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: "default"
+  - scope:
+      path: "assets/img"
+    values:
+      image: true

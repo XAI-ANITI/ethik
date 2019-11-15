@@ -1,0 +1,3278 @@
+---
+title: "API"
+description: ""
+
+head: |
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.0/normalize.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/8.0.0/sanitize.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/github.min.css" rel="stylesheet">
+
+  
+  <style>.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{font-weight:bold}#index h4 + ul{margin-bottom:.6em}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+  <style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+  <style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+  <style media="screen and (min-width: 700px)">
+    main > .content-wrapper {
+      display: flex;
+      flex-direction: row-reverse;
+      justify-content: flex-end;
+    }
+  </style>
+
+js: |
+
+  <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS_CHTML"></script>
+---
+
+  <article id="content">
+    
+  
+
+  
+
+  <header>
+  <h1 class="title">Module <code>ethik.base_explainer</code></h1>
+  </header>
+
+  <section id="section-intro">
+  
+  
+    
+      <details class="source">
+        <summary>
+            <span>Expand source code</span>
+        </summary>
+        <pre><code class="python">import collections
+import functools
+import itertools
+import warnings
+
+import colorlover as cl
+import joblib
+import numpy as np
+import pandas as pd
+import plotly.graph_objs as go
+import plotly.io as pio
+from scipy import optimize
+from scipy import special
+from scipy import stats
+from tqdm import tqdm
+
+from .utils import join_with_overlap, plot_template, safe_scale, to_pandas, yield_masks
+from .warnings import ConvergenceWarning
+
+pio.templates.default = plot_template
+
+__all__ = [&#34;BaseExplainer&#34;]
+
+
+class ConvergenceSuccess(Exception):
+    &#34;&#34;&#34;Custom warning to capture convergence success.
+
+    This is necessary to monkey-patch scipy&#39;s minimize function in order to manually stop the
+    minimization process.
+
+    Parameters:
+        ksi (float)
+
+    &#34;&#34;&#34;
+
+    def __init__(self, ksi):
+        self.ksi = ksi
+
+
+class F:
+    &#34;&#34;&#34;Dummy class for monkey-patching the minimize function from scipy.optimize.
+
+    We want to be able to early-stop the minimize function whenever the difference between the
+    target mean and the current is under a certain tolerance threshold. As of writing this code,
+    the only way to do this is to issue an exception whenever the threshold is reached.
+    Encapsulating this logic inside a class seems like a reasonable idea.
+
+    &#34;&#34;&#34;
+
+    def __init__(self, x, target_mean, tol):
+        self.x = x
+        self.target_mean = target_mean
+        self.tol = tol
+
+    def __call__(self, ksi):
+        &#34;&#34;&#34;Returns the loss and the gradient for a particular ksi value.&#34;&#34;&#34;
+
+        ksi = ksi[0]
+        lambdas = special.softmax(ksi * self.x)
+        current_mean = np.average(self.x, weights=lambdas)
+
+        f = (current_mean - self.target_mean) ** 2
+
+        if f &lt; self.tol:
+            raise ConvergenceSuccess(ksi=ksi)
+
+        g = current_mean - self.target_mean
+
+        return f, np.array([g])
+
+
+def compute_ksis(x, target_means, max_iterations, tol):
+    &#34;&#34;&#34;Find good ksis for a variable and given target means.
+
+    Args:
+        x (pd.Series): The variable&#39;s values.
+        target_means (iterator of floats): The means to reach by weighting the
+            feature&#39;s values.
+        max_iterations (int): The maximum number of iterations of gradient descent.
+        tol (float): Stopping criterion. The gradient descent will stop if the mean absolute error
+            between the obtained mean and the target mean is lower than tol, even if the maximum
+            number of iterations has not been reached.
+
+    Returns:
+        dict: The keys are couples `(name of the variable, target mean)` and the
+            values are the ksis. For instance:
+
+                {
+                    (&#34;age&#34;, 20): 1.5,
+                    (&#34;age&#34;, 21): 1.6,
+                    ...
+                }
+    &#34;&#34;&#34;
+
+    ksis = {}
+
+    mean, std = x.mean(), x.std()
+    x = safe_scale(x)
+
+    for target_mean in target_means:
+
+        # Skip edge case
+        if target_mean == mean:
+            ksis[(x.name, target_mean)] = 0.0
+            continue
+
+        success = False
+        try:
+            res = optimize.minimize(
+                fun=F(x=x, target_mean=(target_mean - mean) / std, tol=tol),
+                x0=[0],  # Initial ksi value
+                jac=True,
+                method=&#34;BFGS&#34;,
+            )
+        except ConvergenceSuccess as cs:
+            ksi = cs.ksi
+            success = True
+
+        if not success:
+            warnings.warn(
+                message=(
+                    f&#34;convergence warning for {x.name}, with target mean {target_mean}:\n\n&#34;
+                    + str(res)
+                ),
+                category=ConvergenceWarning,
+            )
+
+        ksis[(x.name, target_mean)] = ksi
+
+    return ksis
+
+
+class BaseExplainer:
+    &#34;&#34;&#34;Explains the influence of features on model predictions and performance.&#34;&#34;&#34;
+
+    CAT_COL_SEP = &#34; = &#34;
+
+    def __init__(
+        self,
+        alpha=0.05,
+        n_samples=1,
+        sample_frac=0.8,
+        conf_level=0.05,
+        max_iterations=15,
+        tol=1e-4,
+        n_jobs=1,  # Parallelism is only worth it if the dataset is &#34;large&#34;
+        verbose=True,
+    ):
+        if not 0 &lt;= alpha &lt; 0.5:
+            raise ValueError(f&#34;alpha must be between 0 and 0.5, got {alpha}&#34;)
+
+        if n_samples &lt; 1:
+            raise ValueError(f&#34;n_samples must be strictly positive, got {n_samples}&#34;)
+
+        if not 0 &lt; sample_frac &lt; 1:
+            raise ValueError(f&#34;sample_frac must be between 0 and 1, got {sample_frac}&#34;)
+
+        if not 0 &lt; conf_level &lt; 0.5:
+            raise ValueError(f&#34;conf_level must be between 0 and 0.5, got {conf_level}&#34;)
+
+        if not max_iterations &gt; 0:
+            raise ValueError(
+                &#34;max_iterations must be a strictly positive &#34;
+                f&#34;integer, got {max_iterations}&#34;
+            )
+
+        if not tol &gt; 0:
+            raise ValueError(f&#34;tol must be a strictly positive number, got {tol}&#34;)
+
+        self.alpha = alpha
+        self.n_samples = n_samples
+        self.sample_frac = sample_frac if n_samples &gt; 1 else 1
+        self.conf_level = conf_level
+        self.max_iterations = max_iterations
+        self.tol = tol
+        self.n_jobs = n_jobs
+        self.verbose = verbose
+
+    def get_metric_name(self, metric):
+        &#34;&#34;&#34;Get the name of the column in explainer&#39;s info dataframe to store the
+        performance with respect of the given metric.
+
+        Args:
+            metric (callable): The metric to compute the model&#39;s performance.
+
+        Returns:
+            str: The name of the column.
+        &#34;&#34;&#34;
+        name = metric.__name__
+        if name in [&#34;feature&#34;, &#34;target&#34;, &#34;label&#34;, &#34;influence&#34;, &#34;ksi&#34;]:
+            raise ValueError(
+                f&#34;Cannot use {name} as a metric name, already a column name&#34;
+            )
+        return name
+
+    def _fill_ksis(self, X_test, query):
+        &#34;&#34;&#34;
+        Parameters:
+            X_test (pd.DataFrame): A dataframe with categorical features ALREADY
+                one-hot encoded.
+            query (pd.DataFrame): A dataframe with at least two columns &#34;feature&#34;
+                and &#34;target&#34;. This dataframe will be altered.
+
+        Returns:
+            pd.DataFrame: The `query` dataframe with an additional column &#34;ksi&#34;.
+        &#34;&#34;&#34;
+        if &#34;ksi&#34; not in query.columns:
+            query[&#34;ksi&#34;] = None
+
+        X_test = pd.DataFrame(to_pandas(X_test))
+        query_to_complete = query[query[&#34;ksi&#34;].isnull()]
+        ksis = joblib.Parallel(n_jobs=self.n_jobs)(
+            joblib.delayed(compute_ksis)(
+                x=X_test[feature],
+                target_means=part[&#34;target&#34;].unique(),
+                max_iterations=self.max_iterations,
+                tol=self.tol,
+            )
+            for feature, part in query_to_complete.groupby(&#34;feature&#34;)
+        )
+        ksis = dict(collections.ChainMap(*ksis))
+
+        query[&#34;ksi&#34;] = query.apply(
+            lambda r: ksis.get((r[&#34;feature&#34;], r[&#34;target&#34;]), r[&#34;ksi&#34;]), axis=&#34;columns&#34;
+        )
+        query[&#34;ksi&#34;] = query[&#34;ksi&#34;].fillna(0.0)
+        return query
+
+    def _explain(
+        self, X_test, y_pred, dest_col, key_cols, compute, query, compute_kwargs=None
+    ):
+        &#34;&#34;&#34;
+        Parameters:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                `pd.Series` is expected. For multi-label classification, a
+                pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            dest_col (str): The name of the column that is created by `compute`.
+                Either &#34;influence&#34; or the name of a metric.
+            key_cols (list of str): The set of columns that is used to identify
+                the parameters of a result. For instance, for the influence, we
+                need the feature, the label and the ksi to map the explanation back
+                to the query. For performance, all the labels give the same result
+                so we just need the feature and the ksi.
+            compute (callable): A callable that takes at least three parameters
+                (`X_test`, `y_pred`, `query`) and returns the query completed
+                with explanations.
+            query (pd.DataFrame): The query for the explanation. A dataframe with
+                at least three columns (&#34;feature&#34;, &#34;label&#34; and &#34;target&#34;).
+            compute_kwargs (dict, optional): An optional dictionary of named parameters
+                for `compute()`.
+            
+        Returns:
+        &#34;&#34;&#34;
+        query = query.copy()
+
+        if compute_kwargs is None:
+            compute_kwargs = {}
+        if dest_col not in query.columns:
+            query[dest_col] = None
+            query[f&#34;{dest_col}_low&#34;] = None
+            query[f&#34;{dest_col}_high&#34;] = None
+
+        X_test = pd.DataFrame(to_pandas(X_test))
+        y_pred = pd.DataFrame(to_pandas(y_pred))
+        X_test = self._one_hot_encode(X_test)
+
+        if len(X_test) != len(y_pred):
+            raise ValueError(&#34;X_test and y_pred are not of the same length&#34;)
+
+        query = self._fill_ksis(X_test, query)
+
+        query_to_complete = query[
+            query[&#34;feature&#34;].isin(X_test.columns)
+            &amp; query[&#34;label&#34;].isin(y_pred.columns)
+            &amp; query[dest_col].isnull()
+        ]
+
+        if query_to_complete.empty:
+            return query
+
+        # `compute()` will return something like:
+        # [
+        #   [ # First batch
+        #     (*key_cols1, sample_index1, computed_value1),
+        #     (*key_cols2, sample_index2, computed_value2),
+        #     ...
+        #   ],
+        #   ...
+        # ]
+
+        # Standard scale the features
+        X_test = safe_scale(X_test)
+
+        explanation = compute(
+            X_test=X_test, y_pred=y_pred, query=query_to_complete, **compute_kwargs
+        )
+        # We group by the key to gather the samples and compute the confidence
+        #  interval
+        explanation = explanation.groupby(key_cols)[dest_col].agg(
+            [
+                # Mean influence
+                (dest_col, &#34;mean&#34;),
+                # Lower bound on the mean influence
+                (f&#34;{dest_col}_low&#34;, functools.partial(np.quantile, q=self.conf_level)),
+                # Upper bound on the mean influence
+                (
+                    f&#34;{dest_col}_high&#34;,
+                    functools.partial(np.quantile, q=1 - self.conf_level),
+                ),
+            ]
+        )
+
+        # Merge the new queryrmation with the current queryrmation
+        query = join_with_overlap(left=query, right=explanation, on=key_cols)
+        return query
+
+    def _compute_influence(self, X_test, y_pred, query):
+        keys = query.groupby([&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;]).groups.keys()
+        return pd.DataFrame(
+            [
+                (
+                    feature,
+                    label,
+                    ksi,
+                    sample_index,
+                    np.average(
+                        y_pred[label][mask],
+                        weights=special.softmax(ksi * X_test[feature][mask]),
+                    ),
+                )
+                for (sample_index, mask), (feature, label, ksi) in tqdm(
+                    itertools.product(
+                        enumerate(
+                            yield_masks(
+                                n_masks=self.n_samples,
+                                n=len(X_test),
+                                p=self.sample_frac,
+                            )
+                        ),
+                        keys,
+                    ),
+                    disable=not self.verbose,
+                    total=len(keys) * self.n_samples,
+                )
+            ],
+            columns=[&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;, &#34;sample_index&#34;, &#34;influence&#34;],
+        )
+
+    def _explain_influence(self, X_test, y_pred, query):
+        return self._explain(
+            X_test=X_test,
+            y_pred=y_pred,
+            dest_col=&#34;influence&#34;,
+            key_cols=[&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;],
+            compute=self._compute_influence,
+            query=query,
+        )
+
+    def _compute_performance(self, X_test, y_pred, query, y_test, metric):
+        metric_name = self.get_metric_name(metric)
+        keys = query.groupby([&#34;feature&#34;, &#34;ksi&#34;]).groups.keys()
+        return pd.DataFrame(
+            [
+                (
+                    feature,
+                    ksi,
+                    sample_index,
+                    metric(
+                        y_test[mask],
+                        y_pred[mask],
+                        sample_weight=special.softmax(ksi * X_test[feature][mask]),
+                    ),
+                )
+                for (sample_index, mask), (feature, ksi) in tqdm(
+                    itertools.product(
+                        enumerate(
+                            yield_masks(
+                                n_masks=self.n_samples,
+                                n=len(X_test),
+                                p=self.sample_frac,
+                            )
+                        ),
+                        keys,
+                    ),
+                    disable=not self.verbose,
+                    total=len(keys) * self.n_samples,
+                )
+            ],
+            columns=[&#34;feature&#34;, &#34;ksi&#34;, &#34;sample_index&#34;, metric_name],
+        )
+
+    def _explain_performance(self, X_test, y_test, y_pred, metric, query):
+        metric_name = self.get_metric_name(metric)
+        return self._explain(
+            X_test=X_test,
+            y_pred=y_pred,
+            dest_col=metric_name,
+            key_cols=[&#34;feature&#34;, &#34;ksi&#34;],
+            compute=self._compute_performance,
+            query=query,
+            compute_kwargs=dict(y_test=np.asarray(y_test), metric=metric),
+        )
+
+    def _one_hot_encode(self, x):
+        if isinstance(x, pd.DataFrame):
+            return pd.get_dummies(data=x, prefix_sep=self.CAT_COL_SEP)
+
+        return pd.get_dummies(
+            # A DataFrame is needed for get_dummies
+            data=pd.DataFrame([x.values], columns=x.index),
+            prefix_sep=self.CAT_COL_SEP,
+        ).iloc[0]
+
+    def _revert_dummies_names(self, x):
+        &#34;&#34;&#34;Build a dictionary that enables us to find the original feature back
+        after `pd.get_dummies()` was called.
+
+        Examples:
+            &gt;&gt;&gt; x = pd.DataFrame({&#34;gender&#34;: [&#34;Male&#34;, &#34;Female&#34;, &#34;Male&#34;]})
+            &gt;&gt;&gt; x
+            gender
+            ------
+              Male
+            Female
+              Male
+            &gt;&gt;&gt; pd.get_dummies(x)
+            gender = Male  gender = Female
+            ------------------------------
+                        1                0
+                        0                1
+                        1                0
+            &gt;&gt;&gt; self._revert_dummies_names(x)
+            {
+                &#34;gender = Male&#34;: &#34;gender&#34;,
+                &#34;gender = Female&#34;: &#34;gender&#34;,
+            }
+        &#34;&#34;&#34;
+        x = pd.DataFrame(to_pandas(x))
+        x = x.select_dtypes(include=[&#34;category&#34;, &#34;object&#34;])
+        dummies_names = {}
+        for col in x.columns:
+            for cat in x[col].unique():
+                dummies_name = f&#34;{col}{self.CAT_COL_SEP}{cat}&#34;
+                dummies_names[dummies_name] = col
+        return dummies_names
+
+    def _compare_individuals(
+        self, X_test, y_pred, reference, compared, dest_col, key_cols, explain
+    ):
+        X_test = pd.DataFrame(to_pandas(X_test))
+        y_pred = pd.DataFrame(to_pandas(y_pred))
+        # We first need to get the non-encoded features, otherwise we may miss
+        #  categorical ones.
+        #  For instance, if `reference` is a male and `compared` a female, after
+        # one-hot encoding, the first will have the feature &#34;gender = male&#34; and
+        # the second will have &#34;gender = female&#34; and we won&#39;t be able to detect
+        # that it refers to the same feature &#34;gender&#34;.
+        features = set(X_test.columns) &amp; set(reference.keys()) &amp; set(compared.keys())
+        X_test = X_test[features]  #  Just keep the features in common
+
+        reference = reference.rename(&#34;reference&#34;)
+        compared = compared.rename(&#34;compared&#34;)
+
+        individuals = pd.DataFrame(
+            [reference, compared], index=[reference.name, compared.name]
+        )[features]
+        dummies_to_features = self._revert_dummies_names(individuals)
+        individuals = self._one_hot_encode(individuals)
+
+        labels = y_pred.columns
+        query = pd.DataFrame(
+            [
+                dict(
+                    feature=feature,
+                    target=individual[feature],
+                    label=label,
+                    individual=name,
+                )
+                for name, individual in individuals.iterrows()
+                for label in labels
+                for feature in individuals.columns
+            ]
+        )
+        info = explain(X_test=X_test, y_pred=y_pred, query=query)
+
+        #  `info` looks like:
+        #
+        #          feature target label individual ksi influence influence_low influence_high
+        #              age     20 &gt;$50k  reference ...       ...           ...            ...
+        #              age     20 &gt;$50k   compared ...       ...           ...            ...
+        #  gender = Female      0 &gt;$50k  reference ...       ...           ...            ...
+        #    gender = Male      1 &gt;$50k  reference ...       ...           ...            ...
+        #  gender = Female      1 &gt;$50k   compared ...       ...           ...            ...
+        #    gender = Male      0 &gt;$50k   compared ...       ...           ...            ...
+        #               ...
+        #
+        # For every individual and every categorical feature, we want to keep the
+        # one-hot encoded line that corresponds to the original value:
+        #
+        #          feature target label individual ksi influence influence_low influence_high
+        #              age     20 &gt;$50k  reference ...       ...           ...            ...
+        #              age     20 &gt;$50k   compared ...       ...           ...            ...
+        #    gender = Male      1 &gt;$50k  reference ...       ...           ...            ...
+        #  gender = Female      1 &gt;$50k   compared ...       ...           ...            ...
+        #               ...
+        #
+        # And, to compare them, we want to rename the encoded features back to their
+        # original name:
+        #
+        # feature target label individual ksi influence influence_low influence_high
+        #     age     20 &gt;$50k  reference ...       ...           ...            ...
+        #     age     20 &gt;$50k   compared ...       ...           ...            ...
+        #  gender      1 &gt;$50k  reference ...       ...           ...            ...
+        #  gender      1 &gt;$50k   compared ...       ...           ...            ...
+        #      ...
+
+        rows = collections.defaultdict(dict)
+        for individual in (reference, compared):
+            encoded = self._one_hot_encode(individual)
+            individual_info = info[
+                (info[&#34;individual&#34;] == individual.name)
+                &amp; (info[&#34;feature&#34;].isin(encoded.keys()))
+            ]
+            for _, row in individual_info.iterrows():
+                row = row.replace(dummies_to_features)
+                key = tuple(zip(key_cols, row[key_cols]))
+                rows[key][individual.name] = row[dest_col]
+
+        return pd.DataFrame(
+            [{**dict(keys), **individuals} for keys, individuals in rows.items()]
+        )
+
+    def compare_influence(self, X_test, y_pred, reference, compared):
+        &#34;&#34;&#34;Compare the influence of features in `X_test` on `y_pred` for the
+        individual `compared` compared to `reference`. Basically, we look at how
+        the model would behave if the average individual were `compared` and
+        `reference`.
+
+        Parameters:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                `pd.Series` is expected. For multi-label classification, a
+                pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            reference (pd.Series): A row of `X_test`.
+            compared (pd.Series): A row of `X_test`.
+
+        Returns:
+            pd.DataFrame: A dataframe with four columns (&#34;feature&#34;, &#34;label&#34;,
+                &#34;reference&#34; and &#34;compared&#34;). For each couple `(feature, label)`,
+                `reference` (resp. `compared`) is the average output of the model
+                if the average individual were `reference` (resp. `compared`).
+        &#34;&#34;&#34;
+        return self._compare_individuals(
+            X_test=X_test,
+            y_pred=y_pred,
+            reference=reference,
+            compared=compared,
+            dest_col=&#34;influence&#34;,
+            key_cols=[&#34;feature&#34;, &#34;label&#34;],
+            explain=self._explain_influence,
+        )
+
+    def compare_performance(self, X_test, y_test, y_pred, metric, reference, compared):
+        &#34;&#34;&#34;Compare the influence of features in `X_test` on the performance for the
+        individual `compared` compared to `reference`. Basically, we look at how
+        the model would perform if the average individual were `compared` and
+        `reference`.
+
+        Parameters:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_test (pd.DataFrame or pd.Series): The true values
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series` is expected. For multi-label classification,
+                a pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. The format is the same as `y_test`.
+            metric (callable): A scikit-learn-like metric
+                `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+                to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+                &#34;the set of labels predicted for a sample must exactly match the
+                corresponding set of labels in `y_true`&#34;.
+            reference (pd.Series): A row of `X_test`.
+            compared (pd.Series): A row of `X_test`.
+
+        Returns:
+            pd.DataFrame: A dataframe with three columns (&#34;feature&#34;, &#34;reference&#34;
+                and &#34;compared&#34;). For each couple `(feature, label)`, `reference`
+                (resp. `compared`) is the average output of the model if the
+                average individual were `reference` (resp. `compared`).
+        &#34;&#34;&#34;
+        metric_name = self.get_metric_name(metric)
+        return self._compare_individuals(
+            X_test=X_test,
+            y_pred=y_pred,
+            reference=reference,
+            compared=compared,
+            dest_col=metric_name,
+            key_cols=[&#34;feature&#34;],
+            explain=functools.partial(
+                self._explain_performance, y_test=np.asarray(y_test), metric=metric
+            ),
+        )
+
+    def compute_weights(self, feature_values, targets):
+        &#34;&#34;&#34;Compute the weights to reach the given targets.
+
+        Parameters:
+            feature_values (pd.Series): A named pandas series containing the dataset values
+                for a given feature.
+            targets (list): A list of means to reach for the feature `feature_values`.
+                All of them must be between `feature_values.min()` and `feature_values.max()`.
+
+        Returns:
+            dict: The keys are the targets and the values are lists of
+                `len(feature_values)` weights (one per data sample).
+        &#34;&#34;&#34;
+        query = pd.DataFrame(
+            dict(
+                feature=[feature_values.name] * len(targets),
+                target=targets,
+                label=[&#34;&#34;] * len(targets),
+            )
+        )
+        ksis = self._fill_ksis(feature_values, query)[&#34;ksi&#34;]
+        scaled_values = safe_scale(feature_values)
+        return {
+            target: special.softmax(ksi * scaled_values)
+            for ksi, target in zip(ksis, targets)
+        }
+
+    def compute_distributions(
+        self, feature_values, targets, y_pred=None, bins=None, density=True, kde=False
+    ):
+        &#34;&#34;&#34;Compute the stressed distributions of `feature_values` or `y_pred` (if specified)
+        for the `feature_values` targets `targets`. As explained in the paper,
+        the stressed distributions are computed to minimize the Kullback-Leibler
+        divergence with the original distribution.
+
+        Parameters:
+            feature_values (pd.Series): A named pandas series containing the dataset values
+                for a given feature.
+            targets (list): A list of means to reach for the feature `feature_values`.
+                All of them must be between `feature_values.min()` and `feature_values.max()`.
+            bins (int, optional): See `numpy.histogram()`. If `None` (the default),
+                we use `bins = int(log(len(feature_values)))`.
+            y_pred (pd.Series, optional): The model output corresponding to the
+                input `feature_values`. For a multi-class problem, `y_pred` is the output
+                for a single label. If specified, the stressed output is returned
+                instead of the stressed input.
+            density (bool, optional): See `numpy.histogram()`.
+            kde (bool, optional): Whether to compute a Kernel Density Estimation.
+                Default is `False`.
+
+        Returns:
+            dict: The keys are the targets and the values are dictionaries with keys: 
+
+                * &#34;edges&#34;: The edges of the histogram returned by `numpy.histogram()`.
+                * &#34;densities&#34;: The densities for every bins of the histogram. It
+                    depends on the value of the parameter `density`. Let&#39;s notice that
+                    `len(edges) == len(densities) + 1`. If `y_pred` is not specified,
+                    the densities are those of is the model input `feature_values`,
+                    otherwise it is the model output `y_pred`.
+                * &#34;kde&#34;: `None` if the `kde` argument is `False`. Otherwise, it is
+                    a `scipy.stats.gaussian_kde` object.
+                * &#34;average&#34;: The average of the stressed distribution, the model input 
+                    if `y_pred` is `None` else the model output.
+
+        Examples:
+            Let&#39;s look at what the distribution of `age` is when its mean is 20
+            and 30:
+
+            &gt;&gt;&gt; age = X_test[&#34;age&#34;]
+            &gt;&gt;&gt; explainer.compute_distributions(
+            ...     age,
+            ...     targets=[20, 30],
+            ...     bins=int(np.log(len(age))),
+            ... )
+            {
+                20: {
+                    &#34;edges&#34;: array([17., 25.11111111, 33.22222222, 41.33333333,
+                                    49.44444444, 57.55555556, 65.66666667,
+                                    73.77777778, 81.88888889, 90.]),
+                    &#34;hist&#34;: array([1.15874542e-01, 6.90997708e-03, 4.77327782e-04,
+                                   2.45467942e-05, 1.23266581e-06, 4.42351601e-08,
+                                   1.10226985e-09, 1.99212274e-11, 3.64842014e-13])
+                    &#34;kde&#34;: None,
+                    &#34;average&#34;: 20
+                },
+                30: {
+                    &#34;edges&#34;: array([17., 25.11111111, 33.22222222, 41.33333333,
+                                    49.44444444, 57.55555556, 65.66666667,
+                                    73.77777778, 81.88888889, 90.]),
+                    &#34;hist&#34;: array([5.17551808e-02, 3.27268628e-02, 2.11936781e-02,
+                                   1.06566363e-02, 4.82414028e-03, 1.64851220e-03,
+                                   3.90958740e-04, 7.58834142e-05, 1.58185957e-05])
+                    &#34;kde&#34;: None,
+                    &#34;average&#34;: 30
+                }
+            }
+
+            Now, let&#39;s look at what the distribution of the *output* is when the
+            mean age is 20 and 30:
+
+            &gt;&gt;&gt; explainer.compute_distributions(
+            ...     age,
+            ...     targets=[20, 30],
+            ...     bins=int(np.log(len(age))),
+            ...     y_pred=y_pred,
+            ... )
+            {
+                20: {
+                    &#34;edges&#34;: array([1.65011502e-04, 1.11128109e-01, 2.22091206e-01,
+                                    3.33054303e-01, 4.44017400e-01, 5.54980497e-01,
+                                    6.65943594e-01, 7.76906691e-01, 8.87869788e-01,
+                                    9.98832885e-01]),
+                    &#34;hist&#34;: array([8.75261891e+00, 9.33837831e-02, 5.83045141e-02,
+                                   2.94169972e-02, 1.82092901e-02, 1.56109502e-02,
+                                   1.36512095e-02, 6.30191287e-03, 2.45075574e-02])
+                    &#34;kde&#34;: None,
+                    &#34;average&#34;: 0.015101814206467836
+                },
+                30: {
+                    &#34;edges&#34;: array([1.65011502e-04, 1.11128109e-01, 2.22091206e-01,
+                                    3.33054303e-01, 4.44017400e-01, 5.54980497e-01,
+                                    6.65943594e-01, 7.76906691e-01, 8.87869788e-01,
+                                    9.98832885e-01]),
+                    &#34;hist&#34;: array([6.26697963, 0.6850221, 0.49064978, 0.29575247,
+                                   0.25219135, 0.25242987, 0.24428482, 0.14986088,
+                                   0.37483422])
+                    &#34;kde&#34;: None,
+                    &#34;average&#34;: 0.15624939656045428
+                }
+            }
+        &#34;&#34;&#34;
+        if bins is None:
+            bins = int(np.log(len(feature_values)))
+
+        weights = self.compute_weights(feature_values, targets)
+        distributions = {}
+        data = y_pred if y_pred is not None else feature_values
+
+        for target, w in weights.items():
+            densities, edges = np.histogram(data, bins=bins, weights=w, density=density)
+            distributions[target] = dict(
+                edges=edges,
+                hist=densities,
+                kde=None,
+                average=np.average(y_pred, weights=w) if y_pred is not None else target,
+            )
+            if kde:
+                distributions[target][&#34;kde&#34;] = stats.gaussian_kde(data, weights=w)
+        return distributions
+
+    def _plot_explanation(
+        self, explanation, col, y_label, colors=None, yrange=None, size=None
+    ):
+        features = explanation[&#34;feature&#34;].unique()
+
+        if colors is None:
+            colors = {}
+        elif type(colors) is str:
+            colors = {feat: colors for feat in features}
+
+        width = height = None
+        if size is not None:
+            width, height = size
+
+        #  There are multiple features, we plot them together with taus
+        if len(features) &gt; 1:
+            fig = go.Figure()
+
+            for i, feat in enumerate(features):
+                taus = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;tau&#34;]
+                targets = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;target&#34;]
+                y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
+                fig.add_trace(
+                    go.Scatter(
+                        x=taus,
+                        y=y,
+                        mode=&#34;lines+markers&#34;,
+                        hoverinfo=&#34;y&#34;,
+                        name=feat,
+                        customdata=list(zip(taus, targets)),
+                        marker=dict(color=colors.get(feat)),
+                    )
+                )
+
+            fig.update_layout(
+                margin=dict(t=30, r=50, b=40),
+                xaxis=dict(title=&#34;tau&#34;, nticks=5),
+                yaxis=dict(title=y_label, range=yrange),
+                width=width,
+                height=height,
+            )
+            return fig
+
+        #  There is only one feature, we plot it with its nominal values.
+        feat = features[0]
+        fig = go.Figure()
+        x = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;target&#34;]
+        y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
+        mean_row = explanation.query(f&#39;feature == &#34;{feat}&#34; and tau == 0&#39;).iloc[0]
+
+        if self.n_samples &gt; 1:
+            low = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_low&#34;]
+            high = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_high&#34;]
+            fig.add_trace(
+                go.Scatter(
+                    x=np.concatenate((x, x[::-1])),
+                    y=np.concatenate((low, high[::-1])),
+                    name=f&#34;{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%&#34;,
+                    fill=&#34;toself&#34;,
+                    fillcolor=colors.get(feat),
+                    line_color=&#34;rgba(0, 0, 0, 0)&#34;,
+                    opacity=0.3,
+                )
+            )
+
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=y,
+                mode=&#34;lines+markers&#34;,
+                hoverinfo=&#34;x+y&#34;,
+                showlegend=False,
+                marker=dict(color=colors.get(feat)),
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[mean_row[&#34;target&#34;]],
+                y=[mean_row[col]],
+                text=[&#34;Dataset mean&#34;],
+                showlegend=False,
+                mode=&#34;markers&#34;,
+                name=&#34;Original mean&#34;,
+                hoverinfo=&#34;text&#34;,
+                marker=dict(symbol=&#34;x&#34;, size=9, color=colors.get(feat)),
+            )
+        )
+        fig.update_layout(
+            margin=dict(t=30, r=0, b=40),
+            xaxis=dict(title=f&#34;Average {feat}&#34;),
+            yaxis=dict(title=y_label, range=yrange),
+            width=width,
+            height=height,
+        )
+        return fig
+
+    def plot_distributions(
+        self,
+        feature_values,
+        targets=None,
+        y_pred=None,
+        bins=None,
+        show_hist=False,
+        show_curve=True,
+        colors=None,
+        dataset_color=&#34;black&#34;,
+        size=None,
+    ):
+        &#34;&#34;&#34;Plot the stressed distribution of `feature_values` or `y_pred` if specified
+        for each mean of `feature_values` in `targets`.
+        
+        Parameters:
+            feature_values (pd.Series): See `BaseExplainer.compute_distributions()`.
+            targets (list, optional): See `BaseExplainer.compute_distributions()`.
+                If `None` (the default), only the original distribution is plotted.
+            y_pred (pd.Series, optional): See `BaseExplainer.compute_distributions()`.
+            bins (int, optional): See `BaseExplainer.compute_distributions()`.
+            show_hist (bool, optional): Whether to plot histogram data. Default is
+                `False`.
+            show_curve (bool, optional): Whether to plot KDE based on histogram data.
+                Default is `True`.
+            colors (list, optional): An optional list of colors for all targets.
+            dataset_color (str, optional): An optional color for the original
+                distribution. Default is `&#34;black&#34;`. If `None`, the original
+                distribution is not plotted.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+        &#34;&#34;&#34;
+        if targets is None:
+            targets = []
+
+        if colors is None:
+            colors = cl.interp(
+                cl.scales[&#34;11&#34;][&#34;qual&#34;][&#34;Paired&#34;],
+                len(targets) + 1,  #  +1 otherwise it raises an error if ksis is empty
+            )
+
+        if dataset_color is not None:
+            targets = [feature_values.mean(), *targets]  # Add the original mean
+            colors = [dataset_color, *colors]
+
+        fig = go.Figure()
+        distributions = self.compute_distributions(
+            feature_values=feature_values,
+            targets=targets,
+            bins=bins,
+            y_pred=y_pred,
+            kde=show_curve,
+        )
+
+        for i, (target, color) in enumerate(zip(targets, colors)):
+            trace_name = f&#34;E[{feature_values.name}] = {target:.2f}&#34;
+            d = distributions[target]
+            if y_pred is not None:
+                trace_name += f&#34;, E[{y_pred.name}] = {d[&#39;average&#39;]:.2f}&#34;
+            if i == 0:
+                trace_name += &#34; (dataset)&#34;
+
+            if show_hist:
+                fig.add_bar(
+                    x=d[&#34;edges&#34;][:-1],
+                    y=d[&#34;hist&#34;],
+                    name=trace_name,
+                    legendgroup=trace_name,
+                    showlegend=not show_curve,
+                    opacity=0.5,
+                    marker=dict(color=color),
+                    hoverinfo=&#34;x+y&#34;,
+                )
+
+            if show_curve:
+                x = np.linspace(d[&#34;edges&#34;][0], d[&#34;edges&#34;][-1], num=500)
+                y = d[&#34;kde&#34;](x)
+                fig.add_scatter(
+                    x=x,
+                    y=y,
+                    name=trace_name,
+                    legendgroup=trace_name,
+                    marker=dict(color=color),
+                    mode=&#34;lines&#34;,
+                    hoverinfo=&#34;x+y&#34;,
+                )
+                fig.add_scatter(
+                    x=[d[&#34;average&#34;]],
+                    y=d[&#34;kde&#34;]([d[&#34;average&#34;]]),
+                    text=[&#34;Dataset mean&#34;],
+                    showlegend=False,
+                    legendgroup=trace_name,
+                    mode=&#34;markers&#34;,
+                    hoverinfo=&#34;text&#34;,
+                    marker=dict(symbol=&#34;x&#34;, size=9, color=color),
+                )
+
+        width = height = None
+        if size is not None:
+            width, height = size
+
+        fig.update_layout(
+            bargap=0,
+            barmode=&#34;overlay&#34;,
+            margin=dict(t=30, b=40),
+            showlegend=True,
+            xaxis=dict(
+                title=y_pred.name if y_pred is not None else feature_values.name
+            ),
+            yaxis=dict(title=&#34;Probability density&#34;),
+            width=width,
+            height=height,
+        )
+        return fig
+
+    def _plot_comparison(
+        self,
+        comparison,
+        title_prefix,
+        reference_name,
+        compared_name,
+        colors=None,
+        yrange=None,
+        size=None,
+    ):
+        comparison[&#34;delta&#34;] = comparison[&#34;compared&#34;] - comparison[&#34;reference&#34;]
+        comparison = comparison.sort_values(by=[&#34;delta&#34;], ascending=True)
+        features = comparison[&#34;feature&#34;]
+
+        if type(colors) is dict:
+            # Put the colors in the right order
+            colors = [colors.get(feature) for feature in features]
+
+        width = 500
+        height = 100 + 60 * len(features)
+        if size is not None:
+            width, height = size
+
+        reference_name = reference_name or &#39;&#34;reference&#34;&#39;
+        compared_name = compared_name or &#39;&#34;compared&#34;&#39;
+        title = f&#34;{title_prefix} for {compared_name} compared to {reference_name}&#34;
+
+        fig = go.Figure()
+        fig.add_trace(
+            go.Bar(
+                x=comparison[&#34;delta&#34;],
+                y=features,
+                orientation=&#34;h&#34;,
+                hoverinfo=&#34;x&#34;,
+                marker=dict(color=colors),
+            )
+        )
+        fig.update_layout(
+            xaxis=dict(title=title, range=yrange, side=&#34;top&#34;, fixedrange=True),
+            yaxis=dict(showline=False, automargin=True),
+            shapes=[
+                go.layout.Shape(
+                    type=&#34;line&#34;,
+                    x0=0,
+                    y0=0,
+                    x1=0,
+                    y1=1,
+                    yref=&#34;paper&#34;,
+                    line=dict(color=&#34;black&#34;, width=1),
+                )
+            ],
+            width=width,
+            height=height,
+            margin=dict(b=0, t=60, r=10),
+            modebar=dict(
+                orientation=&#34;v&#34;,
+                color=&#34;rgba(0, 0, 0, 0)&#34;,
+                activecolor=&#34;rgba(0, 0, 0, 0)&#34;,
+                bgcolor=&#34;rgba(0, 0, 0, 0)&#34;,
+            ),
+        )
+        return fig
+
+    def plot_influence_comparison(
+        self, X_test, y_pred, reference, compared, colors=None, yrange=None, size=None
+    ):
+        &#34;&#34;&#34;Plot the influence of features in `X_test` on `y_pred` for the
+        individual `compared` compared to `reference`. Basically, we look at how
+        the model would behave if the average individual were `compared` and take
+        the difference with what the output would be if the average were `reference`.
+
+        Parameters:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                `pd.Series` is expected. For multi-label classification, a
+                pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            reference (pd.Series): A row of `X_test`.
+            compared (pd.Series): A row of `X_test`.
+            colors (dict or list, optional): The colors for the features. If a list,
+                the first color corresponds to the feature with the lowest value
+                `influence(compared) - influence(reference)`. If a dictionary,
+                the keys are the names of the features and the values are valid
+                Plotly colors. Default is `None` and the colors are automatically
+                choosen.
+            yrange (list, optional): A two-item list `[low, high]`. Default is
+                `None` and the range is based on the data.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            pd.DataFrame: A dataframe with four columns (&#34;feature&#34;, &#34;label&#34;,
+                &#34;reference&#34; and &#34;compared&#34;). For each couple `(feature, label)`,
+                `reference` (resp. `compared`) is the average output of the model
+                if the average individual were `reference` (resp. `compared`).
+        &#34;&#34;&#34;
+        y_pred = pd.DataFrame(to_pandas(y_pred))
+        if len(y_pred.columns) &gt; 1:
+            raise ValueError(&#34;Cannot plot multiple labels&#34;)
+        comparison = self.compare_influence(
+            X_test, y_pred.iloc[:, 0], reference, compared
+        )
+        return self._plot_comparison(
+            comparison,
+            title_prefix=&#34;Influence&#34;,
+            reference_name=reference.name,
+            compared_name=compared.name,
+            colors=colors,
+            size=size,
+            yrange=yrange,
+        )
+
+    def plot_performance_comparison(
+        self,
+        X_test,
+        y_test,
+        y_pred,
+        metric,
+        reference,
+        compared,
+        colors=None,
+        yrange=None,
+        size=None,
+    ):
+        &#34;&#34;&#34;Plot the influence of features in `X_test` on performance for the
+        individual `compared` compared to `reference`. Basically, we look at how
+        the model would behave if the average individual were `compared` and take
+        the difference with what the output would be if the average were `reference`.
+
+        Parameters:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_test (pd.DataFrame or pd.Series): The true values
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series` is expected. For multi-label classification,
+                a pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. The format is the same as `y_test`.
+            metric (callable): A scikit-learn-like metric
+                `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+                to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+                &#34;the set of labels predicted for a sample must exactly match the
+                corresponding set of labels in `y_true`&#34;.
+            reference (pd.Series): A row of `X_test`.
+            compared (pd.Series): A row of `X_test`.
+            colors (dict or list, optional): The colors for the features. If a list,
+                the first color corresponds to the feature with the lowest value
+                `influence(compared) - influence(reference)`. If a dictionary,
+                the keys are the names of the features and the values are valid
+                Plotly colors. Default is `None` and the colors are automatically
+                choosen.
+            yrange (list, optional): A two-item list `[low, high]`. Default is
+                `None` and the range is based on the data.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            pd.DataFrame: A dataframe with four columns (&#34;feature&#34;, &#34;label&#34;,
+                &#34;reference&#34; and &#34;compared&#34;). For each couple `(feature, label)`,
+                `reference` (resp. `compared`) is the average output of the model
+                if the average individual were `reference` (resp. `compared`).
+        &#34;&#34;&#34;
+        comparison = self.compare_performance(
+            X_test, y_test, y_pred, metric, reference, compared
+        )
+        metric_name = self.get_metric_name(metric)
+        if (
+            yrange is None
+            and comparison[[&#34;reference&#34;, &#34;compared&#34;]].stack().between(0, 1).all()
+        ):
+            yrange = [-1, 1]
+        return self._plot_comparison(
+            comparison,
+            title_prefix=metric_name,
+            reference_name=reference.name,
+            compared_name=compared.name,
+            colors=colors,
+            size=size,
+            yrange=yrange,
+        )</code></pre>
+      </details>
+
+  </section>
+
+  <section>
+  </section>
+
+  <section>
+  </section>
+
+  <section>
+  </section>
+
+  <section>
+    <h2 class="section-title" id="header-classes">Classes</h2>
+    <dl>
+      
+      <dt id="ethik.base_explainer.BaseExplainer"><code class="flex name class">
+          <span>class <span class="ident">BaseExplainer</span></span>
+              <span>(</span><span>alpha=0.05, n_samples=1, sample_frac=0.8, conf_level=0.05, max_iterations=15, tol=0.0001, n_jobs=1, verbose=True)</span>
+      </code></dt>
+
+      <dd>
+  
+  <section class="desc"><p>Explains the influence of features on model predictions and performance.</p></section>
+  
+    
+      <details class="source">
+        <summary>
+            <span>Expand source code</span>
+        </summary>
+        <pre><code class="python">class BaseExplainer:
+    &#34;&#34;&#34;Explains the influence of features on model predictions and performance.&#34;&#34;&#34;
+
+    CAT_COL_SEP = &#34; = &#34;
+
+    def __init__(
+        self,
+        alpha=0.05,
+        n_samples=1,
+        sample_frac=0.8,
+        conf_level=0.05,
+        max_iterations=15,
+        tol=1e-4,
+        n_jobs=1,  # Parallelism is only worth it if the dataset is &#34;large&#34;
+        verbose=True,
+    ):
+        if not 0 &lt;= alpha &lt; 0.5:
+            raise ValueError(f&#34;alpha must be between 0 and 0.5, got {alpha}&#34;)
+
+        if n_samples &lt; 1:
+            raise ValueError(f&#34;n_samples must be strictly positive, got {n_samples}&#34;)
+
+        if not 0 &lt; sample_frac &lt; 1:
+            raise ValueError(f&#34;sample_frac must be between 0 and 1, got {sample_frac}&#34;)
+
+        if not 0 &lt; conf_level &lt; 0.5:
+            raise ValueError(f&#34;conf_level must be between 0 and 0.5, got {conf_level}&#34;)
+
+        if not max_iterations &gt; 0:
+            raise ValueError(
+                &#34;max_iterations must be a strictly positive &#34;
+                f&#34;integer, got {max_iterations}&#34;
+            )
+
+        if not tol &gt; 0:
+            raise ValueError(f&#34;tol must be a strictly positive number, got {tol}&#34;)
+
+        self.alpha = alpha
+        self.n_samples = n_samples
+        self.sample_frac = sample_frac if n_samples &gt; 1 else 1
+        self.conf_level = conf_level
+        self.max_iterations = max_iterations
+        self.tol = tol
+        self.n_jobs = n_jobs
+        self.verbose = verbose
+
+    def get_metric_name(self, metric):
+        &#34;&#34;&#34;Get the name of the column in explainer&#39;s info dataframe to store the
+        performance with respect of the given metric.
+
+        Args:
+            metric (callable): The metric to compute the model&#39;s performance.
+
+        Returns:
+            str: The name of the column.
+        &#34;&#34;&#34;
+        name = metric.__name__
+        if name in [&#34;feature&#34;, &#34;target&#34;, &#34;label&#34;, &#34;influence&#34;, &#34;ksi&#34;]:
+            raise ValueError(
+                f&#34;Cannot use {name} as a metric name, already a column name&#34;
+            )
+        return name
+
+    def _fill_ksis(self, X_test, query):
+        &#34;&#34;&#34;
+        Parameters:
+            X_test (pd.DataFrame): A dataframe with categorical features ALREADY
+                one-hot encoded.
+            query (pd.DataFrame): A dataframe with at least two columns &#34;feature&#34;
+                and &#34;target&#34;. This dataframe will be altered.
+
+        Returns:
+            pd.DataFrame: The `query` dataframe with an additional column &#34;ksi&#34;.
+        &#34;&#34;&#34;
+        if &#34;ksi&#34; not in query.columns:
+            query[&#34;ksi&#34;] = None
+
+        X_test = pd.DataFrame(to_pandas(X_test))
+        query_to_complete = query[query[&#34;ksi&#34;].isnull()]
+        ksis = joblib.Parallel(n_jobs=self.n_jobs)(
+            joblib.delayed(compute_ksis)(
+                x=X_test[feature],
+                target_means=part[&#34;target&#34;].unique(),
+                max_iterations=self.max_iterations,
+                tol=self.tol,
+            )
+            for feature, part in query_to_complete.groupby(&#34;feature&#34;)
+        )
+        ksis = dict(collections.ChainMap(*ksis))
+
+        query[&#34;ksi&#34;] = query.apply(
+            lambda r: ksis.get((r[&#34;feature&#34;], r[&#34;target&#34;]), r[&#34;ksi&#34;]), axis=&#34;columns&#34;
+        )
+        query[&#34;ksi&#34;] = query[&#34;ksi&#34;].fillna(0.0)
+        return query
+
+    def _explain(
+        self, X_test, y_pred, dest_col, key_cols, compute, query, compute_kwargs=None
+    ):
+        &#34;&#34;&#34;
+        Parameters:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                `pd.Series` is expected. For multi-label classification, a
+                pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            dest_col (str): The name of the column that is created by `compute`.
+                Either &#34;influence&#34; or the name of a metric.
+            key_cols (list of str): The set of columns that is used to identify
+                the parameters of a result. For instance, for the influence, we
+                need the feature, the label and the ksi to map the explanation back
+                to the query. For performance, all the labels give the same result
+                so we just need the feature and the ksi.
+            compute (callable): A callable that takes at least three parameters
+                (`X_test`, `y_pred`, `query`) and returns the query completed
+                with explanations.
+            query (pd.DataFrame): The query for the explanation. A dataframe with
+                at least three columns (&#34;feature&#34;, &#34;label&#34; and &#34;target&#34;).
+            compute_kwargs (dict, optional): An optional dictionary of named parameters
+                for `compute()`.
+            
+        Returns:
+        &#34;&#34;&#34;
+        query = query.copy()
+
+        if compute_kwargs is None:
+            compute_kwargs = {}
+        if dest_col not in query.columns:
+            query[dest_col] = None
+            query[f&#34;{dest_col}_low&#34;] = None
+            query[f&#34;{dest_col}_high&#34;] = None
+
+        X_test = pd.DataFrame(to_pandas(X_test))
+        y_pred = pd.DataFrame(to_pandas(y_pred))
+        X_test = self._one_hot_encode(X_test)
+
+        if len(X_test) != len(y_pred):
+            raise ValueError(&#34;X_test and y_pred are not of the same length&#34;)
+
+        query = self._fill_ksis(X_test, query)
+
+        query_to_complete = query[
+            query[&#34;feature&#34;].isin(X_test.columns)
+            &amp; query[&#34;label&#34;].isin(y_pred.columns)
+            &amp; query[dest_col].isnull()
+        ]
+
+        if query_to_complete.empty:
+            return query
+
+        # `compute()` will return something like:
+        # [
+        #   [ # First batch
+        #     (*key_cols1, sample_index1, computed_value1),
+        #     (*key_cols2, sample_index2, computed_value2),
+        #     ...
+        #   ],
+        #   ...
+        # ]
+
+        # Standard scale the features
+        X_test = safe_scale(X_test)
+
+        explanation = compute(
+            X_test=X_test, y_pred=y_pred, query=query_to_complete, **compute_kwargs
+        )
+        # We group by the key to gather the samples and compute the confidence
+        #  interval
+        explanation = explanation.groupby(key_cols)[dest_col].agg(
+            [
+                # Mean influence
+                (dest_col, &#34;mean&#34;),
+                # Lower bound on the mean influence
+                (f&#34;{dest_col}_low&#34;, functools.partial(np.quantile, q=self.conf_level)),
+                # Upper bound on the mean influence
+                (
+                    f&#34;{dest_col}_high&#34;,
+                    functools.partial(np.quantile, q=1 - self.conf_level),
+                ),
+            ]
+        )
+
+        # Merge the new queryrmation with the current queryrmation
+        query = join_with_overlap(left=query, right=explanation, on=key_cols)
+        return query
+
+    def _compute_influence(self, X_test, y_pred, query):
+        keys = query.groupby([&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;]).groups.keys()
+        return pd.DataFrame(
+            [
+                (
+                    feature,
+                    label,
+                    ksi,
+                    sample_index,
+                    np.average(
+                        y_pred[label][mask],
+                        weights=special.softmax(ksi * X_test[feature][mask]),
+                    ),
+                )
+                for (sample_index, mask), (feature, label, ksi) in tqdm(
+                    itertools.product(
+                        enumerate(
+                            yield_masks(
+                                n_masks=self.n_samples,
+                                n=len(X_test),
+                                p=self.sample_frac,
+                            )
+                        ),
+                        keys,
+                    ),
+                    disable=not self.verbose,
+                    total=len(keys) * self.n_samples,
+                )
+            ],
+            columns=[&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;, &#34;sample_index&#34;, &#34;influence&#34;],
+        )
+
+    def _explain_influence(self, X_test, y_pred, query):
+        return self._explain(
+            X_test=X_test,
+            y_pred=y_pred,
+            dest_col=&#34;influence&#34;,
+            key_cols=[&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;],
+            compute=self._compute_influence,
+            query=query,
+        )
+
+    def _compute_performance(self, X_test, y_pred, query, y_test, metric):
+        metric_name = self.get_metric_name(metric)
+        keys = query.groupby([&#34;feature&#34;, &#34;ksi&#34;]).groups.keys()
+        return pd.DataFrame(
+            [
+                (
+                    feature,
+                    ksi,
+                    sample_index,
+                    metric(
+                        y_test[mask],
+                        y_pred[mask],
+                        sample_weight=special.softmax(ksi * X_test[feature][mask]),
+                    ),
+                )
+                for (sample_index, mask), (feature, ksi) in tqdm(
+                    itertools.product(
+                        enumerate(
+                            yield_masks(
+                                n_masks=self.n_samples,
+                                n=len(X_test),
+                                p=self.sample_frac,
+                            )
+                        ),
+                        keys,
+                    ),
+                    disable=not self.verbose,
+                    total=len(keys) * self.n_samples,
+                )
+            ],
+            columns=[&#34;feature&#34;, &#34;ksi&#34;, &#34;sample_index&#34;, metric_name],
+        )
+
+    def _explain_performance(self, X_test, y_test, y_pred, metric, query):
+        metric_name = self.get_metric_name(metric)
+        return self._explain(
+            X_test=X_test,
+            y_pred=y_pred,
+            dest_col=metric_name,
+            key_cols=[&#34;feature&#34;, &#34;ksi&#34;],
+            compute=self._compute_performance,
+            query=query,
+            compute_kwargs=dict(y_test=np.asarray(y_test), metric=metric),
+        )
+
+    def _one_hot_encode(self, x):
+        if isinstance(x, pd.DataFrame):
+            return pd.get_dummies(data=x, prefix_sep=self.CAT_COL_SEP)
+
+        return pd.get_dummies(
+            # A DataFrame is needed for get_dummies
+            data=pd.DataFrame([x.values], columns=x.index),
+            prefix_sep=self.CAT_COL_SEP,
+        ).iloc[0]
+
+    def _revert_dummies_names(self, x):
+        &#34;&#34;&#34;Build a dictionary that enables us to find the original feature back
+        after `pd.get_dummies()` was called.
+
+        Examples:
+            &gt;&gt;&gt; x = pd.DataFrame({&#34;gender&#34;: [&#34;Male&#34;, &#34;Female&#34;, &#34;Male&#34;]})
+            &gt;&gt;&gt; x
+            gender
+            ------
+              Male
+            Female
+              Male
+            &gt;&gt;&gt; pd.get_dummies(x)
+            gender = Male  gender = Female
+            ------------------------------
+                        1                0
+                        0                1
+                        1                0
+            &gt;&gt;&gt; self._revert_dummies_names(x)
+            {
+                &#34;gender = Male&#34;: &#34;gender&#34;,
+                &#34;gender = Female&#34;: &#34;gender&#34;,
+            }
+        &#34;&#34;&#34;
+        x = pd.DataFrame(to_pandas(x))
+        x = x.select_dtypes(include=[&#34;category&#34;, &#34;object&#34;])
+        dummies_names = {}
+        for col in x.columns:
+            for cat in x[col].unique():
+                dummies_name = f&#34;{col}{self.CAT_COL_SEP}{cat}&#34;
+                dummies_names[dummies_name] = col
+        return dummies_names
+
+    def _compare_individuals(
+        self, X_test, y_pred, reference, compared, dest_col, key_cols, explain
+    ):
+        X_test = pd.DataFrame(to_pandas(X_test))
+        y_pred = pd.DataFrame(to_pandas(y_pred))
+        # We first need to get the non-encoded features, otherwise we may miss
+        #  categorical ones.
+        #  For instance, if `reference` is a male and `compared` a female, after
+        # one-hot encoding, the first will have the feature &#34;gender = male&#34; and
+        # the second will have &#34;gender = female&#34; and we won&#39;t be able to detect
+        # that it refers to the same feature &#34;gender&#34;.
+        features = set(X_test.columns) &amp; set(reference.keys()) &amp; set(compared.keys())
+        X_test = X_test[features]  #  Just keep the features in common
+
+        reference = reference.rename(&#34;reference&#34;)
+        compared = compared.rename(&#34;compared&#34;)
+
+        individuals = pd.DataFrame(
+            [reference, compared], index=[reference.name, compared.name]
+        )[features]
+        dummies_to_features = self._revert_dummies_names(individuals)
+        individuals = self._one_hot_encode(individuals)
+
+        labels = y_pred.columns
+        query = pd.DataFrame(
+            [
+                dict(
+                    feature=feature,
+                    target=individual[feature],
+                    label=label,
+                    individual=name,
+                )
+                for name, individual in individuals.iterrows()
+                for label in labels
+                for feature in individuals.columns
+            ]
+        )
+        info = explain(X_test=X_test, y_pred=y_pred, query=query)
+
+        #  `info` looks like:
+        #
+        #          feature target label individual ksi influence influence_low influence_high
+        #              age     20 &gt;$50k  reference ...       ...           ...            ...
+        #              age     20 &gt;$50k   compared ...       ...           ...            ...
+        #  gender = Female      0 &gt;$50k  reference ...       ...           ...            ...
+        #    gender = Male      1 &gt;$50k  reference ...       ...           ...            ...
+        #  gender = Female      1 &gt;$50k   compared ...       ...           ...            ...
+        #    gender = Male      0 &gt;$50k   compared ...       ...           ...            ...
+        #               ...
+        #
+        # For every individual and every categorical feature, we want to keep the
+        # one-hot encoded line that corresponds to the original value:
+        #
+        #          feature target label individual ksi influence influence_low influence_high
+        #              age     20 &gt;$50k  reference ...       ...           ...            ...
+        #              age     20 &gt;$50k   compared ...       ...           ...            ...
+        #    gender = Male      1 &gt;$50k  reference ...       ...           ...            ...
+        #  gender = Female      1 &gt;$50k   compared ...       ...           ...            ...
+        #               ...
+        #
+        # And, to compare them, we want to rename the encoded features back to their
+        # original name:
+        #
+        # feature target label individual ksi influence influence_low influence_high
+        #     age     20 &gt;$50k  reference ...       ...           ...            ...
+        #     age     20 &gt;$50k   compared ...       ...           ...            ...
+        #  gender      1 &gt;$50k  reference ...       ...           ...            ...
+        #  gender      1 &gt;$50k   compared ...       ...           ...            ...
+        #      ...
+
+        rows = collections.defaultdict(dict)
+        for individual in (reference, compared):
+            encoded = self._one_hot_encode(individual)
+            individual_info = info[
+                (info[&#34;individual&#34;] == individual.name)
+                &amp; (info[&#34;feature&#34;].isin(encoded.keys()))
+            ]
+            for _, row in individual_info.iterrows():
+                row = row.replace(dummies_to_features)
+                key = tuple(zip(key_cols, row[key_cols]))
+                rows[key][individual.name] = row[dest_col]
+
+        return pd.DataFrame(
+            [{**dict(keys), **individuals} for keys, individuals in rows.items()]
+        )
+
+    def compare_influence(self, X_test, y_pred, reference, compared):
+        &#34;&#34;&#34;Compare the influence of features in `X_test` on `y_pred` for the
+        individual `compared` compared to `reference`. Basically, we look at how
+        the model would behave if the average individual were `compared` and
+        `reference`.
+
+        Parameters:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                `pd.Series` is expected. For multi-label classification, a
+                pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            reference (pd.Series): A row of `X_test`.
+            compared (pd.Series): A row of `X_test`.
+
+        Returns:
+            pd.DataFrame: A dataframe with four columns (&#34;feature&#34;, &#34;label&#34;,
+                &#34;reference&#34; and &#34;compared&#34;). For each couple `(feature, label)`,
+                `reference` (resp. `compared`) is the average output of the model
+                if the average individual were `reference` (resp. `compared`).
+        &#34;&#34;&#34;
+        return self._compare_individuals(
+            X_test=X_test,
+            y_pred=y_pred,
+            reference=reference,
+            compared=compared,
+            dest_col=&#34;influence&#34;,
+            key_cols=[&#34;feature&#34;, &#34;label&#34;],
+            explain=self._explain_influence,
+        )
+
+    def compare_performance(self, X_test, y_test, y_pred, metric, reference, compared):
+        &#34;&#34;&#34;Compare the influence of features in `X_test` on the performance for the
+        individual `compared` compared to `reference`. Basically, we look at how
+        the model would perform if the average individual were `compared` and
+        `reference`.
+
+        Parameters:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_test (pd.DataFrame or pd.Series): The true values
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series` is expected. For multi-label classification,
+                a pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. The format is the same as `y_test`.
+            metric (callable): A scikit-learn-like metric
+                `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+                to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+                &#34;the set of labels predicted for a sample must exactly match the
+                corresponding set of labels in `y_true`&#34;.
+            reference (pd.Series): A row of `X_test`.
+            compared (pd.Series): A row of `X_test`.
+
+        Returns:
+            pd.DataFrame: A dataframe with three columns (&#34;feature&#34;, &#34;reference&#34;
+                and &#34;compared&#34;). For each couple `(feature, label)`, `reference`
+                (resp. `compared`) is the average output of the model if the
+                average individual were `reference` (resp. `compared`).
+        &#34;&#34;&#34;
+        metric_name = self.get_metric_name(metric)
+        return self._compare_individuals(
+            X_test=X_test,
+            y_pred=y_pred,
+            reference=reference,
+            compared=compared,
+            dest_col=metric_name,
+            key_cols=[&#34;feature&#34;],
+            explain=functools.partial(
+                self._explain_performance, y_test=np.asarray(y_test), metric=metric
+            ),
+        )
+
+    def compute_weights(self, feature_values, targets):
+        &#34;&#34;&#34;Compute the weights to reach the given targets.
+
+        Parameters:
+            feature_values (pd.Series): A named pandas series containing the dataset values
+                for a given feature.
+            targets (list): A list of means to reach for the feature `feature_values`.
+                All of them must be between `feature_values.min()` and `feature_values.max()`.
+
+        Returns:
+            dict: The keys are the targets and the values are lists of
+                `len(feature_values)` weights (one per data sample).
+        &#34;&#34;&#34;
+        query = pd.DataFrame(
+            dict(
+                feature=[feature_values.name] * len(targets),
+                target=targets,
+                label=[&#34;&#34;] * len(targets),
+            )
+        )
+        ksis = self._fill_ksis(feature_values, query)[&#34;ksi&#34;]
+        scaled_values = safe_scale(feature_values)
+        return {
+            target: special.softmax(ksi * scaled_values)
+            for ksi, target in zip(ksis, targets)
+        }
+
+    def compute_distributions(
+        self, feature_values, targets, y_pred=None, bins=None, density=True, kde=False
+    ):
+        &#34;&#34;&#34;Compute the stressed distributions of `feature_values` or `y_pred` (if specified)
+        for the `feature_values` targets `targets`. As explained in the paper,
+        the stressed distributions are computed to minimize the Kullback-Leibler
+        divergence with the original distribution.
+
+        Parameters:
+            feature_values (pd.Series): A named pandas series containing the dataset values
+                for a given feature.
+            targets (list): A list of means to reach for the feature `feature_values`.
+                All of them must be between `feature_values.min()` and `feature_values.max()`.
+            bins (int, optional): See `numpy.histogram()`. If `None` (the default),
+                we use `bins = int(log(len(feature_values)))`.
+            y_pred (pd.Series, optional): The model output corresponding to the
+                input `feature_values`. For a multi-class problem, `y_pred` is the output
+                for a single label. If specified, the stressed output is returned
+                instead of the stressed input.
+            density (bool, optional): See `numpy.histogram()`.
+            kde (bool, optional): Whether to compute a Kernel Density Estimation.
+                Default is `False`.
+
+        Returns:
+            dict: The keys are the targets and the values are dictionaries with keys: 
+
+                * &#34;edges&#34;: The edges of the histogram returned by `numpy.histogram()`.
+                * &#34;densities&#34;: The densities for every bins of the histogram. It
+                    depends on the value of the parameter `density`. Let&#39;s notice that
+                    `len(edges) == len(densities) + 1`. If `y_pred` is not specified,
+                    the densities are those of is the model input `feature_values`,
+                    otherwise it is the model output `y_pred`.
+                * &#34;kde&#34;: `None` if the `kde` argument is `False`. Otherwise, it is
+                    a `scipy.stats.gaussian_kde` object.
+                * &#34;average&#34;: The average of the stressed distribution, the model input 
+                    if `y_pred` is `None` else the model output.
+
+        Examples:
+            Let&#39;s look at what the distribution of `age` is when its mean is 20
+            and 30:
+
+            &gt;&gt;&gt; age = X_test[&#34;age&#34;]
+            &gt;&gt;&gt; explainer.compute_distributions(
+            ...     age,
+            ...     targets=[20, 30],
+            ...     bins=int(np.log(len(age))),
+            ... )
+            {
+                20: {
+                    &#34;edges&#34;: array([17., 25.11111111, 33.22222222, 41.33333333,
+                                    49.44444444, 57.55555556, 65.66666667,
+                                    73.77777778, 81.88888889, 90.]),
+                    &#34;hist&#34;: array([1.15874542e-01, 6.90997708e-03, 4.77327782e-04,
+                                   2.45467942e-05, 1.23266581e-06, 4.42351601e-08,
+                                   1.10226985e-09, 1.99212274e-11, 3.64842014e-13])
+                    &#34;kde&#34;: None,
+                    &#34;average&#34;: 20
+                },
+                30: {
+                    &#34;edges&#34;: array([17., 25.11111111, 33.22222222, 41.33333333,
+                                    49.44444444, 57.55555556, 65.66666667,
+                                    73.77777778, 81.88888889, 90.]),
+                    &#34;hist&#34;: array([5.17551808e-02, 3.27268628e-02, 2.11936781e-02,
+                                   1.06566363e-02, 4.82414028e-03, 1.64851220e-03,
+                                   3.90958740e-04, 7.58834142e-05, 1.58185957e-05])
+                    &#34;kde&#34;: None,
+                    &#34;average&#34;: 30
+                }
+            }
+
+            Now, let&#39;s look at what the distribution of the *output* is when the
+            mean age is 20 and 30:
+
+            &gt;&gt;&gt; explainer.compute_distributions(
+            ...     age,
+            ...     targets=[20, 30],
+            ...     bins=int(np.log(len(age))),
+            ...     y_pred=y_pred,
+            ... )
+            {
+                20: {
+                    &#34;edges&#34;: array([1.65011502e-04, 1.11128109e-01, 2.22091206e-01,
+                                    3.33054303e-01, 4.44017400e-01, 5.54980497e-01,
+                                    6.65943594e-01, 7.76906691e-01, 8.87869788e-01,
+                                    9.98832885e-01]),
+                    &#34;hist&#34;: array([8.75261891e+00, 9.33837831e-02, 5.83045141e-02,
+                                   2.94169972e-02, 1.82092901e-02, 1.56109502e-02,
+                                   1.36512095e-02, 6.30191287e-03, 2.45075574e-02])
+                    &#34;kde&#34;: None,
+                    &#34;average&#34;: 0.015101814206467836
+                },
+                30: {
+                    &#34;edges&#34;: array([1.65011502e-04, 1.11128109e-01, 2.22091206e-01,
+                                    3.33054303e-01, 4.44017400e-01, 5.54980497e-01,
+                                    6.65943594e-01, 7.76906691e-01, 8.87869788e-01,
+                                    9.98832885e-01]),
+                    &#34;hist&#34;: array([6.26697963, 0.6850221, 0.49064978, 0.29575247,
+                                   0.25219135, 0.25242987, 0.24428482, 0.14986088,
+                                   0.37483422])
+                    &#34;kde&#34;: None,
+                    &#34;average&#34;: 0.15624939656045428
+                }
+            }
+        &#34;&#34;&#34;
+        if bins is None:
+            bins = int(np.log(len(feature_values)))
+
+        weights = self.compute_weights(feature_values, targets)
+        distributions = {}
+        data = y_pred if y_pred is not None else feature_values
+
+        for target, w in weights.items():
+            densities, edges = np.histogram(data, bins=bins, weights=w, density=density)
+            distributions[target] = dict(
+                edges=edges,
+                hist=densities,
+                kde=None,
+                average=np.average(y_pred, weights=w) if y_pred is not None else target,
+            )
+            if kde:
+                distributions[target][&#34;kde&#34;] = stats.gaussian_kde(data, weights=w)
+        return distributions
+
+    def _plot_explanation(
+        self, explanation, col, y_label, colors=None, yrange=None, size=None
+    ):
+        features = explanation[&#34;feature&#34;].unique()
+
+        if colors is None:
+            colors = {}
+        elif type(colors) is str:
+            colors = {feat: colors for feat in features}
+
+        width = height = None
+        if size is not None:
+            width, height = size
+
+        #  There are multiple features, we plot them together with taus
+        if len(features) &gt; 1:
+            fig = go.Figure()
+
+            for i, feat in enumerate(features):
+                taus = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;tau&#34;]
+                targets = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;target&#34;]
+                y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
+                fig.add_trace(
+                    go.Scatter(
+                        x=taus,
+                        y=y,
+                        mode=&#34;lines+markers&#34;,
+                        hoverinfo=&#34;y&#34;,
+                        name=feat,
+                        customdata=list(zip(taus, targets)),
+                        marker=dict(color=colors.get(feat)),
+                    )
+                )
+
+            fig.update_layout(
+                margin=dict(t=30, r=50, b=40),
+                xaxis=dict(title=&#34;tau&#34;, nticks=5),
+                yaxis=dict(title=y_label, range=yrange),
+                width=width,
+                height=height,
+            )
+            return fig
+
+        #  There is only one feature, we plot it with its nominal values.
+        feat = features[0]
+        fig = go.Figure()
+        x = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;target&#34;]
+        y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
+        mean_row = explanation.query(f&#39;feature == &#34;{feat}&#34; and tau == 0&#39;).iloc[0]
+
+        if self.n_samples &gt; 1:
+            low = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_low&#34;]
+            high = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_high&#34;]
+            fig.add_trace(
+                go.Scatter(
+                    x=np.concatenate((x, x[::-1])),
+                    y=np.concatenate((low, high[::-1])),
+                    name=f&#34;{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%&#34;,
+                    fill=&#34;toself&#34;,
+                    fillcolor=colors.get(feat),
+                    line_color=&#34;rgba(0, 0, 0, 0)&#34;,
+                    opacity=0.3,
+                )
+            )
+
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=y,
+                mode=&#34;lines+markers&#34;,
+                hoverinfo=&#34;x+y&#34;,
+                showlegend=False,
+                marker=dict(color=colors.get(feat)),
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[mean_row[&#34;target&#34;]],
+                y=[mean_row[col]],
+                text=[&#34;Dataset mean&#34;],
+                showlegend=False,
+                mode=&#34;markers&#34;,
+                name=&#34;Original mean&#34;,
+                hoverinfo=&#34;text&#34;,
+                marker=dict(symbol=&#34;x&#34;, size=9, color=colors.get(feat)),
+            )
+        )
+        fig.update_layout(
+            margin=dict(t=30, r=0, b=40),
+            xaxis=dict(title=f&#34;Average {feat}&#34;),
+            yaxis=dict(title=y_label, range=yrange),
+            width=width,
+            height=height,
+        )
+        return fig
+
+    def plot_distributions(
+        self,
+        feature_values,
+        targets=None,
+        y_pred=None,
+        bins=None,
+        show_hist=False,
+        show_curve=True,
+        colors=None,
+        dataset_color=&#34;black&#34;,
+        size=None,
+    ):
+        &#34;&#34;&#34;Plot the stressed distribution of `feature_values` or `y_pred` if specified
+        for each mean of `feature_values` in `targets`.
+        
+        Parameters:
+            feature_values (pd.Series): See `BaseExplainer.compute_distributions()`.
+            targets (list, optional): See `BaseExplainer.compute_distributions()`.
+                If `None` (the default), only the original distribution is plotted.
+            y_pred (pd.Series, optional): See `BaseExplainer.compute_distributions()`.
+            bins (int, optional): See `BaseExplainer.compute_distributions()`.
+            show_hist (bool, optional): Whether to plot histogram data. Default is
+                `False`.
+            show_curve (bool, optional): Whether to plot KDE based on histogram data.
+                Default is `True`.
+            colors (list, optional): An optional list of colors for all targets.
+            dataset_color (str, optional): An optional color for the original
+                distribution. Default is `&#34;black&#34;`. If `None`, the original
+                distribution is not plotted.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+        &#34;&#34;&#34;
+        if targets is None:
+            targets = []
+
+        if colors is None:
+            colors = cl.interp(
+                cl.scales[&#34;11&#34;][&#34;qual&#34;][&#34;Paired&#34;],
+                len(targets) + 1,  #  +1 otherwise it raises an error if ksis is empty
+            )
+
+        if dataset_color is not None:
+            targets = [feature_values.mean(), *targets]  # Add the original mean
+            colors = [dataset_color, *colors]
+
+        fig = go.Figure()
+        distributions = self.compute_distributions(
+            feature_values=feature_values,
+            targets=targets,
+            bins=bins,
+            y_pred=y_pred,
+            kde=show_curve,
+        )
+
+        for i, (target, color) in enumerate(zip(targets, colors)):
+            trace_name = f&#34;E[{feature_values.name}] = {target:.2f}&#34;
+            d = distributions[target]
+            if y_pred is not None:
+                trace_name += f&#34;, E[{y_pred.name}] = {d[&#39;average&#39;]:.2f}&#34;
+            if i == 0:
+                trace_name += &#34; (dataset)&#34;
+
+            if show_hist:
+                fig.add_bar(
+                    x=d[&#34;edges&#34;][:-1],
+                    y=d[&#34;hist&#34;],
+                    name=trace_name,
+                    legendgroup=trace_name,
+                    showlegend=not show_curve,
+                    opacity=0.5,
+                    marker=dict(color=color),
+                    hoverinfo=&#34;x+y&#34;,
+                )
+
+            if show_curve:
+                x = np.linspace(d[&#34;edges&#34;][0], d[&#34;edges&#34;][-1], num=500)
+                y = d[&#34;kde&#34;](x)
+                fig.add_scatter(
+                    x=x,
+                    y=y,
+                    name=trace_name,
+                    legendgroup=trace_name,
+                    marker=dict(color=color),
+                    mode=&#34;lines&#34;,
+                    hoverinfo=&#34;x+y&#34;,
+                )
+                fig.add_scatter(
+                    x=[d[&#34;average&#34;]],
+                    y=d[&#34;kde&#34;]([d[&#34;average&#34;]]),
+                    text=[&#34;Dataset mean&#34;],
+                    showlegend=False,
+                    legendgroup=trace_name,
+                    mode=&#34;markers&#34;,
+                    hoverinfo=&#34;text&#34;,
+                    marker=dict(symbol=&#34;x&#34;, size=9, color=color),
+                )
+
+        width = height = None
+        if size is not None:
+            width, height = size
+
+        fig.update_layout(
+            bargap=0,
+            barmode=&#34;overlay&#34;,
+            margin=dict(t=30, b=40),
+            showlegend=True,
+            xaxis=dict(
+                title=y_pred.name if y_pred is not None else feature_values.name
+            ),
+            yaxis=dict(title=&#34;Probability density&#34;),
+            width=width,
+            height=height,
+        )
+        return fig
+
+    def _plot_comparison(
+        self,
+        comparison,
+        title_prefix,
+        reference_name,
+        compared_name,
+        colors=None,
+        yrange=None,
+        size=None,
+    ):
+        comparison[&#34;delta&#34;] = comparison[&#34;compared&#34;] - comparison[&#34;reference&#34;]
+        comparison = comparison.sort_values(by=[&#34;delta&#34;], ascending=True)
+        features = comparison[&#34;feature&#34;]
+
+        if type(colors) is dict:
+            # Put the colors in the right order
+            colors = [colors.get(feature) for feature in features]
+
+        width = 500
+        height = 100 + 60 * len(features)
+        if size is not None:
+            width, height = size
+
+        reference_name = reference_name or &#39;&#34;reference&#34;&#39;
+        compared_name = compared_name or &#39;&#34;compared&#34;&#39;
+        title = f&#34;{title_prefix} for {compared_name} compared to {reference_name}&#34;
+
+        fig = go.Figure()
+        fig.add_trace(
+            go.Bar(
+                x=comparison[&#34;delta&#34;],
+                y=features,
+                orientation=&#34;h&#34;,
+                hoverinfo=&#34;x&#34;,
+                marker=dict(color=colors),
+            )
+        )
+        fig.update_layout(
+            xaxis=dict(title=title, range=yrange, side=&#34;top&#34;, fixedrange=True),
+            yaxis=dict(showline=False, automargin=True),
+            shapes=[
+                go.layout.Shape(
+                    type=&#34;line&#34;,
+                    x0=0,
+                    y0=0,
+                    x1=0,
+                    y1=1,
+                    yref=&#34;paper&#34;,
+                    line=dict(color=&#34;black&#34;, width=1),
+                )
+            ],
+            width=width,
+            height=height,
+            margin=dict(b=0, t=60, r=10),
+            modebar=dict(
+                orientation=&#34;v&#34;,
+                color=&#34;rgba(0, 0, 0, 0)&#34;,
+                activecolor=&#34;rgba(0, 0, 0, 0)&#34;,
+                bgcolor=&#34;rgba(0, 0, 0, 0)&#34;,
+            ),
+        )
+        return fig
+
+    def plot_influence_comparison(
+        self, X_test, y_pred, reference, compared, colors=None, yrange=None, size=None
+    ):
+        &#34;&#34;&#34;Plot the influence of features in `X_test` on `y_pred` for the
+        individual `compared` compared to `reference`. Basically, we look at how
+        the model would behave if the average individual were `compared` and take
+        the difference with what the output would be if the average were `reference`.
+
+        Parameters:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. For binary classification and regression,
+                `pd.Series` is expected. For multi-label classification, a
+                pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            reference (pd.Series): A row of `X_test`.
+            compared (pd.Series): A row of `X_test`.
+            colors (dict or list, optional): The colors for the features. If a list,
+                the first color corresponds to the feature with the lowest value
+                `influence(compared) - influence(reference)`. If a dictionary,
+                the keys are the names of the features and the values are valid
+                Plotly colors. Default is `None` and the colors are automatically
+                choosen.
+            yrange (list, optional): A two-item list `[low, high]`. Default is
+                `None` and the range is based on the data.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            pd.DataFrame: A dataframe with four columns (&#34;feature&#34;, &#34;label&#34;,
+                &#34;reference&#34; and &#34;compared&#34;). For each couple `(feature, label)`,
+                `reference` (resp. `compared`) is the average output of the model
+                if the average individual were `reference` (resp. `compared`).
+        &#34;&#34;&#34;
+        y_pred = pd.DataFrame(to_pandas(y_pred))
+        if len(y_pred.columns) &gt; 1:
+            raise ValueError(&#34;Cannot plot multiple labels&#34;)
+        comparison = self.compare_influence(
+            X_test, y_pred.iloc[:, 0], reference, compared
+        )
+        return self._plot_comparison(
+            comparison,
+            title_prefix=&#34;Influence&#34;,
+            reference_name=reference.name,
+            compared_name=compared.name,
+            colors=colors,
+            size=size,
+            yrange=yrange,
+        )
+
+    def plot_performance_comparison(
+        self,
+        X_test,
+        y_test,
+        y_pred,
+        metric,
+        reference,
+        compared,
+        colors=None,
+        yrange=None,
+        size=None,
+    ):
+        &#34;&#34;&#34;Plot the influence of features in `X_test` on performance for the
+        individual `compared` compared to `reference`. Basically, we look at how
+        the model would behave if the average individual were `compared` and take
+        the difference with what the output would be if the average were `reference`.
+
+        Parameters:
+            X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+                with one column per feature or a pandas series for a single feature.
+            y_test (pd.DataFrame or pd.Series): The true values
+                for the samples in `X_test`. For binary classification and regression,
+                a `pd.Series` is expected. For multi-label classification,
+                a pandas dataframe with one column per label is
+                expected. The values can either be probabilities or `0/1`
+                (for a one-hot-encoded output).
+            y_pred (pd.DataFrame or pd.Series): The model predictions
+                for the samples in `X_test`. The format is the same as `y_test`.
+            metric (callable): A scikit-learn-like metric
+                `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+                to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+                &#34;the set of labels predicted for a sample must exactly match the
+                corresponding set of labels in `y_true`&#34;.
+            reference (pd.Series): A row of `X_test`.
+            compared (pd.Series): A row of `X_test`.
+            colors (dict or list, optional): The colors for the features. If a list,
+                the first color corresponds to the feature with the lowest value
+                `influence(compared) - influence(reference)`. If a dictionary,
+                the keys are the names of the features and the values are valid
+                Plotly colors. Default is `None` and the colors are automatically
+                choosen.
+            yrange (list, optional): A two-item list `[low, high]`. Default is
+                `None` and the range is based on the data.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            pd.DataFrame: A dataframe with four columns (&#34;feature&#34;, &#34;label&#34;,
+                &#34;reference&#34; and &#34;compared&#34;). For each couple `(feature, label)`,
+                `reference` (resp. `compared`) is the average output of the model
+                if the average individual were `reference` (resp. `compared`).
+        &#34;&#34;&#34;
+        comparison = self.compare_performance(
+            X_test, y_test, y_pred, metric, reference, compared
+        )
+        metric_name = self.get_metric_name(metric)
+        if (
+            yrange is None
+            and comparison[[&#34;reference&#34;, &#34;compared&#34;]].stack().between(0, 1).all()
+        ):
+            yrange = [-1, 1]
+        return self._plot_comparison(
+            comparison,
+            title_prefix=metric_name,
+            reference_name=reference.name,
+            compared_name=compared.name,
+            colors=colors,
+            size=size,
+            yrange=yrange,
+        )</code></pre>
+      </details>
+
+
+
+
+          <h3>Subclasses</h3>
+          <ul class="hlist">
+              <li><a title="ethik.cache_explainer.CacheExplainer" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer">CacheExplainer</a></li>
+          </ul>
+          <h3>Class variables</h3>
+          <dl>
+              <dt id="ethik.base_explainer.BaseExplainer.CAT_COL_SEP"><code class="name">var <span class="ident">CAT_COL_SEP</span></code></dt>
+              <dd>
+  
+  <section class="desc"><p>str(object='') -&gt; str
+str(bytes_or_buffer[, encoding[, errors]]) -&gt; str</p>
+<p>Create a new string object from the given object. If encoding or
+errors is specified, then the object must expose a data buffer
+that will be decoded using the given encoding and error handler.
+Otherwise, returns the result of object.<strong>str</strong>() (if defined)
+or repr(object).
+encoding defaults to sys.getdefaultencoding().
+errors defaults to 'strict'.</p></section>
+  
+
+</dd>
+          </dl>
+          <h3>Methods</h3>
+          <dl>
+              
+    <dt id="ethik.base_explainer.BaseExplainer.compare_influence"><code class="name flex">
+        
+        <span>def <span class="ident">compare_influence</span></span>(<span>self, X_test, y_pred, reference, compared)</span>
+    </code></dt>
+    <dd>
+  
+  <section class="desc"><p>Compare the influence of features in <code>X_test</code> on <code>y_pred</code> for the
+individual <code>compared</code> compared to <code>reference</code>. Basically, we look at how
+the model would behave if the average individual were <code>compared</code> and
+<code>reference</code>.</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The dataset as a pandas dataframe
+with one column per feature or a pandas series for a single feature.</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The model predictions
+for the samples in <code>X_test</code>. For binary classification and regression,
+<code>pd.Series</code> is expected. For multi-label classification, a
+pandas dataframe with one column per label is
+expected. The values can either be probabilities or <code>0/1</code>
+(for a one-hot-encoded output).</dd>
+<dt><strong><code>reference</code></strong> :&ensp;<code>pd.Series</code></dt>
+<dd>A row of <code>X_test</code>.</dd>
+<dt><strong><code>compared</code></strong> :&ensp;<code>pd.Series</code></dt>
+<dd>A row of <code>X_test</code>.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.DataFrame</code>: <code>A</code> <code>dataframe</code> <code>with</code> <code>four</code> <code>columns</code> (<code>"feature"</code>, <code>"label"</code>,</dt>
+<dd>"reference" and "compared"). For each couple <code>(feature, label)</code>,
+<code>reference</code> (resp. <code>compared</code>) is the average output of the model
+if the average individual were <code>reference</code> (resp. <code>compared</code>).</dd>
+</dl></section>
+  
+    
+      <details class="source">
+        <summary>
+            <span>Expand source code</span>
+        </summary>
+        <pre><code class="python">def compare_influence(self, X_test, y_pred, reference, compared):
+    &#34;&#34;&#34;Compare the influence of features in `X_test` on `y_pred` for the
+    individual `compared` compared to `reference`. Basically, we look at how
+    the model would behave if the average individual were `compared` and
+    `reference`.
+
+    Parameters:
+        X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+            with one column per feature or a pandas series for a single feature.
+        y_pred (pd.DataFrame or pd.Series): The model predictions
+            for the samples in `X_test`. For binary classification and regression,
+            `pd.Series` is expected. For multi-label classification, a
+            pandas dataframe with one column per label is
+            expected. The values can either be probabilities or `0/1`
+            (for a one-hot-encoded output).
+        reference (pd.Series): A row of `X_test`.
+        compared (pd.Series): A row of `X_test`.
+
+    Returns:
+        pd.DataFrame: A dataframe with four columns (&#34;feature&#34;, &#34;label&#34;,
+            &#34;reference&#34; and &#34;compared&#34;). For each couple `(feature, label)`,
+            `reference` (resp. `compared`) is the average output of the model
+            if the average individual were `reference` (resp. `compared`).
+    &#34;&#34;&#34;
+    return self._compare_individuals(
+        X_test=X_test,
+        y_pred=y_pred,
+        reference=reference,
+        compared=compared,
+        dest_col=&#34;influence&#34;,
+        key_cols=[&#34;feature&#34;, &#34;label&#34;],
+        explain=self._explain_influence,
+    )</code></pre>
+      </details>
+
+</dd>
+  
+              
+    <dt id="ethik.base_explainer.BaseExplainer.compare_performance"><code class="name flex">
+        
+        <span>def <span class="ident">compare_performance</span></span>(<span>self, X_test, y_test, y_pred, metric, reference, compared)</span>
+    </code></dt>
+    <dd>
+  
+  <section class="desc"><p>Compare the influence of features in <code>X_test</code> on the performance for the
+individual <code>compared</code> compared to <code>reference</code>. Basically, we look at how
+the model would perform if the average individual were <code>compared</code> and
+<code>reference</code>.</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The dataset as a pandas dataframe
+with one column per feature or a pandas series for a single feature.</dd>
+<dt><strong><code>y_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The true values
+for the samples in <code>X_test</code>. For binary classification and regression,
+a <code>pd.Series</code> is expected. For multi-label classification,
+a pandas dataframe with one column per label is
+expected. The values can either be probabilities or <code>0/1</code>
+(for a one-hot-encoded output).</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The model predictions
+for the samples in <code>X_test</code>. The format is the same as <code>y_test</code>.</dd>
+<dt><strong><code>metric</code></strong> :&ensp;<code>callable</code></dt>
+<dd>A scikit-learn-like metric
+<code>f(y_true, y_pred, sample_weight=None)</code>. The metric must be able
+to handle the <code>y</code> data. For instance, for <code>sklearn.metrics.accuracy_score()</code>,
+"the set of labels predicted for a sample must exactly match the
+corresponding set of labels in <code>y_true</code>".</dd>
+<dt><strong><code>reference</code></strong> :&ensp;<code>pd.Series</code></dt>
+<dd>A row of <code>X_test</code>.</dd>
+<dt><strong><code>compared</code></strong> :&ensp;<code>pd.Series</code></dt>
+<dd>A row of <code>X_test</code>.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.DataFrame</code>: <code>A</code> <code>dataframe</code> <code>with</code> <code>three</code> <code>columns</code> (<code>"feature"</code>, <code>"reference"</code></dt>
+<dd>and "compared"). For each couple <code>(feature, label)</code>, <code>reference</code>
+(resp. <code>compared</code>) is the average output of the model if the
+average individual were <code>reference</code> (resp. <code>compared</code>).</dd>
+</dl></section>
+  
+    
+      <details class="source">
+        <summary>
+            <span>Expand source code</span>
+        </summary>
+        <pre><code class="python">def compare_performance(self, X_test, y_test, y_pred, metric, reference, compared):
+    &#34;&#34;&#34;Compare the influence of features in `X_test` on the performance for the
+    individual `compared` compared to `reference`. Basically, we look at how
+    the model would perform if the average individual were `compared` and
+    `reference`.
+
+    Parameters:
+        X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+            with one column per feature or a pandas series for a single feature.
+        y_test (pd.DataFrame or pd.Series): The true values
+            for the samples in `X_test`. For binary classification and regression,
+            a `pd.Series` is expected. For multi-label classification,
+            a pandas dataframe with one column per label is
+            expected. The values can either be probabilities or `0/1`
+            (for a one-hot-encoded output).
+        y_pred (pd.DataFrame or pd.Series): The model predictions
+            for the samples in `X_test`. The format is the same as `y_test`.
+        metric (callable): A scikit-learn-like metric
+            `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+            to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+            &#34;the set of labels predicted for a sample must exactly match the
+            corresponding set of labels in `y_true`&#34;.
+        reference (pd.Series): A row of `X_test`.
+        compared (pd.Series): A row of `X_test`.
+
+    Returns:
+        pd.DataFrame: A dataframe with three columns (&#34;feature&#34;, &#34;reference&#34;
+            and &#34;compared&#34;). For each couple `(feature, label)`, `reference`
+            (resp. `compared`) is the average output of the model if the
+            average individual were `reference` (resp. `compared`).
+    &#34;&#34;&#34;
+    metric_name = self.get_metric_name(metric)
+    return self._compare_individuals(
+        X_test=X_test,
+        y_pred=y_pred,
+        reference=reference,
+        compared=compared,
+        dest_col=metric_name,
+        key_cols=[&#34;feature&#34;],
+        explain=functools.partial(
+            self._explain_performance, y_test=np.asarray(y_test), metric=metric
+        ),
+    )</code></pre>
+      </details>
+
+</dd>
+  
+              
+    <dt id="ethik.base_explainer.BaseExplainer.compute_distributions"><code class="name flex">
+        
+        <span>def <span class="ident">compute_distributions</span></span>(<span>self, feature_values, targets, y_pred=None, bins=None, density=True, kde=False)</span>
+    </code></dt>
+    <dd>
+  
+  <section class="desc"><p>Compute the stressed distributions of <code>feature_values</code> or <code>y_pred</code> (if specified)
+for the <code>feature_values</code> targets <code>targets</code>. As explained in the paper,
+the stressed distributions are computed to minimize the Kullback-Leibler
+divergence with the original distribution.</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>feature_values</code></strong> :&ensp;<code>pd.Series</code></dt>
+<dd>A named pandas series containing the dataset values
+for a given feature.</dd>
+<dt><strong><code>targets</code></strong> :&ensp;<code>list</code></dt>
+<dd>A list of means to reach for the feature <code>feature_values</code>.
+All of them must be between <code>feature_values.min()</code> and <code>feature_values.max()</code>.</dd>
+<dt><strong><code>bins</code></strong> :&ensp;<code>int</code>, optional</dt>
+<dd>See <code>numpy.histogram()</code>. If <code>None</code> (the default),
+we use <code>bins = int(log(len(feature_values)))</code>.</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.Series</code>, optional</dt>
+<dd>The model output corresponding to the
+input <code>feature_values</code>. For a multi-class problem, <code>y_pred</code> is the output
+for a single label. If specified, the stressed output is returned
+instead of the stressed input.</dd>
+<dt><strong><code>density</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>See <code>numpy.histogram()</code>.</dd>
+<dt><strong><code>kde</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>Whether to compute a Kernel Density Estimation.
+Default is <code>False</code>.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><strong><code>dict</code></strong></dt>
+<dd>
+<p>The keys are the targets and the values are dictionaries with keys: </p>
+<ul>
+<li>"edges": The edges of the histogram returned by <code>numpy.histogram()</code>.</li>
+<li>"densities": The densities for every bins of the histogram. It
+    depends on the value of the parameter <code>density</code>. Let's notice that
+    <code>len(edges) == len(densities) + 1</code>. If <code>y_pred</code> is not specified,
+    the densities are those of is the model input <code>feature_values</code>,
+    otherwise it is the model output <code>y_pred</code>.</li>
+<li>"kde": <code>None</code> if the <code>kde</code> argument is <code>False</code>. Otherwise, it is
+    a <code>scipy.stats.gaussian_kde</code> object.</li>
+<li>"average": The average of the stressed distribution, the model input 
+    if <code>y_pred</code> is <code>None</code> else the model output.</li>
+</ul>
+</dd>
+</dl>
+<h2 id="examples">Examples</h2>
+<p>Let's look at what the distribution of <code>age</code> is when its mean is 20
+and 30:</p>
+<pre><code>&gt;&gt;&gt; age = X_test["age"]
+&gt;&gt;&gt; explainer.compute_distributions(
+...     age,
+...     targets=[20, 30],
+...     bins=int(np.log(len(age))),
+... )
+{
+
+
+20: {
+    "edges": array([17., 25.11111111, 33.22222222, 41.33333333,
+                    49.44444444, 57.55555556, 65.66666667,
+                    73.77777778, 81.88888889, 90.]),
+    "hist": array([1.15874542e-01, 6.90997708e-03, 4.77327782e-04,
+                   2.45467942e-05, 1.23266581e-06, 4.42351601e-08,
+                   1.10226985e-09, 1.99212274e-11, 3.64842014e-13])
+    "kde": None,
+    "average": 20
+},
+30: {
+    "edges": array([17., 25.11111111, 33.22222222, 41.33333333,
+                    49.44444444, 57.55555556, 65.66666667,
+                    73.77777778, 81.88888889, 90.]),
+    "hist": array([5.17551808e-02, 3.27268628e-02, 2.11936781e-02,
+                   1.06566363e-02, 4.82414028e-03, 1.64851220e-03,
+                   3.90958740e-04, 7.58834142e-05, 1.58185957e-05])
+    "kde": None,
+    "average": 30
+}
+</code></pre>
+<p>}</p>
+<p>Now, let's look at what the distribution of the <em>output</em> is when the
+mean age is 20 and 30:</p>
+<pre><code>&gt;&gt;&gt; explainer.compute_distributions(
+...     age,
+...     targets=[20, 30],
+...     bins=int(np.log(len(age))),
+...     y_pred=y_pred,
+... )
+{
+
+
+20: {
+    "edges": array([1.65011502e-04, 1.11128109e-01, 2.22091206e-01,
+                    3.33054303e-01, 4.44017400e-01, 5.54980497e-01,
+                    6.65943594e-01, 7.76906691e-01, 8.87869788e-01,
+                    9.98832885e-01]),
+    "hist": array([8.75261891e+00, 9.33837831e-02, 5.83045141e-02,
+                   2.94169972e-02, 1.82092901e-02, 1.56109502e-02,
+                   1.36512095e-02, 6.30191287e-03, 2.45075574e-02])
+    "kde": None,
+    "average": 0.015101814206467836
+},
+30: {
+    "edges": array([1.65011502e-04, 1.11128109e-01, 2.22091206e-01,
+                    3.33054303e-01, 4.44017400e-01, 5.54980497e-01,
+                    6.65943594e-01, 7.76906691e-01, 8.87869788e-01,
+                    9.98832885e-01]),
+    "hist": array([6.26697963, 0.6850221, 0.49064978, 0.29575247,
+                   0.25219135, 0.25242987, 0.24428482, 0.14986088,
+                   0.37483422])
+    "kde": None,
+    "average": 0.15624939656045428
+}
+</code></pre>
+<p>}</p></section>
+  
+    
+      <details class="source">
+        <summary>
+            <span>Expand source code</span>
+        </summary>
+        <pre><code class="python">def compute_distributions(
+    self, feature_values, targets, y_pred=None, bins=None, density=True, kde=False
+):
+    &#34;&#34;&#34;Compute the stressed distributions of `feature_values` or `y_pred` (if specified)
+    for the `feature_values` targets `targets`. As explained in the paper,
+    the stressed distributions are computed to minimize the Kullback-Leibler
+    divergence with the original distribution.
+
+    Parameters:
+        feature_values (pd.Series): A named pandas series containing the dataset values
+            for a given feature.
+        targets (list): A list of means to reach for the feature `feature_values`.
+            All of them must be between `feature_values.min()` and `feature_values.max()`.
+        bins (int, optional): See `numpy.histogram()`. If `None` (the default),
+            we use `bins = int(log(len(feature_values)))`.
+        y_pred (pd.Series, optional): The model output corresponding to the
+            input `feature_values`. For a multi-class problem, `y_pred` is the output
+            for a single label. If specified, the stressed output is returned
+            instead of the stressed input.
+        density (bool, optional): See `numpy.histogram()`.
+        kde (bool, optional): Whether to compute a Kernel Density Estimation.
+            Default is `False`.
+
+    Returns:
+        dict: The keys are the targets and the values are dictionaries with keys: 
+
+            * &#34;edges&#34;: The edges of the histogram returned by `numpy.histogram()`.
+            * &#34;densities&#34;: The densities for every bins of the histogram. It
+                depends on the value of the parameter `density`. Let&#39;s notice that
+                `len(edges) == len(densities) + 1`. If `y_pred` is not specified,
+                the densities are those of is the model input `feature_values`,
+                otherwise it is the model output `y_pred`.
+            * &#34;kde&#34;: `None` if the `kde` argument is `False`. Otherwise, it is
+                a `scipy.stats.gaussian_kde` object.
+            * &#34;average&#34;: The average of the stressed distribution, the model input 
+                if `y_pred` is `None` else the model output.
+
+    Examples:
+        Let&#39;s look at what the distribution of `age` is when its mean is 20
+        and 30:
+
+        &gt;&gt;&gt; age = X_test[&#34;age&#34;]
+        &gt;&gt;&gt; explainer.compute_distributions(
+        ...     age,
+        ...     targets=[20, 30],
+        ...     bins=int(np.log(len(age))),
+        ... )
+        {
+            20: {
+                &#34;edges&#34;: array([17., 25.11111111, 33.22222222, 41.33333333,
+                                49.44444444, 57.55555556, 65.66666667,
+                                73.77777778, 81.88888889, 90.]),
+                &#34;hist&#34;: array([1.15874542e-01, 6.90997708e-03, 4.77327782e-04,
+                               2.45467942e-05, 1.23266581e-06, 4.42351601e-08,
+                               1.10226985e-09, 1.99212274e-11, 3.64842014e-13])
+                &#34;kde&#34;: None,
+                &#34;average&#34;: 20
+            },
+            30: {
+                &#34;edges&#34;: array([17., 25.11111111, 33.22222222, 41.33333333,
+                                49.44444444, 57.55555556, 65.66666667,
+                                73.77777778, 81.88888889, 90.]),
+                &#34;hist&#34;: array([5.17551808e-02, 3.27268628e-02, 2.11936781e-02,
+                               1.06566363e-02, 4.82414028e-03, 1.64851220e-03,
+                               3.90958740e-04, 7.58834142e-05, 1.58185957e-05])
+                &#34;kde&#34;: None,
+                &#34;average&#34;: 30
+            }
+        }
+
+        Now, let&#39;s look at what the distribution of the *output* is when the
+        mean age is 20 and 30:
+
+        &gt;&gt;&gt; explainer.compute_distributions(
+        ...     age,
+        ...     targets=[20, 30],
+        ...     bins=int(np.log(len(age))),
+        ...     y_pred=y_pred,
+        ... )
+        {
+            20: {
+                &#34;edges&#34;: array([1.65011502e-04, 1.11128109e-01, 2.22091206e-01,
+                                3.33054303e-01, 4.44017400e-01, 5.54980497e-01,
+                                6.65943594e-01, 7.76906691e-01, 8.87869788e-01,
+                                9.98832885e-01]),
+                &#34;hist&#34;: array([8.75261891e+00, 9.33837831e-02, 5.83045141e-02,
+                               2.94169972e-02, 1.82092901e-02, 1.56109502e-02,
+                               1.36512095e-02, 6.30191287e-03, 2.45075574e-02])
+                &#34;kde&#34;: None,
+                &#34;average&#34;: 0.015101814206467836
+            },
+            30: {
+                &#34;edges&#34;: array([1.65011502e-04, 1.11128109e-01, 2.22091206e-01,
+                                3.33054303e-01, 4.44017400e-01, 5.54980497e-01,
+                                6.65943594e-01, 7.76906691e-01, 8.87869788e-01,
+                                9.98832885e-01]),
+                &#34;hist&#34;: array([6.26697963, 0.6850221, 0.49064978, 0.29575247,
+                               0.25219135, 0.25242987, 0.24428482, 0.14986088,
+                               0.37483422])
+                &#34;kde&#34;: None,
+                &#34;average&#34;: 0.15624939656045428
+            }
+        }
+    &#34;&#34;&#34;
+    if bins is None:
+        bins = int(np.log(len(feature_values)))
+
+    weights = self.compute_weights(feature_values, targets)
+    distributions = {}
+    data = y_pred if y_pred is not None else feature_values
+
+    for target, w in weights.items():
+        densities, edges = np.histogram(data, bins=bins, weights=w, density=density)
+        distributions[target] = dict(
+            edges=edges,
+            hist=densities,
+            kde=None,
+            average=np.average(y_pred, weights=w) if y_pred is not None else target,
+        )
+        if kde:
+            distributions[target][&#34;kde&#34;] = stats.gaussian_kde(data, weights=w)
+    return distributions</code></pre>
+      </details>
+
+</dd>
+  
+              
+    <dt id="ethik.base_explainer.BaseExplainer.compute_weights"><code class="name flex">
+        
+        <span>def <span class="ident">compute_weights</span></span>(<span>self, feature_values, targets)</span>
+    </code></dt>
+    <dd>
+  
+  <section class="desc"><p>Compute the weights to reach the given targets.</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>feature_values</code></strong> :&ensp;<code>pd.Series</code></dt>
+<dd>A named pandas series containing the dataset values
+for a given feature.</dd>
+<dt><strong><code>targets</code></strong> :&ensp;<code>list</code></dt>
+<dd>A list of means to reach for the feature <code>feature_values</code>.
+All of them must be between <code>feature_values.min()</code> and <code>feature_values.max()</code>.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><strong><code>dict</code></strong></dt>
+<dd>The keys are the targets and the values are lists of
+<code>len(feature_values)</code> weights (one per data sample).</dd>
+</dl></section>
+  
+    
+      <details class="source">
+        <summary>
+            <span>Expand source code</span>
+        </summary>
+        <pre><code class="python">def compute_weights(self, feature_values, targets):
+    &#34;&#34;&#34;Compute the weights to reach the given targets.
+
+    Parameters:
+        feature_values (pd.Series): A named pandas series containing the dataset values
+            for a given feature.
+        targets (list): A list of means to reach for the feature `feature_values`.
+            All of them must be between `feature_values.min()` and `feature_values.max()`.
+
+    Returns:
+        dict: The keys are the targets and the values are lists of
+            `len(feature_values)` weights (one per data sample).
+    &#34;&#34;&#34;
+    query = pd.DataFrame(
+        dict(
+            feature=[feature_values.name] * len(targets),
+            target=targets,
+            label=[&#34;&#34;] * len(targets),
+        )
+    )
+    ksis = self._fill_ksis(feature_values, query)[&#34;ksi&#34;]
+    scaled_values = safe_scale(feature_values)
+    return {
+        target: special.softmax(ksi * scaled_values)
+        for ksi, target in zip(ksis, targets)
+    }</code></pre>
+      </details>
+
+</dd>
+  
+              
+    <dt id="ethik.base_explainer.BaseExplainer.get_metric_name"><code class="name flex">
+        
+        <span>def <span class="ident">get_metric_name</span></span>(<span>self, metric)</span>
+    </code></dt>
+    <dd>
+  
+  <section class="desc"><p>Get the name of the column in explainer's info dataframe to store the
+performance with respect of the given metric.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>metric</code></strong> :&ensp;<code>callable</code></dt>
+<dd>The metric to compute the model's performance.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><strong><code>str</code></strong></dt>
+<dd>The name of the column.</dd>
+</dl></section>
+  
+    
+      <details class="source">
+        <summary>
+            <span>Expand source code</span>
+        </summary>
+        <pre><code class="python">def get_metric_name(self, metric):
+    &#34;&#34;&#34;Get the name of the column in explainer&#39;s info dataframe to store the
+    performance with respect of the given metric.
+
+    Args:
+        metric (callable): The metric to compute the model&#39;s performance.
+
+    Returns:
+        str: The name of the column.
+    &#34;&#34;&#34;
+    name = metric.__name__
+    if name in [&#34;feature&#34;, &#34;target&#34;, &#34;label&#34;, &#34;influence&#34;, &#34;ksi&#34;]:
+        raise ValueError(
+            f&#34;Cannot use {name} as a metric name, already a column name&#34;
+        )
+    return name</code></pre>
+      </details>
+
+</dd>
+  
+              
+    <dt id="ethik.base_explainer.BaseExplainer.plot_distributions"><code class="name flex">
+        
+        <span>def <span class="ident">plot_distributions</span></span>(<span>self, feature_values, targets=None, y_pred=None, bins=None, show_hist=False, show_curve=True, colors=None, dataset_color='black', size=None)</span>
+    </code></dt>
+    <dd>
+  
+  <section class="desc"><p>Plot the stressed distribution of <code>feature_values</code> or <code>y_pred</code> if specified
+for each mean of <code>feature_values</code> in <code>targets</code>.</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>feature_values</code></strong> :&ensp;<code>pd.Series</code></dt>
+<dd>See <a title="ethik.base_explainer.BaseExplainer.compute_distributions" href="#ethik.base_explainer.BaseExplainer.compute_distributions"><code>BaseExplainer.compute_distributions()</code></a>.</dd>
+<dt><strong><code>targets</code></strong> :&ensp;<code>list</code>, optional</dt>
+<dd>See <a title="ethik.base_explainer.BaseExplainer.compute_distributions" href="#ethik.base_explainer.BaseExplainer.compute_distributions"><code>BaseExplainer.compute_distributions()</code></a>.
+If <code>None</code> (the default), only the original distribution is plotted.</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.Series</code>, optional</dt>
+<dd>See <a title="ethik.base_explainer.BaseExplainer.compute_distributions" href="#ethik.base_explainer.BaseExplainer.compute_distributions"><code>BaseExplainer.compute_distributions()</code></a>.</dd>
+<dt><strong><code>bins</code></strong> :&ensp;<code>int</code>, optional</dt>
+<dd>See <a title="ethik.base_explainer.BaseExplainer.compute_distributions" href="#ethik.base_explainer.BaseExplainer.compute_distributions"><code>BaseExplainer.compute_distributions()</code></a>.</dd>
+<dt><strong><code>show_hist</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>Whether to plot histogram data. Default is
+<code>False</code>.</dd>
+<dt><strong><code>show_curve</code></strong> :&ensp;<code>bool</code>, optional</dt>
+<dd>Whether to plot KDE based on histogram data.
+Default is <code>True</code>.</dd>
+<dt><strong><code>colors</code></strong> :&ensp;<code>list</code>, optional</dt>
+<dd>An optional list of colors for all targets.</dd>
+<dt><strong><code>dataset_color</code></strong> :&ensp;<code>str</code>, optional</dt>
+<dd>An optional color for the original
+distribution. Default is <code>"black"</code>. If <code>None</code>, the original
+distribution is not plotted.</dd>
+<dt><strong><code>size</code></strong> :&ensp;<code>tuple</code>, optional</dt>
+<dd>An optional couple <code>(width, height)</code> in pixels.</dd>
+</dl></section>
+  
+    
+      <details class="source">
+        <summary>
+            <span>Expand source code</span>
+        </summary>
+        <pre><code class="python">def plot_distributions(
+    self,
+    feature_values,
+    targets=None,
+    y_pred=None,
+    bins=None,
+    show_hist=False,
+    show_curve=True,
+    colors=None,
+    dataset_color=&#34;black&#34;,
+    size=None,
+):
+    &#34;&#34;&#34;Plot the stressed distribution of `feature_values` or `y_pred` if specified
+    for each mean of `feature_values` in `targets`.
+    
+    Parameters:
+        feature_values (pd.Series): See `BaseExplainer.compute_distributions()`.
+        targets (list, optional): See `BaseExplainer.compute_distributions()`.
+            If `None` (the default), only the original distribution is plotted.
+        y_pred (pd.Series, optional): See `BaseExplainer.compute_distributions()`.
+        bins (int, optional): See `BaseExplainer.compute_distributions()`.
+        show_hist (bool, optional): Whether to plot histogram data. Default is
+            `False`.
+        show_curve (bool, optional): Whether to plot KDE based on histogram data.
+            Default is `True`.
+        colors (list, optional): An optional list of colors for all targets.
+        dataset_color (str, optional): An optional color for the original
+            distribution. Default is `&#34;black&#34;`. If `None`, the original
+            distribution is not plotted.
+        size (tuple, optional): An optional couple `(width, height)` in pixels.
+    &#34;&#34;&#34;
+    if targets is None:
+        targets = []
+
+    if colors is None:
+        colors = cl.interp(
+            cl.scales[&#34;11&#34;][&#34;qual&#34;][&#34;Paired&#34;],
+            len(targets) + 1,  #  +1 otherwise it raises an error if ksis is empty
+        )
+
+    if dataset_color is not None:
+        targets = [feature_values.mean(), *targets]  # Add the original mean
+        colors = [dataset_color, *colors]
+
+    fig = go.Figure()
+    distributions = self.compute_distributions(
+        feature_values=feature_values,
+        targets=targets,
+        bins=bins,
+        y_pred=y_pred,
+        kde=show_curve,
+    )
+
+    for i, (target, color) in enumerate(zip(targets, colors)):
+        trace_name = f&#34;E[{feature_values.name}] = {target:.2f}&#34;
+        d = distributions[target]
+        if y_pred is not None:
+            trace_name += f&#34;, E[{y_pred.name}] = {d[&#39;average&#39;]:.2f}&#34;
+        if i == 0:
+            trace_name += &#34; (dataset)&#34;
+
+        if show_hist:
+            fig.add_bar(
+                x=d[&#34;edges&#34;][:-1],
+                y=d[&#34;hist&#34;],
+                name=trace_name,
+                legendgroup=trace_name,
+                showlegend=not show_curve,
+                opacity=0.5,
+                marker=dict(color=color),
+                hoverinfo=&#34;x+y&#34;,
+            )
+
+        if show_curve:
+            x = np.linspace(d[&#34;edges&#34;][0], d[&#34;edges&#34;][-1], num=500)
+            y = d[&#34;kde&#34;](x)
+            fig.add_scatter(
+                x=x,
+                y=y,
+                name=trace_name,
+                legendgroup=trace_name,
+                marker=dict(color=color),
+                mode=&#34;lines&#34;,
+                hoverinfo=&#34;x+y&#34;,
+            )
+            fig.add_scatter(
+                x=[d[&#34;average&#34;]],
+                y=d[&#34;kde&#34;]([d[&#34;average&#34;]]),
+                text=[&#34;Dataset mean&#34;],
+                showlegend=False,
+                legendgroup=trace_name,
+                mode=&#34;markers&#34;,
+                hoverinfo=&#34;text&#34;,
+                marker=dict(symbol=&#34;x&#34;, size=9, color=color),
+            )
+
+    width = height = None
+    if size is not None:
+        width, height = size
+
+    fig.update_layout(
+        bargap=0,
+        barmode=&#34;overlay&#34;,
+        margin=dict(t=30, b=40),
+        showlegend=True,
+        xaxis=dict(
+            title=y_pred.name if y_pred is not None else feature_values.name
+        ),
+        yaxis=dict(title=&#34;Probability density&#34;),
+        width=width,
+        height=height,
+    )
+    return fig</code></pre>
+      </details>
+
+</dd>
+  
+              
+    <dt id="ethik.base_explainer.BaseExplainer.plot_influence_comparison"><code class="name flex">
+        
+        <span>def <span class="ident">plot_influence_comparison</span></span>(<span>self, X_test, y_pred, reference, compared, colors=None, yrange=None, size=None)</span>
+    </code></dt>
+    <dd>
+  
+  <section class="desc"><p>Plot the influence of features in <code>X_test</code> on <code>y_pred</code> for the
+individual <code>compared</code> compared to <code>reference</code>. Basically, we look at how
+the model would behave if the average individual were <code>compared</code> and take
+the difference with what the output would be if the average were <code>reference</code>.</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The dataset as a pandas dataframe
+with one column per feature or a pandas series for a single feature.</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The model predictions
+for the samples in <code>X_test</code>. For binary classification and regression,
+<code>pd.Series</code> is expected. For multi-label classification, a
+pandas dataframe with one column per label is
+expected. The values can either be probabilities or <code>0/1</code>
+(for a one-hot-encoded output).</dd>
+<dt><strong><code>reference</code></strong> :&ensp;<code>pd.Series</code></dt>
+<dd>A row of <code>X_test</code>.</dd>
+<dt><strong><code>compared</code></strong> :&ensp;<code>pd.Series</code></dt>
+<dd>A row of <code>X_test</code>.</dd>
+<dt><strong><code>colors</code></strong> :&ensp;<code>dict</code> or <code>list</code>, optional</dt>
+<dd>The colors for the features. If a list,
+the first color corresponds to the feature with the lowest value
+<code>influence(compared) - influence(reference)</code>. If a dictionary,
+the keys are the names of the features and the values are valid
+Plotly colors. Default is <code>None</code> and the colors are automatically
+choosen.</dd>
+<dt><strong><code>yrange</code></strong> :&ensp;<code>list</code>, optional</dt>
+<dd>A two-item list <code>[low, high]</code>. Default is
+<code>None</code> and the range is based on the data.</dd>
+<dt><strong><code>size</code></strong> :&ensp;<code>tuple</code>, optional</dt>
+<dd>An optional couple <code>(width, height)</code> in pixels.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.DataFrame</code>: <code>A</code> <code>dataframe</code> <code>with</code> <code>four</code> <code>columns</code> (<code>"feature"</code>, <code>"label"</code>,</dt>
+<dd>"reference" and "compared"). For each couple <code>(feature, label)</code>,
+<code>reference</code> (resp. <code>compared</code>) is the average output of the model
+if the average individual were <code>reference</code> (resp. <code>compared</code>).</dd>
+</dl></section>
+  
+    
+      <details class="source">
+        <summary>
+            <span>Expand source code</span>
+        </summary>
+        <pre><code class="python">def plot_influence_comparison(
+    self, X_test, y_pred, reference, compared, colors=None, yrange=None, size=None
+):
+    &#34;&#34;&#34;Plot the influence of features in `X_test` on `y_pred` for the
+    individual `compared` compared to `reference`. Basically, we look at how
+    the model would behave if the average individual were `compared` and take
+    the difference with what the output would be if the average were `reference`.
+
+    Parameters:
+        X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+            with one column per feature or a pandas series for a single feature.
+        y_pred (pd.DataFrame or pd.Series): The model predictions
+            for the samples in `X_test`. For binary classification and regression,
+            `pd.Series` is expected. For multi-label classification, a
+            pandas dataframe with one column per label is
+            expected. The values can either be probabilities or `0/1`
+            (for a one-hot-encoded output).
+        reference (pd.Series): A row of `X_test`.
+        compared (pd.Series): A row of `X_test`.
+        colors (dict or list, optional): The colors for the features. If a list,
+            the first color corresponds to the feature with the lowest value
+            `influence(compared) - influence(reference)`. If a dictionary,
+            the keys are the names of the features and the values are valid
+            Plotly colors. Default is `None` and the colors are automatically
+            choosen.
+        yrange (list, optional): A two-item list `[low, high]`. Default is
+            `None` and the range is based on the data.
+        size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+    Returns:
+        pd.DataFrame: A dataframe with four columns (&#34;feature&#34;, &#34;label&#34;,
+            &#34;reference&#34; and &#34;compared&#34;). For each couple `(feature, label)`,
+            `reference` (resp. `compared`) is the average output of the model
+            if the average individual were `reference` (resp. `compared`).
+    &#34;&#34;&#34;
+    y_pred = pd.DataFrame(to_pandas(y_pred))
+    if len(y_pred.columns) &gt; 1:
+        raise ValueError(&#34;Cannot plot multiple labels&#34;)
+    comparison = self.compare_influence(
+        X_test, y_pred.iloc[:, 0], reference, compared
+    )
+    return self._plot_comparison(
+        comparison,
+        title_prefix=&#34;Influence&#34;,
+        reference_name=reference.name,
+        compared_name=compared.name,
+        colors=colors,
+        size=size,
+        yrange=yrange,
+    )</code></pre>
+      </details>
+
+</dd>
+  
+              
+    <dt id="ethik.base_explainer.BaseExplainer.plot_performance_comparison"><code class="name flex">
+        
+        <span>def <span class="ident">plot_performance_comparison</span></span>(<span>self, X_test, y_test, y_pred, metric, reference, compared, colors=None, yrange=None, size=None)</span>
+    </code></dt>
+    <dd>
+  
+  <section class="desc"><p>Plot the influence of features in <code>X_test</code> on performance for the
+individual <code>compared</code> compared to <code>reference</code>. Basically, we look at how
+the model would behave if the average individual were <code>compared</code> and take
+the difference with what the output would be if the average were <code>reference</code>.</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>X_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The dataset as a pandas dataframe
+with one column per feature or a pandas series for a single feature.</dd>
+<dt><strong><code>y_test</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The true values
+for the samples in <code>X_test</code>. For binary classification and regression,
+a <code>pd.Series</code> is expected. For multi-label classification,
+a pandas dataframe with one column per label is
+expected. The values can either be probabilities or <code>0/1</code>
+(for a one-hot-encoded output).</dd>
+<dt><strong><code>y_pred</code></strong> :&ensp;<code>pd.DataFrame</code> or <code>pd.Series</code></dt>
+<dd>The model predictions
+for the samples in <code>X_test</code>. The format is the same as <code>y_test</code>.</dd>
+<dt><strong><code>metric</code></strong> :&ensp;<code>callable</code></dt>
+<dd>A scikit-learn-like metric
+<code>f(y_true, y_pred, sample_weight=None)</code>. The metric must be able
+to handle the <code>y</code> data. For instance, for <code>sklearn.metrics.accuracy_score()</code>,
+"the set of labels predicted for a sample must exactly match the
+corresponding set of labels in <code>y_true</code>".</dd>
+<dt><strong><code>reference</code></strong> :&ensp;<code>pd.Series</code></dt>
+<dd>A row of <code>X_test</code>.</dd>
+<dt><strong><code>compared</code></strong> :&ensp;<code>pd.Series</code></dt>
+<dd>A row of <code>X_test</code>.</dd>
+<dt><strong><code>colors</code></strong> :&ensp;<code>dict</code> or <code>list</code>, optional</dt>
+<dd>The colors for the features. If a list,
+the first color corresponds to the feature with the lowest value
+<code>influence(compared) - influence(reference)</code>. If a dictionary,
+the keys are the names of the features and the values are valid
+Plotly colors. Default is <code>None</code> and the colors are automatically
+choosen.</dd>
+<dt><strong><code>yrange</code></strong> :&ensp;<code>list</code>, optional</dt>
+<dd>A two-item list <code>[low, high]</code>. Default is
+<code>None</code> and the range is based on the data.</dd>
+<dt><strong><code>size</code></strong> :&ensp;<code>tuple</code>, optional</dt>
+<dd>An optional couple <code>(width, height)</code> in pixels.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>pd.DataFrame</code>: <code>A</code> <code>dataframe</code> <code>with</code> <code>four</code> <code>columns</code> (<code>"feature"</code>, <code>"label"</code>,</dt>
+<dd>"reference" and "compared"). For each couple <code>(feature, label)</code>,
+<code>reference</code> (resp. <code>compared</code>) is the average output of the model
+if the average individual were <code>reference</code> (resp. <code>compared</code>).</dd>
+</dl></section>
+  
+    
+      <details class="source">
+        <summary>
+            <span>Expand source code</span>
+        </summary>
+        <pre><code class="python">def plot_performance_comparison(
+    self,
+    X_test,
+    y_test,
+    y_pred,
+    metric,
+    reference,
+    compared,
+    colors=None,
+    yrange=None,
+    size=None,
+):
+    &#34;&#34;&#34;Plot the influence of features in `X_test` on performance for the
+    individual `compared` compared to `reference`. Basically, we look at how
+    the model would behave if the average individual were `compared` and take
+    the difference with what the output would be if the average were `reference`.
+
+    Parameters:
+        X_test (pd.DataFrame or pd.Series): The dataset as a pandas dataframe
+            with one column per feature or a pandas series for a single feature.
+        y_test (pd.DataFrame or pd.Series): The true values
+            for the samples in `X_test`. For binary classification and regression,
+            a `pd.Series` is expected. For multi-label classification,
+            a pandas dataframe with one column per label is
+            expected. The values can either be probabilities or `0/1`
+            (for a one-hot-encoded output).
+        y_pred (pd.DataFrame or pd.Series): The model predictions
+            for the samples in `X_test`. The format is the same as `y_test`.
+        metric (callable): A scikit-learn-like metric
+            `f(y_true, y_pred, sample_weight=None)`. The metric must be able
+            to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
+            &#34;the set of labels predicted for a sample must exactly match the
+            corresponding set of labels in `y_true`&#34;.
+        reference (pd.Series): A row of `X_test`.
+        compared (pd.Series): A row of `X_test`.
+        colors (dict or list, optional): The colors for the features. If a list,
+            the first color corresponds to the feature with the lowest value
+            `influence(compared) - influence(reference)`. If a dictionary,
+            the keys are the names of the features and the values are valid
+            Plotly colors. Default is `None` and the colors are automatically
+            choosen.
+        yrange (list, optional): A two-item list `[low, high]`. Default is
+            `None` and the range is based on the data.
+        size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+    Returns:
+        pd.DataFrame: A dataframe with four columns (&#34;feature&#34;, &#34;label&#34;,
+            &#34;reference&#34; and &#34;compared&#34;). For each couple `(feature, label)`,
+            `reference` (resp. `compared`) is the average output of the model
+            if the average individual were `reference` (resp. `compared`).
+    &#34;&#34;&#34;
+    comparison = self.compare_performance(
+        X_test, y_test, y_pred, metric, reference, compared
+    )
+    metric_name = self.get_metric_name(metric)
+    if (
+        yrange is None
+        and comparison[[&#34;reference&#34;, &#34;compared&#34;]].stack().between(0, 1).all()
+    ):
+        yrange = [-1, 1]
+    return self._plot_comparison(
+        comparison,
+        title_prefix=metric_name,
+        reference_name=reference.name,
+        compared_name=compared.name,
+        colors=colors,
+        size=size,
+        yrange=yrange,
+    )</code></pre>
+      </details>
+
+</dd>
+  
+          </dl>
+
+          
+
+      </dd>
+    </dl>
+  </section>
+
+  </article>
+  
+  
+  <nav id="sidebar">
+
+    
+
+    <h1>Index</h1>
+    <div class="toc">
+<ul></ul>
+</div>
+    <ul id="index">
+    <li><h3>Super-module</h3>
+      <ul>
+        <li><code><a title="ethik" href="index.html">ethik</a></code></li>
+      </ul>
+    </li>
+
+
+
+
+    <li><h3><a href="#header-classes">Classes</a></h3>
+      <ul>
+        <li>
+        <h4><code><a title="ethik.base_explainer.BaseExplainer" href="#ethik.base_explainer.BaseExplainer">BaseExplainer</a></code></h4>
+        
+          
+  
+  <ul class="">
+    <li><code><a title="ethik.base_explainer.BaseExplainer.CAT_COL_SEP" href="#ethik.base_explainer.BaseExplainer.CAT_COL_SEP">CAT_COL_SEP</a></code></li>
+    <li><code><a title="ethik.base_explainer.BaseExplainer.compare_influence" href="#ethik.base_explainer.BaseExplainer.compare_influence">compare_influence</a></code></li>
+    <li><code><a title="ethik.base_explainer.BaseExplainer.compare_performance" href="#ethik.base_explainer.BaseExplainer.compare_performance">compare_performance</a></code></li>
+    <li><code><a title="ethik.base_explainer.BaseExplainer.compute_distributions" href="#ethik.base_explainer.BaseExplainer.compute_distributions">compute_distributions</a></code></li>
+    <li><code><a title="ethik.base_explainer.BaseExplainer.compute_weights" href="#ethik.base_explainer.BaseExplainer.compute_weights">compute_weights</a></code></li>
+    <li><code><a title="ethik.base_explainer.BaseExplainer.get_metric_name" href="#ethik.base_explainer.BaseExplainer.get_metric_name">get_metric_name</a></code></li>
+    <li><code><a title="ethik.base_explainer.BaseExplainer.plot_distributions" href="#ethik.base_explainer.BaseExplainer.plot_distributions">plot_distributions</a></code></li>
+    <li><code><a title="ethik.base_explainer.BaseExplainer.plot_influence_comparison" href="#ethik.base_explainer.BaseExplainer.plot_influence_comparison">plot_influence_comparison</a></code></li>
+    <li><code><a title="ethik.base_explainer.BaseExplainer.plot_performance_comparison" href="#ethik.base_explainer.BaseExplainer.plot_performance_comparison">plot_performance_comparison</a></code></li>
+  </ul>
+
+        </li>
+      </ul>
+    </li>
+
+    </ul>
+  </nav>
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
+    <script>hljs.initHighlightingOnLoad()</script>
