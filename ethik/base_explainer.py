@@ -11,6 +11,7 @@ import plotly.graph_objs as go
 import plotly.io as pio
 from scipy import optimize
 from scipy import special
+from scipy import stats
 from tqdm import tqdm
 
 from .utils import join_with_overlap, plot_template, safe_scale, to_pandas, yield_masks
@@ -640,7 +641,7 @@ class BaseExplainer:
         }
 
     def compute_distributions(
-        self, feature_values, targets, y_pred=None, bins=None, density=True
+        self, feature_values, targets, y_pred=None, bins=None, density=True, kde=False
     ):
         """Compute the stressed distributions of `feature_values` or `y_pred` (if specified)
         for the `feature_values` targets `targets`. As explained in the paper,
@@ -659,15 +660,22 @@ class BaseExplainer:
                 for a single label. If specified, the stressed output is returned
                 instead of the stressed input.
             density (bool, optional): See `numpy.histogram()`.
+            kde (bool, optional): Whether to compute a Kernel Density Estimation.
+                Default is `False`.
 
         Returns:
-            dict: The keys are the targets and the values are tuples
-                `(edges, densities, average)`. The edges are those of the histogram
-                returned by `numpy.histogram()`, as are the densities of the
-                stressed distribution. Let's notice that
-                `len(edges) == len(densities) + 1`. `average` is its average.
-                If `y_pred` is not specified, the stressed distribution is the
-                model input `feature_values`, otherwise it is the model output `y_pred`.
+            dict: The keys are the targets and the values are dictionaries with keys: 
+
+                * "edges": The edges of the histogram returned by `numpy.histogram()`.
+                * "densities": The densities for every bins of the histogram. It
+                    depends on the value of the parameter `density`. Let's notice that
+                    `len(edges) == len(densities) + 1`. If `y_pred` is not specified,
+                    the densities are those of is the model input `feature_values`,
+                    otherwise it is the model output `y_pred`.
+                * "kde": `None` if the `kde` argument is `False`. Otherwise, it is
+                    a `scipy.stats.gaussian_kde` object.
+                * "average": The average of the stressed distribution, the model input 
+                    if `y_pred` is `None` else the model output.
 
         Examples:
             Let's look at what the distribution of `age` is when its mean is 20
@@ -680,25 +688,27 @@ class BaseExplainer:
             ...     bins=int(np.log(len(age))),
             ... )
             {
-                    20: (
-                        array([17., 25.11111111, 33.22222222, 41.33333333,
-                               49.44444444, 57.55555556, 65.66666667, 73.77777778,
-                               81.88888889, 90.]),
-                        array([1.16244590e-01, 6.58705227e-03, 4.33729224e-04,
-                               2.12458531e-05, 1.01796253e-06, 3.48115986e-08,
-                               8.26655152e-10, 1.42059530e-11, 2.47889541e-13]),
-                        20
-                    ),
-                    30: (
-                        array([17., 25.11111111, 33.22222222, 41.33333333,
-                               49.44444444, 57.55555556, 65.66666667, 73.77777778,
-                               81.88888889, 90.]),
-                        array([5.18628655e-02, 3.27327495e-02, 2.11589662e-02,
-                               1.06194485e-02, 4.79868544e-03, 1.63681028e-03,
-                               3.87471788e-04, 7.50608721e-05, 1.56131574e-05]),
-                        30
-                    )
+                20: {
+                    "edges": array([17., 25.11111111, 33.22222222, 41.33333333,
+                                    49.44444444, 57.55555556, 65.66666667,
+                                    73.77777778, 81.88888889, 90.]),
+                    "hist": array([1.15874542e-01, 6.90997708e-03, 4.77327782e-04,
+                                   2.45467942e-05, 1.23266581e-06, 4.42351601e-08,
+                                   1.10226985e-09, 1.99212274e-11, 3.64842014e-13])
+                    "kde": None,
+                    "average": 20
+                },
+                30: {
+                    "edges": array([17., 25.11111111, 33.22222222, 41.33333333,
+                                    49.44444444, 57.55555556, 65.66666667,
+                                    73.77777778, 81.88888889, 90.]),
+                    "hist": array([5.17551808e-02, 3.27268628e-02, 2.11936781e-02,
+                                   1.06566363e-02, 4.82414028e-03, 1.64851220e-03,
+                                   3.90958740e-04, 7.58834142e-05, 1.58185957e-05])
+                    "kde": None,
+                    "average": 30
                 }
+            }
 
             Now, let's look at what the distribution of the *output* is when the
             mean age is 20 and 30:
@@ -710,47 +720,47 @@ class BaseExplainer:
             ...     y_pred=y_pred,
             ... )
             {
-                    20: (
-                        array([1.65011502e-04, 1.11128109e-01, 2.22091206e-01,
-                               3.33054303e-01, 4.44017400e-01, 5.54980497e-01,
-                               6.65943594e-01, 7.76906691e-01, 8.87869788e-01,
-                               9.98832885e-01]),
-                        array([8.76434680e+00, 8.93703011e-02, 5.56748231e-02,
-                               2.83077489e-02, 1.73814831e-02, 1.47207642e-02,
-                               1.29008052e-02, 5.98377861e-03, 2.33186218e-02]),
-                        0.014498758429833029
-                    ),
-                    30: (
-                        array([1.65011502e-04, 1.11128109e-01, 2.22091206e-01,
-                               3.33054303e-01, 4.44017400e-01, 5.54980497e-01,
-                               6.65943594e-01, 7.76906691e-01, 8.87869788e-01,
-                               9.98832885e-01]),
-                        array([6.27202882, 0.68415, 0.48993501, 0.2951375,
-                               0.25163192, 0.25192098, 0.24374755, 0.14946323,
-                               0.37399013]),
-                        0.1559407087557414
-                    )
+                20: {
+                    "edges": array([1.65011502e-04, 1.11128109e-01, 2.22091206e-01,
+                                    3.33054303e-01, 4.44017400e-01, 5.54980497e-01,
+                                    6.65943594e-01, 7.76906691e-01, 8.87869788e-01,
+                                    9.98832885e-01]),
+                    "hist": array([8.75261891e+00, 9.33837831e-02, 5.83045141e-02,
+                                   2.94169972e-02, 1.82092901e-02, 1.56109502e-02,
+                                   1.36512095e-02, 6.30191287e-03, 2.45075574e-02])
+                    "kde": None,
+                    "average": 0.015101814206467836
+                },
+                30: {
+                    "edges": array([1.65011502e-04, 1.11128109e-01, 2.22091206e-01,
+                                    3.33054303e-01, 4.44017400e-01, 5.54980497e-01,
+                                    6.65943594e-01, 7.76906691e-01, 8.87869788e-01,
+                                    9.98832885e-01]),
+                    "hist": array([6.26697963, 0.6850221, 0.49064978, 0.29575247,
+                                   0.25219135, 0.25242987, 0.24428482, 0.14986088,
+                                   0.37483422])
+                    "kde": None,
+                    "average": 0.15624939656045428
                 }
+            }
         """
         if bins is None:
             bins = int(np.log(len(feature_values)))
 
         weights = self.compute_weights(feature_values, targets)
         distributions = {}
+        data = y_pred if y_pred is not None else feature_values
 
-        for ksi, target in zip(ksis, targets):
-            w = weights[target]
-            densities, edges = np.histogram(
-                y_pred if y_pred is not None else feature_values,
-                bins=bins,
-                weights=w,
-                density=density,
+        for target, w in weights.items():
+            densities, edges = np.histogram(data, bins=bins, weights=w, density=density)
+            distributions[target] = dict(
+                edges=edges,
+                hist=densities,
+                kde=None,
+                average=np.average(y_pred, weights=w) if y_pred is not None else target,
             )
-            distributions[target] = (
-                edges,
-                densities,
-                np.average(y_pred, weights=w) if y_pred is not None else target,
-            )
+            if kde:
+                distributions[target]["kde"] = stats.gaussian_kde(data, weights=w)
         return distributions
 
     def _plot_explanation(
@@ -855,6 +865,8 @@ class BaseExplainer:
         targets=None,
         y_pred=None,
         bins=None,
+        show_hist=False,
+        show_curve=True,
         colors=None,
         dataset_color="black",
         size=None,
@@ -868,6 +880,10 @@ class BaseExplainer:
                 If `None` (the default), only the original distribution is plotted.
             y_pred (pd.Series, optional): See `BaseExplainer.compute_distributions()`.
             bins (int, optional): See `BaseExplainer.compute_distributions()`.
+            show_hist (bool, optional): Whether to plot histogram data. Default is
+                `False`.
+            show_curve (bool, optional): Whether to plot KDE based on histogram data.
+                Default is `True`.
             colors (list, optional): An optional list of colors for all targets.
             dataset_color (str, optional): An optional color for the original
                 distribution. Default is `"black"`. If `None`, the original
@@ -888,39 +904,56 @@ class BaseExplainer:
             colors = [dataset_color, *colors]
 
         fig = go.Figure()
-        shapes = []
         distributions = self.compute_distributions(
-            feature_values=feature_values, targets=targets, bins=bins, y_pred=y_pred
+            feature_values=feature_values,
+            targets=targets,
+            bins=bins,
+            y_pred=y_pred,
+            kde=show_curve,
         )
 
         for i, (target, color) in enumerate(zip(targets, colors)):
-            mean = target
-            trace_name = f"E[{feature_values.name}] = {mean:.2f}"
-            edges, densities, y_pred_mean = distributions[target]
+            trace_name = f"E[{feature_values.name}] = {target:.2f}"
+            d = distributions[target]
             if y_pred is not None:
-                mean = y_pred_mean
-                trace_name += f", E[{y_pred.name}] = {mean:.2f}"
+                trace_name += f", E[{y_pred.name}] = {d['average']:.2f}"
             if i == 0:
                 trace_name += " (dataset)"
 
-            fig.add_bar(
-                x=edges[:-1],
-                y=densities,
-                name=trace_name,
-                opacity=0.5,
-                marker=dict(color=color),
-            )
-            shapes.append(
-                go.layout.Shape(
-                    type="line",
-                    x0=mean,
-                    y0=0,
-                    x1=mean,
-                    y1=1,
-                    yref="paper",
-                    line=dict(color=color, width=1),
+            if show_hist:
+                fig.add_bar(
+                    x=d["edges"][:-1],
+                    y=d["hist"],
+                    name=trace_name,
+                    legendgroup=trace_name,
+                    showlegend=not show_curve,
+                    opacity=0.5,
+                    marker=dict(color=color),
+                    hoverinfo="x+y",
                 )
-            )
+
+            if show_curve:
+                x = np.linspace(d["edges"][0], d["edges"][-1], num=500)
+                y = d["kde"](x)
+                fig.add_scatter(
+                    x=x,
+                    y=y,
+                    name=trace_name,
+                    legendgroup=trace_name,
+                    marker=dict(color=color),
+                    mode="lines",
+                    hoverinfo="x+y",
+                )
+                fig.add_scatter(
+                    x=[d["average"]],
+                    y=d["kde"]([d["average"]]),
+                    text=["Dataset mean"],
+                    showlegend=False,
+                    legendgroup=trace_name,
+                    mode="markers",
+                    hoverinfo="text",
+                    marker=dict(symbol="x", size=9, color=color),
+                )
 
         width = height = None
         if size is not None:
@@ -935,7 +968,6 @@ class BaseExplainer:
                 title=y_pred.name if y_pred is not None else feature_values.name
             ),
             yaxis=dict(title="Probability density"),
-            shapes=shapes,
             width=width,
             height=height,
         )
