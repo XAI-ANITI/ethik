@@ -612,6 +612,33 @@ class BaseExplainer:
             ),
         )
 
+    def compute_weights(self, feature_values, targets):
+        """Compute the weights to reach the given targets.
+
+        Parameters:
+            feature_values (pd.Series): A named pandas series containing the dataset values
+                for a given feature.
+            targets (list): A list of means to reach for the feature `feature_values`.
+                All of them must be between `feature_values.min()` and `feature_values.max()`.
+
+        Returns:
+            dict: The keys are the targets and the values are lists of
+                `len(feature_values)` weights (one per data sample).
+        """
+        query = pd.DataFrame(
+            dict(
+                feature=[feature_values.name] * len(targets),
+                target=targets,
+                label=[""] * len(targets),
+            )
+        )
+        ksis = self._fill_ksis(feature_values, query)["ksi"]
+        scaled_values = safe_scale(feature_values)
+        return {
+            target: special.softmax(ksi * scaled_values)
+            for ksi, target in zip(ksis, targets)
+        }
+
     def compute_distributions(
         self, feature_values, targets, y_pred=None, bins=None, density=True
     ):
@@ -705,33 +732,24 @@ class BaseExplainer:
                     )
                 }
         """
-        query = pd.DataFrame(
-            dict(
-                feature=[feature_values.name] * len(targets),
-                target=targets,
-                label=[""] * len(targets),
-            )
-        )
-        ksis = self._fill_ksis(feature_values, query)["ksi"]
-
         if bins is None:
             bins = int(np.log(len(feature_values)))
 
-        scaled_values = safe_scale(feature_values)
-
+        weights = self.compute_weights(feature_values, targets)
         distributions = {}
+
         for ksi, target in zip(ksis, targets):
-            weights = special.softmax(ksi * scaled_values)
+            w = weights[target]
             densities, edges = np.histogram(
                 y_pred if y_pred is not None else feature_values,
                 bins=bins,
-                weights=weights,
+                weights=w,
                 density=density,
             )
             distributions[target] = (
                 edges,
                 densities,
-                np.average(y_pred, weights=weights) if y_pred is not None else target,
+                np.average(y_pred, weights=w) if y_pred is not None else target,
             )
         return distributions
 
