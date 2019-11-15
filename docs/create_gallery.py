@@ -110,7 +110,7 @@ def setup_mnist():
 
 
 if __name__ == "__main__":
-    shutil.rmtree(DEST_FOLDER)
+    shutil.rmtree(DEST_FOLDER, ignore_errors=True)
     os.makedirs(DEST_FOLDER)
 
     plots = []
