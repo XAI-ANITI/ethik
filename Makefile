@@ -24,6 +24,7 @@ nb_to_html:
 	jupyter nbconvert --to html --output-dir docs/tutorials notebooks/*.ipynb --template=docs/notebook.tpl
 
 tutorials: update_nb nb_to_html
+	cp docs/tutorials.html docs/tutorials/index.html
 
 api_ref:
 	rm -rf docs/api
