@@ -859,6 +859,61 @@ class BaseExplainer:
         )
         return fig
 
+    def plot_weights(self, feature_values, targets, colors=None, size=None):
+        """Plot the cumulative weights to stress the distribution of `feature_values`
+        for each mean in `targets`. The weights are first decreasingly sorted so
+        that we can easily answer the question "how many individuals capture
+        X% of the weight?". 
+        
+        Parameters:
+            feature_values (pd.Series): See `BaseExplainer.compute_weights()`.
+            targets (list): See `BaseExplainer.compute_weights()`.
+            colors (list, optional): An optional list of colors for all targets.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        """
+        if colors is None:
+            colors = cl.interp(
+                cl.scales["11"]["qual"]["Paired"],
+                len(targets) + 1,  #  +1 otherwise it raises an error if ksis is empty
+            )
+
+        fig = go.Figure()
+        weights = self.compute_weights(feature_values, targets)
+        n = len(feature_values)
+        x = np.arange(n) / n
+
+        for target, color in zip(targets, colors):
+            w = np.sort(weights[target])
+            y = np.cumsum(w[::-1])
+            fig.add_scatter(
+                x=x,
+                y=y,
+                mode="lines",
+                hoverinfo="x+y",
+                name=f"E[{feature_values.name}] = {target:.2f}",
+                marker=dict(color=color),
+            )
+
+        width = height = None
+        if size is not None:
+            width, height = size
+
+        fig.update_layout(
+            margin=dict(t=30, b=40),
+            showlegend=True,
+            xaxis=dict(title="Proportion of individuals", tickformat="%"),
+            yaxis=dict(title="Cumulative weights", range=[0, 1.05]),
+            width=width,
+            height=height,
+        )
+        return fig
+
     def plot_distributions(
         self,
         feature_values,
@@ -889,6 +944,12 @@ class BaseExplainer:
                 distribution. Default is `"black"`. If `None`, the original
                 distribution is not plotted.
             size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
         """
         if targets is None:
             targets = []
@@ -1066,10 +1127,10 @@ class BaseExplainer:
             size (tuple, optional): An optional couple `(width, height)` in pixels.
 
         Returns:
-            pd.DataFrame: A dataframe with four columns ("feature", "label",
-                "reference" and "compared"). For each couple `(feature, label)`,
-                `reference` (resp. `compared`) is the average output of the model
-                if the average individual were `reference` (resp. `compared`).
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
         """
         y_pred = pd.DataFrame(to_pandas(y_pred))
         if len(y_pred.columns) > 1:
@@ -1133,10 +1194,10 @@ class BaseExplainer:
             size (tuple, optional): An optional couple `(width, height)` in pixels.
 
         Returns:
-            pd.DataFrame: A dataframe with four columns ("feature", "label",
-                "reference" and "compared"). For each couple `(feature, label)`,
-                `reference` (resp. `compared`) is the average output of the model
-                if the average individual were `reference` (resp. `compared`).
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
         """
         comparison = self.compare_performance(
             X_test, y_test, y_pred, metric, reference, compared
