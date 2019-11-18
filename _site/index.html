@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+<link rel="shortcut icon" type="image/png" href="/ethik/assets/img/logo.png">
+
+<title>Ethik AI</title>
+
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:regular,bold,italic,thin,light,bolditalic,black,medium">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Righteous">
+<link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.blue-deep_orange.min.css" />
+
+<link rel="stylesheet" href="/ethik/assets/css/base.css">
+
+<style>
+  .header {
+    text-align: center;
+    padding: 20px;
+  }
+
+  .header .plots {
+    display: flex;
+    justify-content: space-around;
+  }
+
+  .header .plots > div {
+    height: 300px;
+  }
+
+  .header .plots .modebar {
+    display: none;
+  }
+
+  .content {
+    padding: 20px;
+    max-width: 1000px;
+    margin: auto;
+  }
+
+  .context {
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: 50px;
+  }
+
+  .context > p {
+    margin: 0px 20px;
+    text-align: justify;
+    text-indent: 30px;
+    flex-grow: 1;
+    max-width: 275px;
+  }
+
+  .content h3 {
+    margin: 0px;
+    margin-top: 60px;
+  }
+
+  .content .title-underline {
+    border: none;
+    height: 2px;
+    margin: 0px;
+    margin-bottom: 15px;
+    max-width: 300px;
+  }
+
+  .content .buttons {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    margin: auto;
+    margin-top: 40px;
+    max-width: 700px;
+  }
+
+  #gallery {
+    display: grid;
+    grid-template-columns: 600px 1fr;
+    grid-row-gap: 50px;
+    grid-column-gap: 30px;
+  }
+
+  #gallery .plot {
+    min-height: 400px;
+  }
+</style>
+
+
+<!-- Begin Jekyll SEO tag v2.5.0 -->
+<meta name="generator" content="Jekyll v3.8.5" />
+<meta property="og:locale" content="en" />
+<link rel="canonical" href="http://localhost:4000/ethik/" />
+<meta property="og:url" content="http://localhost:4000/ethik/" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:site" content="@" />
+<script type="application/ld+json">
+{"@type":"WebSite","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"http://localhost:4000/ethik"}},"url":"http://localhost:4000/ethik/","@context":"http://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+
+
+</head>
+<body>
+  <div class="mdl-layout mdl-js-layout mdl-layout--fixed-header">
+    <header class="mdl-layout__header">
+  <div class="mdl-layout__header-row">
+    <!-- Title -->
+    <span class="mdl-layout-title">
+      
+      <a class="mdl-typography--text-uppercase ethik-font" href="/ethik/">Ethik AI</a>
+    </span>
+    <!-- Add spacer, to align navigation to the right -->
+    <div class="mdl-layout-spacer"></div>
+    <!-- Navigation -->
+    <nav class="mdl-navigation mdl-layout--large-screen-only">
+    <a class="mdl-navigation__link mdl-typography--text-uppercase" href="/ethik/ai-fairness">AI fairness</a>
+      <a class="mdl-navigation__link mdl-typography--text-uppercase" href="/ethik/#gallery">Features</a>
+      <a class="mdl-navigation__link mdl-typography--text-uppercase" href="/ethik/tutorials/">Tutorials</a>
+      <a class="mdl-navigation__link mdl-typography--text-uppercase" href="/ethik/api/">API</a>
+      <a class="mdl-navigation__link mdl-typography--text-uppercase" href="/ethik/tutorials/how-it-works">How it works</a>
+      <a class="mdl-navigation__link mdl-typography--text-uppercase" href="/ethik/#about">About</a>
+      <a class="mdl-navigation__link mdl-typography--text-uppercase" href="https://github.com/MaxHalford/ethik">GitHub</a>
+    </nav>
+  </div>
+</header>
+<div class="mdl-layout__drawer">
+  <span class="mdl-layout-title">
+    <a class="mdl-navigation__link mdl-typography--text-uppercase ethik-font mdl-color-text--accent" href="/ethik/">Ethik AI</a>
+  </span>
+  <nav class="mdl-navigation">
+    <a class="mdl-navigation__link mdl-typography--text-uppercase" href="/ethik/ai-fairness">AI fairness</a>
+    <a class="mdl-navigation__link mdl-typography--text-uppercase" href="/ethik/#gallery">Features</a>
+    <a class="mdl-navigation__link mdl-typography--text-uppercase" href="/ethik/tutorials/">Tutorials</a>
+    <a class="mdl-navigation__link mdl-typography--text-uppercase" href="/ethik/api/">API</a>
+      <a class="mdl-navigation__link mdl-typography--text-uppercase" href="/ethik/tutorials/how-it-works">How it works</a>
+    <a class="mdl-navigation__link mdl-typography--text-uppercase" href="/ethik/#about">About</a>
+    <a class="mdl-navigation__link mdl-typography--text-uppercase" href="https://github.com/MaxHalford/ethik">GitHub</a>
+  </nav>
+</div>
+
+
+    <main class="mdl-layout__content">
+      <div class="content-wrapper">
+        <div class="header">
+  <h1 class="mdl-typography ethik-font mdl-color-text--accent">
+    Ethik AI
+  </h1>
+  <h2 class="mdl-typography--display-1 mdl-typography--font-light">
+    A Python package for AI fairness and interpretability.
+  </h2>
+
+  <!--
+  <div class="plots">
+    <div id="header-plot-left"></div>
+    <div id="header-plot-right"></div>
+  </div>
+  -->
+</div>
+
+<div class="content">
+  <div class="context">
+    <p>
+      Machine learning models can largely outperform classical algorithms to make predictions
+      about complexe problems, e.g. recognizing trees (which can vary a lot depending on
+      the season, the species...). To do so, they learn from data (either from examples or experience)
+      instead of following a well-defined sequence of instructions (like a cooking recipe). We humans
+      do the same to teach our kids to recognize trees: we don't provide instructions but examples.
+    </p>
+    <p>
+      It leads to the kids not always being able to clearly explain their decisions. Similarly,
+      machine learning models can look like black-box decision-making programs. The question is:
+      <strong>can we trust them?</strong> Understanding <strong>why a prediction was
+      made</strong> is crucial to answer this question. As a bank customer, I want to know why
+      the machine doesn't want to lend me money. This is known as <strong>model interpretability</strong>.
+    </p>
+    <p>
+      Model interpretability opens the door to <strong>model fairness</strong>. Was the
+      decision made based on an unfair view of the world? <strong>We don't want our models to reproduce 
+      human discrimination</strong> that probably reflects in data. Model fairness consists
+      in making sure a decision was not based on protected attributes (e.g. gender, race...
+      for a bank loan).
+    </p>
+  </div>
+  <p>
+    <code>ethik</code> is a Python package for performing <a href="/ethik/ai-fairness">fair and explainable</a> machine learning. At it's core, the approach of <code>ethik</code> is to build <strong>counterfactual distributions</strong> that permit answering "what if?" scenarios. The idea is that we are able to stress one or more variables and observe how a machine learning model reacts to the stress. The stress is based on a statistical re-weighting scheme called <strong>entropic variable projection</strong>. The main benefit of our method is that it will only consider realistic scenarios, and will not build fake examples. You may find more information by reading <a href="https://arxiv.org/abs/1810.07924">this paper</a>, the <a href="/ethik/tutorials/binary-classification">Get started</a> tutorial and the <a href="/ethik/tutorials/how-it-works">How it works</a> page.
+  </p>
+
+<div align="center">
+  <img src="/ethik/assets/img/overview.svg" width="660px" alt="overview"/>
+</div>
+
+  <p>
+    Currently, <code>ethik</code> can be used for:
+  </p>
+
+  <ol>
+    <li>Detecting model influence with respect to one or more (protected) attributes.</li>
+    <li>Identifying causes for why a model performs poorly on certain inputs.</li>
+    <li>Visualizing regions of an image that influence a model's predictions.</li>
+  </ol>
+
+  <p>
+    We have more plans for the future.
+  </p>
+
+  <div class="buttons">
+    <a href="/ethik/ai-fairness">
+      <button class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored">
+        Learn our problematic
+      </button>
+    </a>
+    <a href="/ethik/tutorials/how-it-works">
+      <button class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored">
+        Understand our method
+      </button>
+    </a>
+    <a href="/ethik/tutorials/">
+      <button class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored">
+        Use our package
+      </button>
+    </a>
+  </div>
+
+  <h3 class="mdl-typography--display-1 mdl-typography--font-light">
+    Gallery
+  </h3>
+  <hr class="title-underline mdl-color--accent" />
+
+  <div id="gallery">
+  </div>
+
+  <h3 id="about" class="mdl-typography--display-1 mdl-typography--font-light">
+    About
+  </h3>
+  <hr class="title-underline mdl-color--accent" />
+
+  <p>
+    This work is led by members of the <a href="https://www.math.univ-toulouse.fr/?lang=en">Toulouse Institute of Mathematics</a>, namely:
+  </p>
+
+  <ul>
+    <li><a href="https://www.math.univ-toulouse.fr/~fbachoc/">François Bachoc</a></li>
+    <li><a href="https://www.math.univ-toulouse.fr/~gamboa/newwab/Pages_Fabrice_Gamboa/Main_Page.html">Fabrice Gamboa</a></li>
+    <li><a href="https://maxhalford.github.io/">Max Halford</a></li>
+    <li><a href="https://vayel.github.io/">Vincent Lefoulon</a></li>
+    <li><a href="https://perso.math.univ-toulouse.fr/loubes/">Jean-Michel Loubes</a></li>
+    <li><a href="http://laurent.risser.free.fr/menuEng.html">Laurent Risser</a></li>
+  </ul>
+
+  <p>
+    You can contact us at <a href="mailto:jm.loubes@gmail.com">jm.loubes@gmail.com</a> and/or <a href="mailto:maxhalford25@gmail.com">maxhalford25@gmail.com</a>.
+  </p>
+
+  <p>
+  This work is supported by the <a href="http://www.cnrs.fr/">Centre National de la Recherche Scientifique (CNRS)</a> and is done in the context of the <a href="https://en.univ-toulouse.fr/aniti">Artificial and Natural Intelligence Toulouse Institute (ANITI)</a> project.
+  </p>
+
+  <p>
+    This software is released under the <a href="https://github.com/MaxHalford/ethik/blob/master/LICENSE">GPL license</a>.
+  </p>
+</div>
+
+      </div>
+
+      <footer class="mdl-mini-footer mdl-color--primary">
+  <div class="mdl-mini-footer__left-section">
+    <div class="mdl-logo">
+      Ethik AI
+    </div>
+    <ul class="mdl-mini-footer__link-list mdl-color-text--black">
+      <li><a href="/ethik/ai-fairness">AI fairness</a></li>
+      <li><a href="/ethik/tutorials/how-it-works">How it works</a></li>
+      <li><a href="/ethik/tutorials">Tutorials</a></li>
+      <li><a href="/ethik/api">API</a></li>
+      <li><a href="/ethik/#about">About</a></li>
+    </ul>
+  </div>
+  <div class="mdl-mini-footer__right-section">
+    <a href="https://github.com/MaxHalford/ethik">
+      <img src="/ethik/assets/img/github.png" alt="GitHub" />
+    </a>
+  </div>
+</footer>
+
+    </main>
+  </div>
+
+  <script src="https://code.getmdl.io/1.3.0/material.min.js"></script>
+
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+  (function() {
+    var baseUrl = "assets/plots/";
+    var gallery = document.getElementById("gallery");
+
+    function loadJson(name) {
+      return fetch(baseUrl + name).then(function(resp) {
+        return resp.json();
+      });
+    }
+
+    function addPlot(plotContainer, descriptionContainer, description, fig) {
+      plotContainer.className = "plot";
+
+      descriptionContainer.className = "description";
+      descriptionContainer.innerHTML = description;
+
+      Plotly.plot(plotContainer, fig.data, fig.layout);
+    }
+
+    loadJson("metadata.json").then(function(metadata) {
+      for (var plot of metadata.plots) {
+        (function(plot) {
+          var plotContainer = document.createElement("div");
+          var descriptionContainer = document.createElement("div");
+
+          gallery.appendChild(plotContainer);
+          gallery.appendChild(descriptionContainer);
+
+          loadJson(plot.name + ".json").then(function(fig) {
+            addPlot(plotContainer, descriptionContainer, plot.description, fig);
+          }); 
+        })(plot);
+      }
+    });
+  })();
+</script>
+
+</body>
+</html>
