@@ -10,6 +10,8 @@
 
 ### Fixed
 
+* `BaseExplainer.compute_weights()` can now be called with an unamed `pd.Series()` (and so `BaseExplainer.compute_distributions()`).
+
 ## 0.0.3 - 15/11/19
 
 ### Added

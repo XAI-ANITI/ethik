@@ -199,7 +199,8 @@ class BaseExplainer:
             X_test (pd.DataFrame): A dataframe with categorical features ALREADY
                 one-hot encoded.
             query (pd.DataFrame): A dataframe with at least two columns "feature"
-                and "target". This dataframe will be altered.
+                and "target". This dataframe will be altered. The values in "feature"
+                must match a column in `X_test`.
 
         Returns:
             pd.DataFrame: The `query` dataframe with an additional column "ksi".
@@ -207,7 +208,6 @@ class BaseExplainer:
         if "ksi" not in query.columns:
             query["ksi"] = None
 
-        X_test = pd.DataFrame(to_pandas(X_test))
         query_to_complete = query[query["ksi"].isnull()]
         ksis = joblib.Parallel(n_jobs=self.n_jobs)(
             joblib.delayed(compute_ksis)(
@@ -626,6 +626,12 @@ class BaseExplainer:
             dict: The keys are the targets and the values are lists of
                 `len(feature_values)` weights (one per data sample).
         """
+        #  If `feature_values.name` is `None`, converting it to a dataframe
+        # will create a column `0`, which will not be matched by the query below
+        # since its "feature" column will be `None` and not `0`.
+        if feature_values.name is None:
+            feature_values = feature_values.rename("feature")
+
         query = pd.DataFrame(
             dict(
                 feature=[feature_values.name] * len(targets),
@@ -633,7 +639,7 @@ class BaseExplainer:
                 label=[""] * len(targets),
             )
         )
-        ksis = self._fill_ksis(feature_values, query)["ksi"]
+        ksis = self._fill_ksis(pd.DataFrame(feature_values), query)["ksi"]
         scaled_values = safe_scale(feature_values)
         return {
             target: special.softmax(ksi * scaled_values)
