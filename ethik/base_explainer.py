@@ -615,7 +615,8 @@ class BaseExplainer:
 
         Parameters:
             feature_values (pd.Series): A named pandas series containing the dataset values
-                for a given feature.
+                for a given feature. Let's notice that this method do not handle
+                multi-dimensional optimization.
             targets (list): A list of means to reach for the feature `feature_values`.
                 All of them must be between `feature_values.min()` and `feature_values.max()`.
 
@@ -631,6 +632,7 @@ class BaseExplainer:
 
         query = pd.DataFrame(
             dict(
+                group=list(range(len(targets))),
                 feature=[feature_values.name] * len(targets),
                 target=targets,
                 label=[""] * len(targets),
@@ -653,7 +655,8 @@ class BaseExplainer:
 
         Parameters:
             feature_values (pd.Series): A named pandas series containing the dataset values
-                for a given feature.
+                for a given feature. Let's notice that this method do not handle
+                multi-dimensional optimization.
             targets (list): A list of means to reach for the feature `feature_values`.
                 All of them must be between `feature_values.min()` and `feature_values.max()`.
             bins (int, optional): See `numpy.histogram()`. If `None` (the default),
