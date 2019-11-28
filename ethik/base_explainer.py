@@ -482,6 +482,7 @@ class BaseExplainer:
                 for feature in individuals.columns
             ]
         )
+        query["group"] = list(range(len(query)))
         info = explain(X_test=X_test, y_pred=y_pred, query=query)
 
         #  `info` looks like:
