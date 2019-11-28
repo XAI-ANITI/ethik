@@ -42,7 +42,7 @@ def safe_scale(x):
     # the difference is zero.
     if isinstance(x, pd.DataFrame):
         return (x - x.mean()) / x.std().replace(0, 1)
-    return (x - x.mean()) / (x.std() or 1)
+    return (x - x.mean(axis=0)) / (x.std(axis=0) or 1)
 
 
 def extract_category(X, cat):

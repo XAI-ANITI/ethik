@@ -55,79 +55,72 @@ class F:
     def __call__(self, ksi):
         """Returns the loss and the gradient for a particular ksi value."""
 
-        ksi = ksi[0]
-        lambdas = special.softmax(ksi * self.x)
-        current_mean = np.average(self.x, weights=lambdas)
+        lambdas = special.softmax(np.dot(self.x, ksi))
+        current_mean = np.average(self.x, weights=lambdas, axis=0)
 
-        f = (current_mean - self.target_mean) ** 2
+        loss = np.linalg.norm(current_mean - self.target_mean)
 
-        if f < self.tol:
+        if loss < self.tol:
             raise ConvergenceSuccess(ksi=ksi)
 
         g = current_mean - self.target_mean
 
-        return f, np.array([g])
+        return loss, g
 
 
-def compute_ksis(x, target_means, max_iterations, tol):
+def compute_ksi(group_id, x, target_mean, max_iterations, tol):
     """Find good ksis for a variable and given target means.
 
     Args:
-        x (pd.Series): The variable's values.
-        target_means (iterator of floats): The means to reach by weighting the
-            feature's values.
+        group_id (int): The id of the group of queries to answer.
+        x (pd.DataFrame): The variable's values with one column per feature.
+        target_mean (list of floats): The means to reach by weighting the
+            feature's values. Must contain as many elements as there are features.
         max_iterations (int): The maximum number of iterations of gradient descent.
         tol (float): Stopping criterion. The gradient descent will stop if the mean absolute error
             between the obtained mean and the target mean is lower than tol, even if the maximum
             number of iterations has not been reached.
 
     Returns:
-        dict: The keys are couples `(name of the variable, target mean)` and the
-            values are the ksis. For instance:
+        dict: The keys are couples `(group_id, feature)` and the
+            values are the ksis for each feature. For instance:
 
                 {
-                    ("age", 20): 1.5,
-                    ("age", 21): 1.6,
-                    ...
+                    (0, "age"): -0.81,
+                    (0, "education-num"): 0.05,
                 }
     """
 
-    ksis = {}
+    mean, std = x.mean().values, x.std().values
+    features = x.columns
+    x = safe_scale(x).values
+    ksis = np.zeros(len(target_mean))
 
-    mean, std = x.mean(), x.std()
-    x = safe_scale(x)
+    if np.isclose(target_mean, mean, atol=tol).all():
+        return {(group_id, feature): 0.0 for feature in features}
 
-    for target_mean in target_means:
+    success = False
+    try:
+        res = optimize.minimize(
+            fun=F(x=x, target_mean=(target_mean - mean) / std, tol=tol),
+            x0=ksis,  # Initial ksi value
+            jac=True,
+            method="BFGS",
+        )
+    except ConvergenceSuccess as cs:
+        ksis = cs.ksi
+        success = True
 
-        # Skip edge case
-        if target_mean == mean:
-            ksis[(x.name, target_mean)] = 0.0
-            continue
+    if not success:
+        warnings.warn(
+            message=(
+                f"convergence warning for {group_id}, with target mean {target_mean}:\n\n"
+                + str(res)
+            ),
+            category=ConvergenceWarning,
+        )
 
-        success = False
-        try:
-            res = optimize.minimize(
-                fun=F(x=x, target_mean=(target_mean - mean) / std, tol=tol),
-                x0=[0],  # Initial ksi value
-                jac=True,
-                method="BFGS",
-            )
-        except ConvergenceSuccess as cs:
-            ksi = cs.ksi
-            success = True
-
-        if not success:
-            warnings.warn(
-                message=(
-                    f"convergence warning for {x.name}, with target mean {target_mean}:\n\n"
-                    + str(res)
-                ),
-                category=ConvergenceWarning,
-            )
-
-        ksis[(x.name, target_mean)] = ksi
-
-    return ksis
+    return {(group_id, feature): ksi for feature, ksi in zip(features, ksis)}
 
 
 class BaseExplainer:
@@ -210,18 +203,19 @@ class BaseExplainer:
 
         query_to_complete = query[query["ksi"].isnull()]
         ksis = joblib.Parallel(n_jobs=self.n_jobs)(
-            joblib.delayed(compute_ksis)(
-                x=X_test[feature],
-                target_means=part["target"].unique(),
+            joblib.delayed(compute_ksi)(
+                group_id=group_id,
+                x=X_test[part["feature"]],
+                target_mean=part["target"],
                 max_iterations=self.max_iterations,
                 tol=self.tol,
             )
-            for feature, part in query_to_complete.groupby("feature")
+            for group_id, part in query_to_complete.groupby("group")
         )
         ksis = dict(collections.ChainMap(*ksis))
 
         query["ksi"] = query.apply(
-            lambda r: ksis.get((r["feature"], r["target"]), r["ksi"]), axis="columns"
+            lambda r: ksis.get((r["group"], r["feature"]), r["ksi"]), axis="columns"
         )
         query["ksi"] = query["ksi"].fillna(0.0)
         return query
@@ -256,7 +250,7 @@ class BaseExplainer:
             
         Returns:
         """
-        query = query.copy()
+        query = query.copy()  #  We make it clear that the given query is not altered
 
         if compute_kwargs is None:
             compute_kwargs = {}
@@ -320,20 +314,21 @@ class BaseExplainer:
         return query
 
     def _compute_influence(self, X_test, y_pred, query):
-        keys = query.groupby(["feature", "label", "ksi"]).groups.keys()
+        groups = query.groupby(["group", "label"])
         return pd.DataFrame(
             [
                 (
-                    feature,
+                    gid,
                     label,
-                    ksi,
                     sample_index,
                     np.average(
                         y_pred[label][mask],
-                        weights=special.softmax(ksi * X_test[feature][mask]),
+                        weights=special.softmax(
+                            np.dot(X_test[group["feature"]][mask], group["ksi"])
+                        ),
                     ),
                 )
-                for (sample_index, mask), (feature, label, ksi) in tqdm(
+                for (sample_index, mask), ((gid, label), group) in tqdm(
                     itertools.product(
                         enumerate(
                             yield_masks(
@@ -342,13 +337,13 @@ class BaseExplainer:
                                 p=self.sample_frac,
                             )
                         ),
-                        keys,
+                        groups,
                     ),
                     disable=not self.verbose,
-                    total=len(keys) * self.n_samples,
+                    total=len(groups) * self.n_samples,
                 )
             ],
-            columns=["feature", "label", "ksi", "sample_index", "influence"],
+            columns=["group", "label", "sample_index", "influence"],
         )
 
     def _explain_influence(self, X_test, y_pred, query):
@@ -356,27 +351,28 @@ class BaseExplainer:
             X_test=X_test,
             y_pred=y_pred,
             dest_col="influence",
-            key_cols=["feature", "label", "ksi"],
+            key_cols=["group", "label"],
             compute=self._compute_influence,
             query=query,
         )
 
     def _compute_performance(self, X_test, y_pred, query, y_test, metric):
         metric_name = self.get_metric_name(metric)
-        keys = query.groupby(["feature", "ksi"]).groups.keys()
+        groups = query.groupby(["group"])
         return pd.DataFrame(
             [
                 (
-                    feature,
-                    ksi,
+                    gid,
                     sample_index,
                     metric(
                         y_test[mask],
                         y_pred[mask],
-                        sample_weight=special.softmax(ksi * X_test[feature][mask]),
+                        sample_weight=special.softmax(
+                            np.dot(X_test[group["feature"]][mask], group["ksi"])
+                        ),
                     ),
                 )
-                for (sample_index, mask), (feature, ksi) in tqdm(
+                for (sample_index, mask), (gid, group) in tqdm(
                     itertools.product(
                         enumerate(
                             yield_masks(
@@ -385,13 +381,13 @@ class BaseExplainer:
                                 p=self.sample_frac,
                             )
                         ),
-                        keys,
+                        groups,
                     ),
                     disable=not self.verbose,
-                    total=len(keys) * self.n_samples,
+                    total=len(groups) * self.n_samples,
                 )
             ],
-            columns=["feature", "ksi", "sample_index", metric_name],
+            columns=["group", "sample_index", metric_name],
         )
 
     def _explain_performance(self, X_test, y_test, y_pred, metric, query):
@@ -400,7 +396,7 @@ class BaseExplainer:
             X_test=X_test,
             y_pred=y_pred,
             dest_col=metric_name,
-            key_cols=["feature", "ksi"],
+            key_cols=["group"],
             compute=self._compute_performance,
             query=query,
             compute_kwargs=dict(y_test=np.asarray(y_test), metric=metric),
