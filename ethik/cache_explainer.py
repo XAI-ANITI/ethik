@@ -86,6 +86,17 @@ class CacheExplainer(BaseExplainer):
         self.n_taus = n_taus
         self.memoize = memoize
         self.metric_names = set()
+        # This attribute stores the group indices for every dimension
+        # If it is equal to:
+        # {
+        #    1: {0, 1, 2, ..., 40},
+        #    2: {41, 42, ..., 1721},
+        # }
+        #
+        # it means that the rows with `group == 42` correspond to an explanation
+        # with two variables linked together. Then, the info will contain two rows
+        # with `group == 42` (one per variable).
+        self.groups = collections.defaultdict(set)
         self._reset_info()
 
     def _reset_info(self):
@@ -124,8 +135,9 @@ class CacheExplainer(BaseExplainer):
         return self.info["feature"].unique().tolist()
 
     def _determine_pairs_to_do(self, features, labels):
+        unidim_info = self.info[self.info["group"].isin(self.groups[1])]
         to_do_pairs = set(itertools.product(features, labels)) - set(
-            self.info.groupby(["feature", "label"]).groups.keys()
+            unidim_info.groupby(["feature", "label"]).groups.keys()
         )
         to_do_map = collections.defaultdict(list)
         for feat, label in to_do_pairs:
@@ -141,13 +153,15 @@ class CacheExplainer(BaseExplainer):
         if link_variables:
             # For a multi-dimensional query, it's too complicated to check if
             # it's already in the cache
-            return Query.multidim_from_taus(
+            q = Query.multidim_from_taus(
                 X_test=X_test,
                 labels=y_pred.columns,
-                n_taus=self.n_taus,
+                n_taus=self.n_taus,  #  TODO: it's a lot of points
                 q=[self.alpha, 1 - self.alpha],
                 first_group=0 if math.isnan(last_group) else last_group + 1,
             )
+            self.groups[len(X_test.columns)].update(q["group"])
+            return q
 
         # Check which (feature, label) pairs have to be done
         to_do_map = self._determine_pairs_to_do(
@@ -160,13 +174,15 @@ class CacheExplainer(BaseExplainer):
         if X_test.empty:
             return pd.DataFrame()
 
-        return Query.unidim_from_taus(
+        q = Query.unidim_from_taus(
             X_test=X_test,
             to_do_labels=to_do_map,
             n_taus=self.n_taus,
             q=[self.alpha, 1 - self.alpha],
             first_group=0 if math.isnan(last_group) else last_group + 1,
         )
+        self.groups[1].update(q["group"])
+        return q
 
     def _explain_with_cache(self, X_test, y_pred, explain, link_variables=False):
         if not self.memoize:
@@ -182,9 +198,12 @@ class CacheExplainer(BaseExplainer):
         self.info = self.info.append(additional_info, ignore_index=True, sort=False)
         self.info = explain(query=self.info)
 
+        dim = 1 if not link_variables else len(X_test.columns)
+
         return self.info[
             self.info["feature"].isin(X_test.columns)
             & self.info["label"].isin(y_pred.columns)
+            & self.info["group"].isin(self.groups[dim])
         ]
 
     def explain_influence(self, X_test, y_pred, link_variables=False):
@@ -199,6 +218,10 @@ class CacheExplainer(BaseExplainer):
                 pandas dataframe with one column per label is
                 expected. The values can either be probabilities or `0/1`
                 (for a one-hot-encoded output).
+            link_variables (bool, optional): Whether to make a multidimensional
+                explanation or not. Default is `False`, which means that all
+                the features in `X_test` are considered independently (so the
+                correlation are not taken into account).
 
         Returns:
             pd.DataFrame:
@@ -280,6 +303,10 @@ class CacheExplainer(BaseExplainer):
                 to handle the `y` data. For instance, for `sklearn.metrics.accuracy_score()`,
                 "the set of labels predicted for a sample must exactly match the
                 corresponding set of labels in `y_true`".
+            link_variables (bool, optional): Whether to make a multidimensional
+                explanation or not. Default is `False`, which means that all
+                the features in `X_test` are considered independently (so the
+                correlation are not taken into account).
 
         Returns:
             pd.DataFrame:
