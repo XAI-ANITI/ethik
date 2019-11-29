@@ -4,12 +4,13 @@ import itertools
 import math
 import warnings
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
 
 from .base_explainer import BaseExplainer
 from .query import Query
-from .utils import to_pandas
+from .utils import set_fig_size, to_pandas
 
 __all__ = ["CacheExplainer"]
 
@@ -86,17 +87,6 @@ class CacheExplainer(BaseExplainer):
         self.n_taus = n_taus
         self.memoize = memoize
         self.metric_names = set()
-        # This attribute stores the group indices for every dimension
-        # If it is equal to:
-        # {
-        #    1: {0, 1, 2, ..., 40},
-        #    2: {41, 42, ..., 1721},
-        # }
-        #
-        # it means that the rows with `group == 42` correspond to an explanation
-        # with two variables linked together. Then, the info will contain two rows
-        # with `group == 42` (one per variable).
-        self.groups = collections.defaultdict(set)
         self._reset_info()
 
     def _reset_info(self):
@@ -104,6 +94,7 @@ class CacheExplainer(BaseExplainer):
         self.info = pd.DataFrame(
             columns=[
                 "group",
+                "dimension",
                 "feature",
                 "tau",
                 "target",
@@ -134,8 +125,9 @@ class CacheExplainer(BaseExplainer):
     def features(self):
         return self.info["feature"].unique().tolist()
 
-    def _determine_pairs_to_do(self, features, labels):
-        unidim_info = self.info[self.info["group"].isin(self.groups[1])]
+    def _determine_pairs_to_do(self, features, labels, multi_dim=False):
+        dim = 1 if not multi_dim else len(features)
+        unidim_info = self.info[self.info["dimension"] == dim]
         to_do_pairs = set(itertools.product(features, labels)) - set(
             unidim_info.groupby(["feature", "label"]).groups.keys()
         )
@@ -153,15 +145,13 @@ class CacheExplainer(BaseExplainer):
         if link_variables:
             # For a multi-dimensional query, it's too complicated to check if
             # it's already in the cache
-            q = Query.multidim_from_taus(
+            return Query.multidim_from_taus(
                 X_test=X_test,
                 labels=y_pred.columns,
                 n_taus=self.n_taus,  #  TODO: it's a lot of points
                 q=[self.alpha, 1 - self.alpha],
                 first_group=0 if math.isnan(last_group) else last_group + 1,
             )
-            self.groups[len(X_test.columns)].update(q["group"])
-            return q
 
         # Check which (feature, label) pairs have to be done
         to_do_map = self._determine_pairs_to_do(
@@ -174,15 +164,13 @@ class CacheExplainer(BaseExplainer):
         if X_test.empty:
             return pd.DataFrame()
 
-        q = Query.unidim_from_taus(
+        return Query.unidim_from_taus(
             X_test=X_test,
             to_do_labels=to_do_map,
             n_taus=self.n_taus,
             q=[self.alpha, 1 - self.alpha],
             first_group=0 if math.isnan(last_group) else last_group + 1,
         )
-        self.groups[1].update(q["group"])
-        return q
 
     def _explain_with_cache(self, X_test, y_pred, explain, link_variables=False):
         if not self.memoize:
@@ -194,17 +182,33 @@ class CacheExplainer(BaseExplainer):
         y_pred = pd.DataFrame(to_pandas(y_pred))
         X_test = self._one_hot_encode(X_test)
 
+        # TODO: when `link_variables` is `True`, the explanation is duplicated
+        # (try to call the method twice)
+
         additional_info = self._build_additional_info(X_test, y_pred, link_variables)
         self.info = self.info.append(additional_info, ignore_index=True, sort=False)
         self.info = explain(query=self.info)
 
-        dim = 1 if not link_variables else len(X_test.columns)
+        if not link_variables:
+            return self.info[
+                self.info["feature"].isin(X_test.columns)
+                & self.info["label"].isin(y_pred.columns)
+                & (self.info["dimension"] == 1)
+            ]
 
-        return self.info[
-            self.info["feature"].isin(X_test.columns)
-            & self.info["label"].isin(y_pred.columns)
-            & self.info["group"].isin(self.groups[dim])
+        ret = self.info[
+            self.info["label"].isin(y_pred.columns)
+            & (self.info["dimension"] == len(X_test.columns))
         ]
+
+        # We find the groups that exactly  contain the features of `X_test`
+        groups = set()
+        queried_features = set(X_test.columns)
+        for group, part in ret.groupby(["group"]):
+            if set(part["feature"]) == queried_features:
+                groups.add(group)
+
+        return ret[ret["group"].isin(groups)]
 
     def explain_influence(self, X_test, y_pred, link_variables=False):
         """Compute the influence of the model for the features in `X_test`.
@@ -452,6 +456,129 @@ class CacheExplainer(BaseExplainer):
             .reset_index()
         )
 
+    def _plot_explanation(
+        self, explanation, y_col, y_label, colors=None, yrange=None, size=None
+    ):
+        features = explanation["feature"].unique()
+
+        if colors is None:
+            colors = {}
+        elif type(colors) is str:
+            colors = {feat: colors for feat in features}
+
+        #  There are multiple features, we plot them together with taus
+        if len(features) > 1:
+            fig = go.Figure()
+
+            for i, feat in enumerate(features):
+                taus = explanation.query(f'feature == "{feat}"')["tau"]
+                targets = explanation.query(f'feature == "{feat}"')["target"]
+                y = explanation.query(f'feature == "{feat}"')[y_col]
+                fig.add_trace(
+                    go.Scatter(
+                        x=taus,
+                        y=y,
+                        mode="lines+markers",
+                        hoverinfo="y",
+                        name=feat,
+                        customdata=list(zip(taus, targets)),
+                        marker=dict(color=colors.get(feat)),
+                    )
+                )
+
+            fig.update_layout(
+                margin=dict(t=30, r=50, b=40),
+                xaxis=dict(title="tau", nticks=5),
+                yaxis=dict(title=y_label, range=yrange),
+            )
+            set_fig_size(fig, size)
+            return fig
+
+        #  There is only one feature, we plot it with its nominal values.
+        feat = features[0]
+        fig = go.Figure()
+        x = explanation.query(f'feature == "{feat}"')["target"]
+        y = explanation.query(f'feature == "{feat}"')[y_col]
+        mean_row = explanation.query(f'feature == "{feat}" and tau == 0').iloc[0]
+
+        if self.n_samples > 1:
+            low = explanation.query(f'feature == "{feat}"')[f"{y_col}_low"]
+            high = explanation.query(f'feature == "{feat}"')[f"{y_col}_high"]
+            fig.add_trace(
+                go.Scatter(
+                    x=np.concatenate((x, x[::-1])),
+                    y=np.concatenate((low, high[::-1])),
+                    name=f"{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%",
+                    fill="toself",
+                    fillcolor=colors.get(feat),
+                    line_color="rgba(0, 0, 0, 0)",
+                    opacity=0.3,
+                )
+            )
+
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=y,
+                mode="lines+markers",
+                hoverinfo="x+y",
+                showlegend=False,
+                marker=dict(color=colors.get(feat)),
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[mean_row["target"]],
+                y=[mean_row[y_col]],
+                text=["Dataset mean"],
+                showlegend=False,
+                mode="markers",
+                name="Original mean",
+                hoverinfo="text",
+                marker=dict(symbol="x", size=9, color=colors.get(feat)),
+            )
+        )
+        fig.update_layout(
+            margin=dict(t=30, r=0, b=40),
+            xaxis=dict(title=f"Average {feat}"),
+            yaxis=dict(title=y_label, range=yrange),
+        )
+        set_fig_size(fig, size)
+        return fig
+
+    def _plot_explanation_2d(
+        self, explanation, z_col, z_label, z_range=None, colorscale=None, size=None
+    ):
+        fx, fy = explanation["feature"].unique()
+        x = np.sort(explanation[explanation["feature"] == fx]["target"].unique())
+        y = np.sort(explanation[explanation["feature"] == fy]["target"].unique())
+
+        z = explanation[explanation["feature"] == fx][z_col].values
+        z = z.reshape((len(x), len(y)))
+
+        z_min = z_max = None
+        if z_range is not None:
+            z_min, z_max = z_range
+
+        fig = go.Figure()
+        fig.add_heatmap(
+            x=x,
+            y=y,
+            z=z,
+            zmin=z_min,
+            zmax=z_max,
+            colorscale=colorscale or "Reds",
+            colorbar=dict(title=z_label),
+        )
+
+        fig.update_layout(
+            margin=dict(t=30, b=40),
+            xaxis=dict(title=f"Average {fx}", mirror=True),
+            yaxis=dict(title=f"Average {fy}", mirror=True),
+        )
+        set_fig_size(fig, size)
+        return fig
+
     def _plot_ranking(
         self, ranking, score_column, title, n_features=None, colors=None, size=None
     ):
@@ -461,41 +588,33 @@ class CacheExplainer(BaseExplainer):
         ranking = ranking.sort_values(by=[score_column], ascending=ascending)
         n_features = abs(n_features)
 
-        width = 500
-        height = 100 + 60 * n_features
-        if size is not None:
-            width, height = size
-
-        return go.Figure(
-            data=[
-                go.Bar(
-                    x=ranking[score_column][-n_features:],
-                    y=ranking["feature"][-n_features:],
-                    orientation="h",
-                    hoverinfo="x",
-                    marker=dict(color=colors),
-                )
-            ],
-            layout=go.Layout(
-                width=width,
-                height=height,
-                margin=dict(b=0, t=40, r=10),
-                xaxis=dict(title=title, range=[0, 1], side="top", fixedrange=True),
-                yaxis=dict(fixedrange=True, automargin=True),
-                modebar=dict(
-                    orientation="v",
-                    color="rgba(0, 0, 0, 0)",
-                    activecolor="rgba(0, 0, 0, 0)",
-                    bgcolor="rgba(0, 0, 0, 0)",
-                ),
+        fig = go.Figure()
+        fig.add_bar(
+            x=ranking[score_column][-n_features:],
+            y=ranking["feature"][-n_features:],
+            orientation="h",
+            hoverinfo="x",
+            marker=dict(color=colors),
+        )
+        fig.update_layout(
+            margin=dict(b=0, t=40, r=10),
+            xaxis=dict(title=title, range=[0, 1], side="top", fixedrange=True),
+            yaxis=dict(fixedrange=True, automargin=True),
+            modebar=dict(
+                orientation="v",
+                color="rgba(0, 0, 0, 0)",
+                activecolor="rgba(0, 0, 0, 0)",
+                bgcolor="rgba(0, 0, 0, 0)",
             ),
         )
+        set_fig_size(fig, size, width=500, height=100 + 60 * n_features)
+        return fig
 
     def plot_influence(self, X_test, y_pred, colors=None, yrange=None, size=None):
         """Plot the influence of the model for the features in `X_test`.
 
         Args:
-            X_test (pd.DataFrame or np.array): See `CacheExplainer.explain_influence()`.
+            X_test (pd.DataFrame): See `CacheExplainer.explain_influence()`.
             y_pred (pd.DataFrame or pd.Series): See `CacheExplainer.explain_influence()`.
             colors (dict, optional): A dictionary that maps features to colors.
                 Default is `None` and the colors are choosen automatically.
@@ -519,11 +638,54 @@ class CacheExplainer(BaseExplainer):
         """
         explanation = self.explain_influence(X_test, y_pred)
         labels = explanation["label"].unique()
+
         if len(labels) > 1:
             raise ValueError("Cannot plot multiple labels")
-        y_label = f"Average '{labels[0]}'"
+
         return self._plot_explanation(
-            explanation, "influence", y_label, colors=colors, yrange=yrange, size=size
+            explanation,
+            y_col="influence",
+            y_label=f"Average '{labels[0]}'",
+            colors=colors,
+            yrange=yrange,
+            size=size,
+        )
+
+    def plot_influence_2d(
+        self, X_test, y_pred, z_range=None, colorscale=None, size=None
+    ):
+        """Plot the influence of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame): The dataset as a pandas dataframe
+                with one column per feature. Must contain exactly two columns.
+            y_pred (pd.DataFrame or pd.Series): See `CacheExplainer.explain_influence()`.
+            colorscale (str, optional): The colorscale used for the heatmap.
+                See `plotly.graph_objs.Heatmap`. Default is `None`.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        """
+        if len(X_test.columns) != 2:
+            raise ValueError("`X_test` must contain exactly two columns.")
+
+        explanation = self.explain_influence(X_test, y_pred, link_variables=True)
+        labels = explanation["label"].unique()
+
+        if len(labels) > 1:
+            raise ValueError("Cannot plot multiple labels")
+
+        return self._plot_explanation_2d(
+            explanation,
+            z_col="influence",
+            z_label=f"Average '{labels[0]}'",
+            z_range=z_range,
+            colorscale=colorscale,
+            size=size,
         )
 
     def plot_influence_ranking(
@@ -590,10 +752,52 @@ class CacheExplainer(BaseExplainer):
 
         return self._plot_explanation(
             explanation,
-            metric_name,
+            y_col=metric_name,
             y_label=f"Average {metric_name}",
             colors=colors,
             yrange=yrange,
+            size=size,
+        )
+
+    def plot_performance_2d(
+        self, X_test, y_test, y_pred, metric, z_range=None, colorscale=None, size=None
+    ):
+        """Plot the influence of the model for the features in `X_test`.
+
+        Args:
+            X_test (pd.DataFrame): The dataset as a pandas dataframe
+                with one column per feature. Must contain exactly two columns.
+            y_pred (pd.DataFrame or pd.Series): See `CacheExplainer.explain_influence()`.
+            colorscale (str, optional): The colorscale used for the heatmap.
+                See `plotly.graph_objs.Heatmap`. Default is `None`.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        """
+        if len(X_test.columns) != 2:
+            raise ValueError("`X_test` must contain exactly two columns.")
+
+        metric_name = self.get_metric_name(metric)
+        explanation = self.explain_performance(
+            X_test=X_test,
+            y_test=y_test,
+            y_pred=y_pred,
+            metric=metric,
+            link_variables=True,
+        )
+        if z_range is None and explanation[metric_name].between(0, 1).all():
+            z_range = [0, 1]
+
+        return self._plot_explanation_2d(
+            explanation,
+            z_col=metric_name,
+            z_label=f"Average {metric_name}",
+            z_range=z_range,
+            colorscale=colorscale,
             size=size,
         )
 

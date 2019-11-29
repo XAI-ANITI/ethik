@@ -37,6 +37,12 @@ plot_template = go.layout.Template(
 )
 
 
+def set_fig_size(fig, size, width=None, height=None):
+    if size is not None:
+        width, height = size
+    fig.update_layout(width=width, height=height)
+
+
 def safe_scale(x):
     # If the std is zero, the values are constant and equal to the mean, so
     # the difference is zero.
