@@ -1,14 +1,15 @@
 import collections
 import functools
 import itertools
+import math
 import warnings
 
 import pandas as pd
 import plotly.graph_objs as go
 
 from .base_explainer import BaseExplainer
-from .utils import decimal_range, to_pandas
-from .warnings import ConstantWarning
+from .query import Query
+from .utils import to_pandas
 
 __all__ = ["CacheExplainer"]
 
@@ -91,6 +92,7 @@ class CacheExplainer(BaseExplainer):
         """Resets the info dataframe (for when memoization is turned off)."""
         self.info = pd.DataFrame(
             columns=[
+                "group",
                 "feature",
                 "tau",
                 "target",
@@ -121,11 +123,6 @@ class CacheExplainer(BaseExplainer):
     def features(self):
         return self.info["feature"].unique().tolist()
 
-    @property
-    def taus(self):
-        tau_precision = 2 / (self.n_taus - 1)
-        return list(decimal_range(-1, 1, tau_precision))
-
     def _determine_pairs_to_do(self, features, labels):
         to_do_pairs = set(itertools.product(features, labels)) - set(
             self.info.groupby(["feature", "label"]).groups.keys()
@@ -135,10 +132,22 @@ class CacheExplainer(BaseExplainer):
             to_do_map[feat].append(label)
         return {feat: list(sorted(labels)) for feat, labels in to_do_map.items()}
 
-    def _build_additional_info(self, X_test, y_pred):
+    def _build_additional_info(self, X_test, y_pred, link_variables):
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
         X_test = self._one_hot_encode(X_test)
+        last_group = self.info["group"].max()
+
+        if link_variables:
+            # For a multi-dimensional query, it's too complicated to check if
+            # it's already in the cache
+            return Query.multidim_from_taus(
+                X_test=X_test,
+                labels=y_pred.columns,
+                n_taus=self.n_taus,
+                q=[self.alpha, 1 - self.alpha],
+                first_group=0 if math.isnan(last_group) else last_group + 1,
+            )
 
         # Check which (feature, label) pairs have to be done
         to_do_map = self._determine_pairs_to_do(
@@ -151,47 +160,15 @@ class CacheExplainer(BaseExplainer):
         if X_test.empty:
             return pd.DataFrame()
 
-        quantiles = X_test.quantile(q=[self.alpha, 1.0 - self.alpha])
-
-        # Issue a warning if a feature doesn't have distinct quantiles
-        for feature, n_unique in quantiles.nunique().to_dict().items():
-            if n_unique == 1:
-                warnings.warn(
-                    message=f"all the values of feature {feature} are identical",
-                    category=ConstantWarning,
-                )
-
-        q_mins = quantiles.loc[self.alpha].to_dict()
-        q_maxs = quantiles.loc[1.0 - self.alpha].to_dict()
-        means = X_test.mean().to_dict()
-        info_to_complete = pd.concat(
-            [
-                pd.DataFrame(
-                    {
-                        "tau": self.taus,
-                        "target": [
-                            means[feature]
-                            + tau
-                            * (
-                                max(means[feature] - q_mins[feature], 0)
-                                if tau < 0
-                                else max(q_maxs[feature] - means[feature], 0)
-                            )
-                            for tau in self.taus
-                        ],
-                        "feature": [feature] * len(self.taus),
-                        "label": [label] * len(self.taus),
-                    }
-                )
-                # We need to iterate over `to_do_features` to keep the order of X_test
-                for feature in to_do_features
-                for label in to_do_map[feature]
-            ],
-            ignore_index=True,
+        return Query.unidim_from_taus(
+            X_test=X_test,
+            to_do_labels=to_do_map,
+            n_taus=self.n_taus,
+            q=[self.alpha, 1 - self.alpha],
+            first_group=0 if math.isnan(last_group) else last_group + 1,
         )
-        return info_to_complete
 
-    def _explain_with_cache(self, X_test, y_pred, explain):
+    def _explain_with_cache(self, X_test, y_pred, explain, link_variables=False):
         if not self.memoize:
             self._reset_info()
 
@@ -201,7 +178,7 @@ class CacheExplainer(BaseExplainer):
         y_pred = pd.DataFrame(to_pandas(y_pred))
         X_test = self._one_hot_encode(X_test)
 
-        additional_info = self._build_additional_info(X_test, y_pred)
+        additional_info = self._build_additional_info(X_test, y_pred, link_variables)
         self.info = self.info.append(additional_info, ignore_index=True, sort=False)
         self.info = explain(query=self.info)
 
@@ -210,7 +187,7 @@ class CacheExplainer(BaseExplainer):
             & self.info["label"].isin(y_pred.columns)
         ]
 
-    def explain_influence(self, X_test, y_pred):
+    def explain_influence(self, X_test, y_pred, link_variables=False):
         """Compute the influence of the model for the features in `X_test`.
 
         Args:
@@ -281,9 +258,10 @@ class CacheExplainer(BaseExplainer):
             explain=functools.partial(
                 self._explain_influence, X_test=X_test, y_pred=y_pred
             ),
+            link_variables=link_variables,
         )
 
-    def explain_performance(self, X_test, y_test, y_pred, metric):
+    def explain_performance(self, X_test, y_test, y_pred, metric, link_variables=False):
         """Compute the change in model's performance for the features in `X_test`.
 
         Args:
@@ -326,6 +304,7 @@ class CacheExplainer(BaseExplainer):
                 y_test=y_test,
                 metric=metric,
             ),
+            link_variables=link_variables,
         )
 
     def rank_by_influence(self, X_test, y_pred):
