@@ -102,7 +102,53 @@ class ClassificationExplainer(CacheExplainer):
                 size=size,
             )
 
-        #  TODO: multi labels
+        labels = y_pred.columns
+        plots = []
+        for label in labels:
+            plots.append(
+                super().plot_influence_2d(
+                    X_test=X_test,
+                    y_pred=y_pred[label],
+                    z_range=z_range,
+                    colorscale=colorscale,
+                    size=size,
+                )
+            )
+
+        fig = make_subplots(
+            rows=len(labels),
+            cols=1,
+            shared_xaxes=True,
+            subplot_titles=[p["data"][0]["colorbar"]["title"].text for p in plots],
+        )
+        for ilabel, (label, plot) in enumerate(zip(labels, plots)):
+            fig.update_layout({f"yaxis{ilabel+1}": dict(title=plot.layout.yaxis.title)})
+            for trace in plot["data"]:
+                trace["showscale"] = ilabel == 0
+                trace["colorbar"]["title"] = ""
+                trace["hoverinfo"] = "x+y+z"
+                fig.add_trace(trace, row=ilabel + 1, col=1)
+
+        fig.update_xaxes(
+            showline=True,
+            showgrid=True,
+            zeroline=False,
+            mirror=True,
+            linecolor="black",
+            gridcolor="#eee",
+        )
+        fig.update_yaxes(
+            showline=True,
+            showgrid=True,
+            mirror=True,
+            linecolor="black",
+            gridcolor="#eee",
+        )
+        fig.update_layout(
+            {f"xaxis{len(labels)}": dict(title=plots[0].layout.xaxis.title)}
+        )
+        set_fig_size(fig, size)
+        return fig
 
     def plot_distributions(
         self,
@@ -234,8 +280,6 @@ class ClassificationExplainer(CacheExplainer):
         title = None
         shapes = []
         for ilabel, (label, plot) in enumerate(zip(labels, plots)):
-            if ilabel == 0:
-                title = plot.layout.xaxis.title
             fig.update_layout({f"yaxis{ilabel+1}": dict(title=label)})
             for trace in plot["data"]:
                 shapes.append(
@@ -263,7 +307,11 @@ class ClassificationExplainer(CacheExplainer):
             fixedrange=True,
             showticklabels=True,
         )
-        fig.update_layout(showlegend=False, xaxis1=dict(title=title), shapes=shapes)
+        fig.update_layout(
+            showlegend=False,
+            xaxis1=dict(title=plots[0].layout.xaxis.title),
+            shapes=shapes,
+        )
         set_fig_size(
             fig, size, width=500, height=100 + 60 * len(features) + 30 * len(labels)
         )

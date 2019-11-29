@@ -38,7 +38,7 @@ class Query:
                 pd.DataFrame(
                     {
                         "tau": taus,
-                        "dimension": [1] * len(taus),
+                        "free_dimensions": [1] * len(taus),
                         "target": [
                             cls.target_from_tau(
                                 q_min=q_mins[feature],
@@ -106,7 +106,7 @@ class Query:
                 pd.DataFrame(
                     {
                         "group": [first_group + i] * len(features),
-                        "dimension": [len(features)] * len(features),
+                        "free_dimensions": [len(features)] * len(features),
                         "tau": [x[0] for x in group[:-1]],
                         "target": [x[1] for x in group[:-1]],
                         "feature": features,

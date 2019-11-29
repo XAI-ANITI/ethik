@@ -114,7 +114,8 @@ def compute_ksi(group_id, x, target_mean, max_iterations, tol):
     if not success:
         warnings.warn(
             message=(
-                f"convergence warning for {group_id}, with target mean {target_mean}:\n\n"
+                f"Convergence warning for group {group_id}, with features {list(features)}"
+                + f" and targets {list(target_mean)}:\n\n"
                 + str(res)
             ),
             category=ConvergenceWarning,

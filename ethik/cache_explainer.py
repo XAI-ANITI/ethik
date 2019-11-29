@@ -94,7 +94,7 @@ class CacheExplainer(BaseExplainer):
         self.info = pd.DataFrame(
             columns=[
                 "group",
-                "dimension",
+                "free_dimensions",
                 "feature",
                 "tau",
                 "target",
@@ -127,7 +127,7 @@ class CacheExplainer(BaseExplainer):
 
     def _determine_pairs_to_do(self, features, labels, multi_dim=False):
         dim = 1 if not multi_dim else len(features)
-        unidim_info = self.info[self.info["dimension"] == dim]
+        unidim_info = self.info[self.info["free_dimensions"] == dim]
         to_do_pairs = set(itertools.product(features, labels)) - set(
             unidim_info.groupby(["feature", "label"]).groups.keys()
         )
@@ -193,12 +193,12 @@ class CacheExplainer(BaseExplainer):
             return self.info[
                 self.info["feature"].isin(X_test.columns)
                 & self.info["label"].isin(y_pred.columns)
-                & (self.info["dimension"] == 1)
+                & (self.info["free_dimensions"] == 1)
             ]
 
         ret = self.info[
             self.info["label"].isin(y_pred.columns)
-            & (self.info["dimension"] == len(X_test.columns))
+            & (self.info["free_dimensions"] == len(X_test.columns))
         ]
 
         # We find the groups that exactly  contain the features of `X_test`
@@ -645,7 +645,7 @@ class CacheExplainer(BaseExplainer):
         return self._plot_explanation(
             explanation,
             y_col="influence",
-            y_label=f"Average '{labels[0]}'",
+            y_label=f"Average {labels[0]}",
             colors=colors,
             yrange=yrange,
             size=size,
@@ -682,7 +682,7 @@ class CacheExplainer(BaseExplainer):
         return self._plot_explanation_2d(
             explanation,
             z_col="influence",
-            z_label=f"Average '{labels[0]}'",
+            z_label=f"Average {labels[0]}",
             z_range=z_range,
             colorscale=colorscale,
             size=size,
