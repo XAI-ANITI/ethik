@@ -94,7 +94,6 @@ class CacheExplainer(BaseExplainer):
         self.info = pd.DataFrame(
             columns=[
                 "group",
-                "free_dimensions",
                 "feature",
                 "tau",
                 "target",
@@ -121,71 +120,9 @@ class CacheExplainer(BaseExplainer):
             raise ValueError(f"Cannot use {name} as a metric name")
         return name
 
-    def _find_queried_info(self, features, labels, link_variables=False):
-        if not link_variables:
-            return self.info[
-                self.info["feature"].isin(features)
-                & self.info["label"].isin(labels)
-                & (self.info["free_dimensions"] == 1)
-            ]
-
-        groups = set()
-        features = set(features)
-        info = self.info[
-            self.info["label"].isin(labels)
-            & (self.info["free_dimensions"] == len(features))
-        ]
-        for group, part in info.groupby(["group"]):
-            if set(part["feature"]) == features:
-                groups.add(group)
-        return info[info["group"].isin(groups)]
-
-    def _build_additional_info(self, X_test, y_pred, link_variables):
-        X_test = pd.DataFrame(to_pandas(X_test))
-        y_pred = pd.DataFrame(to_pandas(y_pred))
-        X_test = self._one_hot_encode(X_test)
-        last_group = self.info["group"].max()
-        features = X_test.columns
-        labels = y_pred.columns
-
-        if link_variables:
-            existing = self._find_queried_info(features, labels, link_variables=True)
-            if not existing.empty:
-                return pd.DataFrame()
-            return Query.multidim_from_taus(
-                X_test=X_test,
-                labels=labels,
-                n_taus=self.n_taus,  #  TODO: it's a lot of points for n_taus = 41
-                q=[self.alpha, 1 - self.alpha],
-                first_group=0 if math.isnan(last_group) else last_group + 1,
-            )
-
-        # Check which (feature, label) pairs have to be done
-        unidim_info = self.info[self.info["free_dimensions"] == 1]
-        to_do_pairs = set(itertools.product(features, labels)) - set(
-            unidim_info.groupby(["feature", "label"]).groups.keys()
-        )
-        to_do_map = collections.defaultdict(list)
-        for feat, label in to_do_pairs:
-            to_do_map[feat].append(label)
-        to_do_map = {feat: list(sorted(labels)) for feat, labels in to_do_map.items()}
-
-        # We need a list to keep the order of X_test
-        to_do_features = list(feat for feat in X_test.columns if feat in to_do_map)
-        X_test = X_test[to_do_features]
-
-        if X_test.empty:
-            return pd.DataFrame()
-
-        return Query.unidim_from_taus(
-            X_test=X_test,
-            to_do_labels=to_do_map,
-            n_taus=self.n_taus,
-            q=[self.alpha, 1 - self.alpha],
-            first_group=0 if math.isnan(last_group) else last_group + 1,
-        )
-
-    def _explain_with_cache(self, X_test, y_pred, explain, link_variables=False):
+    def _explain_with_cache(
+        self, X_test, y_pred, explain, link_variables=False, constraints=None
+    ):
         if not self.memoize:
             self._reset_info()
 
@@ -195,17 +132,27 @@ class CacheExplainer(BaseExplainer):
         y_pred = pd.DataFrame(to_pandas(y_pred))
         X_test = self._one_hot_encode(X_test)
 
-        additional_info = self._build_additional_info(X_test, y_pred, link_variables)
-        self.info = self.info.append(additional_info, ignore_index=True, sort=False)
-        self.info = explain(query=self.info)
-
-        return self._find_queried_info(
-            features=X_test.columns,
+        query = Query.from_taus(
+            X_test=X_test,
             labels=y_pred.columns,
+            n_taus=self.n_taus,  #  TODO: it's a lot of points for n_taus = 41
+            q=[self.alpha, 1 - self.alpha],
+            constraints=constraints,
             link_variables=link_variables,
         )
 
-    def explain_influence(self, X_test, y_pred, link_variables=False):
+        #  TODO: labels already done
+        queried_groups = query["group"].unique()
+        existing_groups = self.info["group"].unique()
+        groups_todo = set(queried_groups) - set(existing_groups)
+        query = query[query["group"].isin(groups_todo)]
+
+        self.info = self.info.append(query, ignore_index=True, sort=False)
+        self.info = explain(query=self.info)
+
+        return self.info[self.info["group"].isin(queried_groups)]
+
+    def explain_influence(self, X_test, y_pred, link_variables=False, constraints=None):
         """Compute the influence of the model for the features in `X_test`.
 
         Args:
@@ -221,6 +168,7 @@ class CacheExplainer(BaseExplainer):
                 explanation or not. Default is `False`, which means that all
                 the features in `X_test` are considered independently (so the
                 correlation are not taken into account).
+            constraints (dict, optional): TODO
 
         Returns:
             pd.DataFrame:
@@ -281,9 +229,12 @@ class CacheExplainer(BaseExplainer):
                 self._explain_influence, X_test=X_test, y_pred=y_pred
             ),
             link_variables=link_variables,
+            constraints=constraints,
         )
 
-    def explain_performance(self, X_test, y_test, y_pred, metric, link_variables=False):
+    def explain_performance(
+        self, X_test, y_test, y_pred, metric, link_variables=False, constraints=None
+    ):
         """Compute the change in model's performance for the features in `X_test`.
 
         Args:
@@ -306,6 +257,7 @@ class CacheExplainer(BaseExplainer):
                 explanation or not. Default is `False`, which means that all
                 the features in `X_test` are considered independently (so the
                 correlation are not taken into account).
+            constraints (dict, optional): TODO
 
         Returns:
             pd.DataFrame:
@@ -331,6 +283,7 @@ class CacheExplainer(BaseExplainer):
                 metric=metric,
             ),
             link_variables=link_variables,
+            constraints=constraints,
         )
 
     def rank_by_influence(self, X_test, y_pred):
