@@ -10,7 +10,9 @@ __all__ = ["ClassificationExplainer"]
 
 
 class ClassificationExplainer(CacheExplainer):
-    def plot_influence(self, X_test, y_pred, colors=None, yrange=None, size=None):
+    def plot_influence(
+        self, X_test, y_pred, colors=None, yrange=None, size=None, constraints=None
+    ):
         """Plot the influence for the features in `X_test`.
 
         See `ethik.cache_explainer.CacheExplainer.plot_influence()`.
@@ -28,6 +30,7 @@ class ClassificationExplainer(CacheExplainer):
                 colors=colors,
                 yrange=yrange,
                 size=size,
+                constraints=constraints,
             )
 
         if colors is None:
@@ -41,7 +44,11 @@ class ClassificationExplainer(CacheExplainer):
         for label in labels:
             plots.append(
                 super().plot_influence(
-                    X_test=X_test, y_pred=y_pred[label], colors=colors, yrange=yrange
+                    X_test=X_test,
+                    y_pred=y_pred[label],
+                    colors=colors,
+                    yrange=yrange,
+                    constraints=constraints,
                 )
             )
 
@@ -81,7 +88,7 @@ class ClassificationExplainer(CacheExplainer):
         return fig
 
     def plot_influence_2d(
-        self, X_test, y_pred, z_range=None, colorscale=None, size=None
+        self, X_test, y_pred, z_range=None, colorscale=None, size=None, constraints=None
     ):
         """Plot the combined influence for the features in `X_test`.
 
@@ -100,6 +107,7 @@ class ClassificationExplainer(CacheExplainer):
                 z_range=z_range,
                 colorscale=colorscale,
                 size=size,
+                constraints=constraints,
             )
 
         labels = y_pred.columns
@@ -112,6 +120,7 @@ class ClassificationExplainer(CacheExplainer):
                     z_range=z_range,
                     colorscale=colorscale,
                     size=size,
+                    constraints=constraints,
                 )
             )
 
@@ -145,7 +154,10 @@ class ClassificationExplainer(CacheExplainer):
             gridcolor="#eee",
         )
         fig.update_layout(
-            {f"xaxis{len(labels)}": dict(title=plots[0].layout.xaxis.title)}
+            {
+                f"xaxis{len(labels)}": dict(title=plots[0].layout.xaxis.title),
+                "title": plots[0].layout.title,
+            }
         )
         set_fig_size(fig, size)
         return fig

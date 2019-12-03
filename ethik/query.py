@@ -143,7 +143,7 @@ class Query:
                         * len(X_test.columns),
                         "tau": [x[0] for x in group],
                         "target": [x[1] for x in group],
-                        "feature": X_test.columns,
+                        "feature": [*features, *constraints],
                         "label": [label] * len(X_test.columns),
                     }
                 )

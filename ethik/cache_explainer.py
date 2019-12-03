@@ -84,6 +84,9 @@ class CacheExplainer(BaseExplainer):
                 f"n_taus must be a strictly positive integer, got {n_taus}"
             )
 
+        if not n_taus % 2:
+            raise ValueError("n_taus must be odd")
+
         self.n_taus = n_taus
         self.memoize = memoize
         self.metric_names = set()
@@ -172,7 +175,10 @@ class CacheExplainer(BaseExplainer):
                 explanation or not. Default is `False`, which means that all
                 the features in `X_test` are considered independently (so the
                 correlation are not taken into account).
-            constraints (dict, optional): TODO
+            constraints (dict, optional): A dictionary `(feature, mean)` to fix
+                the mean of certain features, i.e. to ask questions like "How does
+                the model behave for a mean age ranging from 20 to 60 when the
+                education level is 10?"
 
         Returns:
             pd.DataFrame:
@@ -261,7 +267,10 @@ class CacheExplainer(BaseExplainer):
                 explanation or not. Default is `False`, which means that all
                 the features in `X_test` are considered independently (so the
                 correlation are not taken into account).
-            constraints (dict, optional): TODO
+            constraints (dict, optional): A dictionary `(feature, mean)` to fix
+                the mean of certain features, i.e. to ask questions like "How does
+                the model behave for a mean age ranging from 20 to 60 when the
+                education level is 10?"
 
         Returns:
             pd.DataFrame:
@@ -409,8 +418,21 @@ class CacheExplainer(BaseExplainer):
         )
 
     def _plot_explanation(
-        self, explanation, y_col, y_label, colors=None, yrange=None, size=None
+        self,
+        explanation,
+        y_col,
+        y_label,
+        colors=None,
+        yrange=None,
+        size=None,
+        constraints=None,
     ):
+        if constraints is not None:
+            explanation = explanation[~explanation["feature"].isin(constraints)]
+            constraints_title = ", ".join(f"{f}={v}" for f, v in constraints.items())
+        else:
+            constraints_title = ""
+
         features = explanation["feature"].unique()
 
         if colors is None:
@@ -438,9 +460,13 @@ class CacheExplainer(BaseExplainer):
                     )
                 )
 
+            x_title = "tau"
+            if constraints_title:
+                x_title += f" (with {constraints_title})"
+
             fig.update_layout(
                 margin=dict(t=30, r=50, b=40),
-                xaxis=dict(title="tau", nticks=5),
+                xaxis=dict(title=x_title, nticks=5),
                 yaxis=dict(title=y_label, range=yrange),
             )
             set_fig_size(fig, size)
@@ -490,17 +516,32 @@ class CacheExplainer(BaseExplainer):
                 marker=dict(symbol="x", size=9, color=colors.get(feat)),
             )
         )
+
+        x_title = f"Average {feat}"
+        if constraints_title:
+            x_title += f" (with {constraints_title})"
+
         fig.update_layout(
             margin=dict(t=30, r=0, b=40),
-            xaxis=dict(title=f"Average {feat}"),
+            xaxis=dict(title=x_title),
             yaxis=dict(title=y_label, range=yrange),
         )
         set_fig_size(fig, size)
         return fig
 
     def _plot_explanation_2d(
-        self, explanation, z_col, z_label, z_range=None, colorscale=None, size=None
+        self,
+        explanation,
+        z_col,
+        z_label,
+        z_range=None,
+        colorscale=None,
+        size=None,
+        constraints=None,
     ):
+        if constraints is not None:
+            explanation = explanation[~explanation["feature"].isin(constraints)]
+
         fx, fy = explanation["feature"].unique()
         x = np.sort(explanation[explanation["feature"] == fx]["target"].unique())
         y = np.sort(explanation[explanation["feature"] == fy]["target"].unique())
@@ -523,10 +564,17 @@ class CacheExplainer(BaseExplainer):
             colorbar=dict(title=z_label),
         )
 
+        title = None
+        if constraints is not None:
+            title = "Constraints: " + ", ".join(
+                f"{f}={v}" for f, v in constraints.items()
+            )
+
         fig.update_layout(
             margin=dict(t=30, b=40),
             xaxis=dict(title=f"Average {fx}", mirror=True),
             yaxis=dict(title=f"Average {fy}", mirror=True),
+            title=title,
         )
         set_fig_size(fig, size)
         return fig
@@ -562,7 +610,9 @@ class CacheExplainer(BaseExplainer):
         set_fig_size(fig, size, width=500, height=100 + 60 * n_features)
         return fig
 
-    def plot_influence(self, X_test, y_pred, colors=None, yrange=None, size=None):
+    def plot_influence(
+        self, X_test, y_pred, colors=None, yrange=None, size=None, constraints=None
+    ):
         """Plot the influence of the model for the features in `X_test`.
 
         Args:
@@ -573,6 +623,10 @@ class CacheExplainer(BaseExplainer):
             yrange (list, optional): A two-item list `[low, high]`. Default is
                 `None` and the range is based on the data.
             size (tuple, optional): An optional couple `(width, height)` in pixels.
+            constraints (dict, optional): A dictionary `(feature, mean)` to fix
+                the mean of certain features, i.e. to ask questions like "How does
+                the model behave for a mean age ranging from 20 to 60 when the
+                education level is 10?"
 
         Returns:
             plotly.graph_objs.Figure:
@@ -588,7 +642,7 @@ class CacheExplainer(BaseExplainer):
             ... ))
             >>> explainer.plot_influence(X_test, y_pred, yrange=[0.5, 1])
         """
-        explanation = self.explain_influence(X_test, y_pred)
+        explanation = self.explain_influence(X_test, y_pred, constraints=constraints)
         labels = explanation["label"].unique()
 
         if len(labels) > 1:
@@ -601,10 +655,11 @@ class CacheExplainer(BaseExplainer):
             colors=colors,
             yrange=yrange,
             size=size,
+            constraints=constraints,
         )
 
     def plot_influence_2d(
-        self, X_test, y_pred, z_range=None, colorscale=None, size=None
+        self, X_test, y_pred, z_range=None, colorscale=None, size=None, constraints=None
     ):
         """Plot the influence of the model for the features in `X_test`.
 
@@ -615,6 +670,10 @@ class CacheExplainer(BaseExplainer):
             colorscale (str, optional): The colorscale used for the heatmap.
                 See `plotly.graph_objs.Heatmap`. Default is `None`.
             size (tuple, optional): An optional couple `(width, height)` in pixels.
+            constraints (dict, optional): A dictionary `(feature, mean)` to fix
+                the mean of certain features, i.e. to ask questions like "How does
+                the model behave for a mean age ranging from 20 to 60 when the
+                education level is 10?"
 
         Returns:
             plotly.graph_objs.Figure:
@@ -622,10 +681,15 @@ class CacheExplainer(BaseExplainer):
                 can also call the `.show()` method to plot multiple charts in the
                 same cell.
         """
-        if len(X_test.columns) != 2:
-            raise ValueError("`X_test` must contain exactly two columns.")
+        n_constraints = 0 if constraints is None else len(constraints)
+        if len(X_test.columns) != (2 + n_constraints):
+            raise ValueError(
+                "`X_test` must contain exactly two columns in addition to the constraints."
+            )
 
-        explanation = self.explain_influence(X_test, y_pred, link_variables=True)
+        explanation = self.explain_influence(
+            X_test, y_pred, link_variables=True, constraints=constraints
+        )
         labels = explanation["label"].unique()
 
         if len(labels) > 1:
@@ -638,6 +702,7 @@ class CacheExplainer(BaseExplainer):
             z_range=z_range,
             colorscale=colorscale,
             size=size,
+            constraints=constraints,
         )
 
     def plot_influence_ranking(
@@ -672,7 +737,15 @@ class CacheExplainer(BaseExplainer):
         )
 
     def plot_performance(
-        self, X_test, y_test, y_pred, metric, colors=None, yrange=None, size=None
+        self,
+        X_test,
+        y_test,
+        y_pred,
+        metric,
+        colors=None,
+        yrange=None,
+        size=None,
+        constraints=None,
     ):
         """Plot the performance of the model for the features in `X_test`.
 
@@ -683,7 +756,8 @@ class CacheExplainer(BaseExplainer):
             metric (callable): See `CacheExplainer.explain_performance()`.
             colors (dict, optional): See `CacheExplainer.plot_influence()`.
             yrange (list, optional): See `CacheExplainer.plot_influence()`.
-            size (tuple, optional): An optional couple `(width, height)` in pixels.
+            size (tuple, optional): See `CacheExplainer.plot_influence()`.
+            constraints (dict, optional): See `CacheExplainer.plot_influence()`.
 
         Returns:
             plotly.graph_objs.Figure:
@@ -693,7 +767,11 @@ class CacheExplainer(BaseExplainer):
         """
         metric_name = self.get_metric_name(metric)
         explanation = self.explain_performance(
-            X_test=X_test, y_test=y_test, y_pred=y_pred, metric=metric
+            X_test=X_test,
+            y_test=y_test,
+            y_pred=y_pred,
+            metric=metric,
+            constraints=constraints,
         )
         if yrange is None and explanation[metric_name].between(0, 1).all():
             yrange = [0, 1]
@@ -709,10 +787,19 @@ class CacheExplainer(BaseExplainer):
             colors=colors,
             yrange=yrange,
             size=size,
+            constraints=constraints,
         )
 
     def plot_performance_2d(
-        self, X_test, y_test, y_pred, metric, z_range=None, colorscale=None, size=None
+        self,
+        X_test,
+        y_test,
+        y_pred,
+        metric,
+        z_range=None,
+        colorscale=None,
+        size=None,
+        constraints=None,
     ):
         """Plot the influence of the model for the features in `X_test`.
 
@@ -722,7 +809,8 @@ class CacheExplainer(BaseExplainer):
             y_pred (pd.DataFrame or pd.Series): See `CacheExplainer.explain_influence()`.
             colorscale (str, optional): The colorscale used for the heatmap.
                 See `plotly.graph_objs.Heatmap`. Default is `None`.
-            size (tuple, optional): An optional couple `(width, height)` in pixels.
+            size (tuple, optional): See `CacheExplainer.plot_influence()`.
+            constraints (dict, optional): See `CacheExplainer.plot_influence()`.
 
         Returns:
             plotly.graph_objs.Figure:
@@ -730,8 +818,11 @@ class CacheExplainer(BaseExplainer):
                 can also call the `.show()` method to plot multiple charts in the
                 same cell.
         """
-        if len(X_test.columns) != 2:
-            raise ValueError("`X_test` must contain exactly two columns.")
+        n_constraints = 0 if constraints is None else len(constraints)
+        if len(X_test.columns) != (2 + n_constraints):
+            raise ValueError(
+                "`X_test` must contain exactly two columns in addition to the constraints."
+            )
 
         metric_name = self.get_metric_name(metric)
         explanation = self.explain_performance(
@@ -740,6 +831,7 @@ class CacheExplainer(BaseExplainer):
             y_pred=y_pred,
             metric=metric,
             link_variables=True,
+            constraints=constraints,
         )
         if z_range is None and explanation[metric_name].between(0, 1).all():
             z_range = [0, 1]
@@ -751,6 +843,7 @@ class CacheExplainer(BaseExplainer):
             z_range=z_range,
             colorscale=colorscale,
             size=size,
+            constraints=constraints,
         )
 
     def plot_performance_ranking(
