@@ -84,9 +84,6 @@ class CacheExplainer(BaseExplainer):
                 f"n_taus must be a strictly positive integer, got {n_taus}"
             )
 
-        if not n_taus % 2:
-            raise ValueError("n_taus must be odd")
-
         self.n_taus = n_taus
         self.memoize = memoize
         self.metric_names = set()
@@ -422,6 +419,7 @@ class CacheExplainer(BaseExplainer):
         explanation,
         y_col,
         y_label,
+        dataset_mean=None,
         colors=None,
         yrange=None,
         size=None,
@@ -477,7 +475,6 @@ class CacheExplainer(BaseExplainer):
         fig = go.Figure()
         x = explanation.query(f'feature == "{feat}"')["target"]
         y = explanation.query(f'feature == "{feat}"')[y_col]
-        mean_row = explanation.query(f'feature == "{feat}" and tau == 0').iloc[0]
 
         if self.n_samples > 1:
             low = explanation.query(f'feature == "{feat}"')[f"{y_col}_low"]
@@ -506,8 +503,8 @@ class CacheExplainer(BaseExplainer):
         )
         fig.add_trace(
             go.Scatter(
-                x=[mean_row["target"]],
-                y=[mean_row[y_col]],
+                x=[dataset_mean[0]],
+                y=[dataset_mean[1]],
                 text=["Dataset mean"],
                 showlegend=False,
                 mode="markers",
@@ -563,6 +560,8 @@ class CacheExplainer(BaseExplainer):
             colorscale=colorscale or "Reds",
             colorbar=dict(title=z_label),
         )
+
+        #  TODO: plot original means
 
         title = None
         if constraints is not None:
@@ -648,10 +647,17 @@ class CacheExplainer(BaseExplainer):
         if len(labels) > 1:
             raise ValueError("Cannot plot multiple labels")
 
+        dataset_mean = None
+        features = list(set(X_test.columns) - set(constraints or {}))
+        if len(features) == 1:
+            y_pred = pd.DataFrame(to_pandas(y_pred))
+            dataset_mean = [X_test[features[0]].mean(), y_pred[labels[0]].mean()]
+
         return self._plot_explanation(
-            explanation,
+            explanation=explanation,
             y_col="influence",
             y_label=f"Average {labels[0]}",
+            dataset_mean=dataset_mean,
             colors=colors,
             yrange=yrange,
             size=size,
@@ -779,11 +785,17 @@ class CacheExplainer(BaseExplainer):
         #  The performance is the same for all labels, we remove duplicates
         label = explanation["label"].unique()[0]
         explanation = explanation[explanation["label"] == label]
+        dataset_mean = None
+        features = list(set(X_test.columns) - set(constraints or {}))
+        if len(features) == 1:
+            y_pred = pd.DataFrame(to_pandas(y_pred))
+            dataset_mean = [X_test[features[0]].mean(), metric(y_test, y_pred[label])]
 
         return self._plot_explanation(
-            explanation,
+            explanation=explanation,
             y_col=metric_name,
             y_label=f"Average {metric_name}",
+            dataset_mean=dataset_mean,
             colors=colors,
             yrange=yrange,
             size=size,
