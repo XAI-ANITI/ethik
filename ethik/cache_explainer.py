@@ -135,22 +135,26 @@ class CacheExplainer(BaseExplainer):
         query = Query.from_taus(
             X_test=X_test,
             labels=y_pred.columns,
-            n_taus=self.n_taus,  #  TODO: it's a lot of points for n_taus = 41
+            n_taus=self.n_taus,  #  TODO: it's a lot of points for link_variables=True
             q=[self.alpha, 1 - self.alpha],
             constraints=constraints,
             link_variables=link_variables,
         )
 
-        #  TODO: labels already done
-        queried_groups = query["group"].unique()
-        existing_groups = self.info["group"].unique()
-        groups_todo = set(queried_groups) - set(existing_groups)
-        query = query[query["group"].isin(groups_todo)]
+        def is_row_todo(group, label):
+            return self.info.query(f"group == '{group}' and label == '{label}'").empty
 
-        self.info = self.info.append(query, ignore_index=True, sort=False)
+        additional_info = query[
+            query[["group", "label"]].apply(lambda x: is_row_todo(*x), axis=1)
+        ]
+        self.info = self.info.append(additional_info, ignore_index=True, sort=False)
         self.info = explain(query=self.info)
 
-        return self.info[self.info["group"].isin(queried_groups)]
+        queried_groups = query["group"].unique()
+        return self.info[
+            self.info["group"].isin(queried_groups)
+            & self.info["label"].isin(y_pred.columns)
+        ]
 
     def explain_influence(self, X_test, y_pred, link_variables=False, constraints=None):
         """Compute the influence of the model for the features in `X_test`.

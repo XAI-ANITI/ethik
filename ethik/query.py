@@ -141,7 +141,6 @@ class Query:
                     {
                         "group": [cls.create_gid(X_test.columns, [x[1] for x in group])]
                         * len(X_test.columns),
-                        "free_dimensions": [len(features)] * len(X_test.columns),
                         "tau": [x[0] for x in group],
                         "target": [x[1] for x in group],
                         "feature": X_test.columns,
