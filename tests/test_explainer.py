@@ -81,15 +81,15 @@ def test_memoization():
     # Without memoization
     explainer = ethik.RegressionExplainer(memoize=False, n_jobs=1)
     explainer.explain_influence(X_test[["INDUS", "NOX"]], y_pred)
-    assert explainer.info["feature"].unique().tolist() == ["INDUS", "NOX"]
+    assert set(explainer.info["feature"].unique()) == set(["INDUS", "NOX"])
     explainer.explain_influence(X_test[["INDUS"]], y_pred)
-    assert explainer.info["feature"].unique().tolist() == ["INDUS"]
+    assert set(explainer.info["feature"].unique()) == set(["INDUS"])
 
     # With memoization
     explainer = ethik.RegressionExplainer(memoize=True, n_jobs=1)
     influence = explainer.explain_influence(X_test[["INDUS", "NOX"]], y_pred)
-    assert influence["feature"].unique().tolist() == ["INDUS", "NOX"]
-    assert explainer.info["feature"].unique().tolist() == ["INDUS", "NOX"]
+    assert set(influence["feature"].unique()) == set(["INDUS", "NOX"])
+    assert set(explainer.info["feature"].unique()) == set(["INDUS", "NOX"])
     influence = explainer.explain_influence(X_test[["INDUS"]], y_pred)
-    assert influence["feature"].unique().tolist() == ["INDUS"]
-    assert explainer.info["feature"].unique().tolist() == ["INDUS", "NOX"]
+    assert set(influence["feature"].unique()) == set(["INDUS"])
+    assert set(explainer.info["feature"].unique()) == set(["INDUS", "NOX"])
