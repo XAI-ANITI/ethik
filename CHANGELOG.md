@@ -5,6 +5,10 @@
 ### Added
 
 * `BaseExplainer.plot_weights()` to visualize how many individuals capture X% of the weight used to stress the distribution.
+* `CacheExplainer.plot_influence_2d()` and `CacheExplainer.plot_performance_2d()` to reach two means simultaneously (and so considering correlations between features).
+* `link_variables` parameter to `CacheExplainer.explain_influence()` and `CacheExplainer.explain_performance()`, to indicate whether the marginal distributions (`link_variables == False`) or the whole distribution (`link_variables == True`) is stressed.
+* `constraints` parameter to `CacheExplainer.explain_influence()` and `CacheExplainer.explain_performance()`, to specify fixed means for certain features.
+* `ethik.query.Query()` class to build queries.
 
 ### Changed
 
