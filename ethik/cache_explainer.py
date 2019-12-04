@@ -144,14 +144,18 @@ class CacheExplainer(BaseExplainer):
             link_variables=link_variables,
         )
 
-        def is_row_todo(group, label):
-            return self.info.query(f"group == '{group}' and label == '{label}'").empty
+        query_index = pd.MultiIndex.from_arrays([query["group"], query["label"]])
+        info_index = pd.MultiIndex.from_arrays([self.info["group"], self.info["label"]])
+        diff_index = ~query_index.isin(info_index)
 
-        additional_info = query[
-            query[["group", "label"]].apply(lambda x: is_row_todo(*x), axis=1)
-        ]
-        self.info = self.info.append(additional_info, ignore_index=True, sort=False)
+        self.info = self.info.append(query[diff_index], ignore_index=True, sort=False)
+
+        print("Explaining...")
+        import time  #  TODO
+
+        start = time.time()
         self.info = explain(query=self.info)
+        print(time.time() - start)
 
         queried_groups = query["group"].unique()
         return self.info[
