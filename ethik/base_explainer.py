@@ -55,10 +55,14 @@ class F:
     def __call__(self, ksi):
         """Returns the loss and the gradient for a particular ksi value."""
 
-        lambdas = special.softmax(np.dot(self.x, ksi))
-        current_mean = np.average(self.x, weights=lambdas, axis=0)
-
-        loss = np.linalg.norm(current_mean - self.target_mean)
+        if len(ksi) == 1:
+            lambdas = special.softmax(self.x * ksi[0])
+            current_mean = np.average(self.x, weights=lambdas, axis=0)[0]
+            loss = (current_mean - self.target_mean[0]) ** 2
+        else:
+            lambdas = special.softmax(np.dot(self.x, ksi))
+            current_mean = np.average(self.x, weights=lambdas, axis=0)
+            loss = np.linalg.norm(current_mean - self.target_mean)
 
         if loss < self.tol:
             raise ConvergenceSuccess(ksi=ksi)
@@ -203,15 +207,20 @@ class BaseExplainer:
             query["ksi"] = None
 
         query_to_complete = query[query["ksi"].isnull()]
+        # We keep the group for one label only
+        groups = query_to_complete.groupby(["group", "feature"]).first()
+
+        # `groups` is a dataframe with multi-index `(group, feature)`
+
         ksis = joblib.Parallel(n_jobs=self.n_jobs)(
             joblib.delayed(compute_ksi)(
-                group_id=group_id,
-                x=X_test[part["feature"]],
-                target_mean=part["target"],
+                group_id=gid,
+                x=X_test[part.index.get_level_values("feature").values],
+                target_mean=part["target"].values,
                 max_iterations=self.max_iterations,
                 tol=self.tol,
             )
-            for group_id, part in query_to_complete.groupby("group")
+            for gid, part in groups.groupby("group")
         )
         ksis = dict(collections.ChainMap(*ksis))
 
