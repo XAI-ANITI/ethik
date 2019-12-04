@@ -149,14 +149,13 @@ class ImageClassificationExplainer(CacheExplainer):
             X_test (pd.DataFrame or np.array): See `ImageClassificationExplainer.explain_influence()`.
             y_pred (pd.DataFrame or pd.Series): See `ImageClassificationExplainer.explain_influence()`.
             n_cols (int): The number of classes to render per row. Default is `3`.
+            cell_width (int, optional): The width of each cell in pixels.
 
         Returns:
             plotly.graph_objs.Figure:
                 A Plotly figure. It shows automatically in notebook cells but you
                 can also call the `.show()` method to plot multiple charts in the
                 same cell.
-
-                TODO: explain what is represented on the image.
         """
         influences = self.explain_influence(X_test=X_test, y_pred=y_pred)
         z_values = {}

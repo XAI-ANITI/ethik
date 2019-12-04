@@ -84,8 +84,9 @@ class CacheExplainer(BaseExplainer):
                 f"n_taus must be a strictly positive integer, got {n_taus}"
             )
 
+        # `n_taus` needs to be odd to include the mean (tau == 0)
         if not n_taus % 2:
-            raise ValueError("n_taus must be odd so that we include the dataset mean")
+            n_taus += 1
 
         self.n_taus = n_taus
         self.memoize = memoize
@@ -149,13 +150,7 @@ class CacheExplainer(BaseExplainer):
         diff_index = ~query_index.isin(info_index)
 
         self.info = self.info.append(query[diff_index], ignore_index=True, sort=False)
-
-        print("Explaining...")
-        import time  #  TODO
-
-        start = time.time()
         self.info = explain(query=self.info)
-        print(time.time() - start)
 
         queried_groups = query["group"].unique()
         return self.info[

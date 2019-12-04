@@ -52,7 +52,11 @@ class Query:
         taus = cls.taus(n_taus)
         groups = []
 
-        for feature in set(X_test.columns) - set(constraints):
+        # Need to keep the order of `X_test.columns`
+        for feature in X_test.columns:
+            if feature in constraints:
+                continue
+
             for tau in taus:
                 features = [feature, *constraints]
                 targets = [
@@ -115,7 +119,7 @@ class Query:
         q_maxs = quantiles.loc[q[1]].to_dict()
         means = X_test.mean().to_dict()
         taus = cls.taus(n_taus)
-        features = set(X_test.columns) - set(constraints)
+        # Need to keep the order of `X_test.columns`
         targets_product = [
             [
                 (
@@ -130,7 +134,8 @@ class Query:
                 )
                 for tau in taus
             ]
-            for feature in features
+            for feature in X_test.columns
+            if feature not in constraints
         ]
         # If `constraints` is empty, `itertools.product` would return an empty generator
         if constraints:

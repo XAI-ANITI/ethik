@@ -334,7 +334,10 @@ class BaseExplainer:
                     np.average(
                         y_pred[label][mask],
                         weights=special.softmax(
-                            np.dot(X_test[group["feature"]][mask], group["ksi"])
+                            X_test[group["feature"].iloc[0]][mask]
+                            * group["ksi"].iloc[0]
+                            if len(group["ksi"]) == 1
+                            else np.dot(X_test[group["feature"]][mask], group["ksi"])
                         ),
                     ),
                 )
@@ -378,7 +381,10 @@ class BaseExplainer:
                         y_test[mask],
                         y_pred[mask],
                         sample_weight=special.softmax(
-                            np.dot(X_test[group["feature"]][mask], group["ksi"])
+                            X_test[group["feature"].iloc[0]][mask]
+                            * group["ksi"].iloc[0]
+                            if len(group["ksi"]) == 1
+                            else np.dot(X_test[group["feature"]][mask], group["ksi"])
                         ),
                     ),
                 )
