@@ -26,39 +26,13 @@ class Query:
         return mean + tau * (max(mean - q_min, 0) if tau < 0 else max(q_max - mean, 0))
 
     @classmethod
-    def _unidim_from_taus(cls, X_test, labels, n_taus, q, constraints=None):
-        if constraints is None:
-            constraints = {}
-
-        diff_constraints = set(constraints) - set(X_test.columns)
-        if diff_constraints:
-            raise ValueError(
-                f"Unknown features in constraints: {', '.join(diff_constraints)}"
-            )
-
-        quantiles = X_test.quantile(q=q)
-
-        # Issue a warning if a feature doesn't have distinct quantiles
-        for feature, n_unique in quantiles.nunique().to_dict().items():
-            if n_unique == 1:
-                warnings.warn(
-                    message=f"all the values of feature {feature} are identical",
-                    category=ConstantWarning,
-                )
-
-        q_mins = quantiles.loc[q[0]].to_dict()
-        q_maxs = quantiles.loc[q[1]].to_dict()
-        means = X_test.mean().to_dict()
-        taus = cls.taus(n_taus)
+    def _unidim_from_taus(
+        cls, free_features, labels, taus, q_mins, q_maxs, means, constraints=None
+    ):
         groups = []
 
-        # Need to keep the order of `X_test.columns`
-        for feature in X_test.columns:
-            if feature in constraints:
-                continue
-
+        for feature in free_features:
             for tau in taus:
-                features = [feature, *constraints]
                 targets = [
                     cls.target_from_tau(
                         q_min=q_mins[feature],
@@ -68,7 +42,7 @@ class Query:
                     ),
                     *constraints.values(),
                 ]
-                gid = cls.create_gid(features, targets)
+                gid = cls.create_gid([feature, *constraints], targets)
 
                 for label in labels:
                     groups.append(
@@ -84,7 +58,7 @@ class Query:
                         groups.append(
                             {
                                 "group": gid,
-                                "tau": 0,
+                                "tau": None,
                                 "target": target,
                                 "feature": constraint,
                                 "label": label,
@@ -95,31 +69,9 @@ class Query:
         return query
 
     @classmethod
-    def _multidim_from_taus(cls, X_test, labels, n_taus, q, constraints=None):
-        if constraints is None:
-            constraints = {}
-
-        diff_constraints = set(constraints) - set(X_test.columns)
-        if diff_constraints:
-            raise ValueError(
-                f"Unknown features in constraints: {', '.join(diff_constraints)}"
-            )
-
-        quantiles = X_test.quantile(q=q)
-
-        # Issue a warning if a feature doesn't have distinct quantiles
-        for feature, n_unique in quantiles.nunique().to_dict().items():
-            if n_unique == 1:
-                warnings.warn(
-                    message=f"all the values of feature {feature} are identical",
-                    category=ConstantWarning,
-                )
-
-        q_mins = quantiles.loc[q[0]].to_dict()
-        q_maxs = quantiles.loc[q[1]].to_dict()
-        means = X_test.mean().to_dict()
-        taus = cls.taus(n_taus)
-        # Need to keep the order of `X_test.columns`
+    def _multidim_from_taus(
+        cls, free_features, labels, taus, q_mins, q_maxs, means, constraints=None
+    ):
         targets_product = [
             [
                 (
@@ -134,13 +86,12 @@ class Query:
                 )
                 for tau in taus
             ]
-            for feature in X_test.columns
-            if feature not in constraints
+            for feature in free_features
         ]
         # If `constraints` is empty, `itertools.product` would return an empty generator
         if constraints:
             targets_product.append(
-                [(feature, 0, target) for feature, target in constraints.items()]
+                [(feature, None, target) for feature, target in constraints.items()]
             )
         targets = itertools.product(*targets_product)
 
@@ -152,7 +103,9 @@ class Query:
 
         groups = []
         for i, group in enumerate(targets):
-            gid = cls.create_gid(X_test.columns, [target for _, _, target in group])
+            gid = cls.create_gid(
+                [*free_features, *constraints], [target for _, _, target in group]
+            )
             for label in labels:
                 for feature, tau, target in group:
                     groups.append(
@@ -172,14 +125,49 @@ class Query:
     def from_taus(
         cls, X_test, labels, n_taus, q, link_variables=False, constraints=None
     ):
+        if constraints is None:
+            constraints = {}
+
+        diff_constraints = set(constraints) - set(X_test.columns)
+        if diff_constraints:
+            raise ValueError(
+                f"Unknown features in constraints: {', '.join(diff_constraints)}"
+            )
+
+        quantiles = X_test.quantile(q=q)
+
+        # Issue a warning if a feature doesn't have distinct quantiles
+        for feature, n_unique in quantiles.nunique().to_dict().items():
+            if n_unique == 1:
+                warnings.warn(
+                    message=f"all the values of feature {feature} are identical",
+                    category=ConstantWarning,
+                )
+
+        q_mins = quantiles.loc[q[0]].to_dict()
+        q_maxs = quantiles.loc[q[1]].to_dict()
+        means = X_test.mean().to_dict()
+        taus = cls.taus(n_taus)
+        # Need to keep the order of X_test columns
+        free_features = [f for f in X_test.columns if f not in constraints]
+
         if link_variables:
             return cls._multidim_from_taus(
-                X_test=X_test,
+                free_features=free_features,
                 labels=labels,
-                n_taus=n_taus,
-                q=q,
+                taus=taus,
+                q_mins=q_mins,
+                q_maxs=q_maxs,
+                means=means,
                 constraints=constraints,
             )
+
         return cls._unidim_from_taus(
-            X_test=X_test, labels=labels, n_taus=n_taus, q=q, constraints=constraints
+            free_features=free_features,
+            labels=labels,
+            taus=taus,
+            q_mins=q_mins,
+            q_maxs=q_maxs,
+            means=means,
+            constraints=constraints,
         )
