@@ -457,6 +457,7 @@ class CacheExplainer(BaseExplainer):
                 taus = explanation.query(f'feature == "{feat}"')["tau"]
                 targets = explanation.query(f'feature == "{feat}"')["target"]
                 y = explanation.query(f'feature == "{feat}"')[y_col]
+                converged = explanation.query(f'feature == "{feat}"')["converged"]
                 fig.add_trace(
                     go.Scatter(
                         x=taus,
@@ -465,7 +466,10 @@ class CacheExplainer(BaseExplainer):
                         hoverinfo="y",
                         name=feat,
                         customdata=list(zip(taus, targets)),
-                        marker=dict(color=colors.get(feat)),
+                        marker=dict(
+                            color=colors.get(feat),
+                            opacity=[1 if c else 0.5 for c in converged],
+                        ),
                     )
                 )
 
@@ -486,6 +490,7 @@ class CacheExplainer(BaseExplainer):
         fig = go.Figure()
         x = explanation.query(f'feature == "{feat}"')["target"]
         y = explanation.query(f'feature == "{feat}"')[y_col]
+        converged = explanation.query(f'feature == "{feat}"')["converged"]
 
         if self.n_samples > 1:
             low = explanation.query(f'feature == "{feat}"')[f"{y_col}_low"]
@@ -509,7 +514,9 @@ class CacheExplainer(BaseExplainer):
                 mode="lines+markers",
                 hoverinfo="x+y",
                 showlegend=False,
-                marker=dict(color=colors.get(feat)),
+                marker=dict(
+                    color=colors.get(feat), opacity=[1 if c else 0.5 for c in converged]
+                ),
             )
         )
 
@@ -556,7 +563,9 @@ class CacheExplainer(BaseExplainer):
         x = np.sort(explanation[explanation["feature"] == fx]["target"].unique())
         y = np.sort(explanation[explanation["feature"] == fy]["target"].unique())
 
-        z = explanation[explanation["feature"] == fx][z_col].values
+        z = explanation[explanation["feature"] == fx][z_col].to_numpy()
+        z_converged = explanation[explanation["feature"] == fx]["converged"].to_numpy()
+        z[np.logical_not(z_converged)] = math.nan
         z = z.reshape((len(x), len(y)))
 
         z_min = z_max = None
