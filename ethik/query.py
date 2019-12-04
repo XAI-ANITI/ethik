@@ -11,7 +11,7 @@ from .warnings import ConstantWarning
 class Query:
     @classmethod
     def create_gid(cls, features, targets):
-        k = ";".join(f"{f}={t}" for f, t in zip(features, targets))
+        k = ";".join(f"{f}={t}" for f, t in sorted(zip(features, targets)))
         h = hashlib.sha256()
         h.update(k.encode("utf-8"))
         return h.hexdigest()
@@ -67,20 +67,27 @@ class Query:
                 gid = cls.create_gid(features, targets)
 
                 for label in labels:
-                    n_rows = 1 + len(constraints)
                     groups.append(
-                        pd.DataFrame(
+                        {
+                            "group": gid,
+                            "tau": tau,
+                            "target": targets[0],
+                            "feature": feature,
+                            "label": label,
+                        }
+                    )
+                    for constraint, target in constraints.items():
+                        groups.append(
                             {
-                                "group": [gid] * n_rows,
-                                "tau": [tau, *[0] * len(constraints)],
-                                "target": targets,
-                                "feature": features,
-                                "label": [label] * n_rows,
+                                "group": gid,
+                                "tau": 0,
+                                "target": target,
+                                "feature": constraint,
+                                "label": label,
                             }
                         )
-                    )
 
-        query = pd.concat(groups, ignore_index=True)
+        query = pd.DataFrame(groups)
         return query
 
     @classmethod
@@ -112,6 +119,7 @@ class Query:
         targets_product = [
             [
                 (
+                    feature,
                     tau,
                     cls.target_from_tau(
                         q_min=q_mins[feature],
@@ -126,32 +134,34 @@ class Query:
         ]
         # If `constraints` is empty, `itertools.product` would return an empty generator
         if constraints:
-            targets_product.append([(0, target) for target in constraints.values()])
+            targets_product.append(
+                [(feature, 0, target) for feature, target in constraints.items()]
+            )
         targets = itertools.product(*targets_product)
 
         # Each element of `targets` is a tuple of length `n_features + n_constraints`
-        # The `n_features` first elements are the couples `(tau, target)` for every
+        # The `n_features` first elements are the tuples `(feature, tau, target)` for every
         # feature
-        # The `n_constraints` last elements are the couples `(0, target)` for every
+        # The `n_constraints` last elements are the couples `(feature, 0, target)` for every
         # constraint
 
-        return pd.concat(
-            [
-                pd.DataFrame(
-                    {
-                        "group": [cls.create_gid(X_test.columns, [x[1] for x in group])]
-                        * len(X_test.columns),
-                        "tau": [x[0] for x in group],
-                        "target": [x[1] for x in group],
-                        "feature": [*features, *constraints],
-                        "label": [label] * len(X_test.columns),
-                    }
-                )
-                for i, group in enumerate(targets)
-                for label in labels
-            ],
-            ignore_index=True,
-        )
+        groups = []
+        for i, group in enumerate(targets):
+            gid = cls.create_gid(X_test.columns, [target for _, _, target in group])
+            for label in labels:
+                for feature, tau, target in group:
+                    groups.append(
+                        {
+                            "group": gid,
+                            "tau": tau,
+                            "target": target,
+                            "feature": feature,
+                            "label": label,
+                        }
+                    )
+
+        # There should be n_taus^n_features * n_features rows
+        return pd.DataFrame(groups)
 
     @classmethod
     def from_taus(
