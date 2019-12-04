@@ -135,6 +135,34 @@ class CacheExplainer(BaseExplainer):
             to_do_map[feat].append(label)
         return {feat: list(sorted(labels)) for feat, labels in to_do_map.items()}
 
+    def _build_targets(self, X_test):
+        quantiles = X_test.quantile(q=[self.alpha, 1.0 - self.alpha])
+
+        # Issue a warning if a feature doesn't have distinct quantiles
+        for feature, n_unique in quantiles.nunique().to_dict().items():
+            if n_unique == 1:
+                warnings.warn(
+                    message=f"all the values of feature {feature} are identical",
+                    category=ConstantWarning,
+                )
+
+        q_mins = quantiles.loc[self.alpha].to_dict()
+        q_maxs = quantiles.loc[1.0 - self.alpha].to_dict()
+        means = X_test.mean().to_dict()
+        return {
+            feature: [
+                means[feature]
+                + tau
+                * (
+                    max(means[feature] - q_mins[feature], 0)
+                    if tau < 0
+                    else max(q_maxs[feature] - means[feature], 0)
+                )
+                for tau in self.taus
+            ]
+            for feature in X_test.columns
+        }
+
     def _build_additional_info(self, X_test, y_pred):
         X_test = pd.DataFrame(to_pandas(X_test))
         y_pred = pd.DataFrame(to_pandas(y_pred))
@@ -151,34 +179,13 @@ class CacheExplainer(BaseExplainer):
         if X_test.empty:
             return pd.DataFrame()
 
-        quantiles = X_test.quantile(q=[self.alpha, 1.0 - self.alpha])
-
-        # Issue a warning if a feature doesn't have distinct quantiles
-        for feature, n_unique in quantiles.nunique().to_dict().items():
-            if n_unique == 1:
-                warnings.warn(
-                    message=f"all the values of feature {feature} are identical",
-                    category=ConstantWarning,
-                )
-
-        q_mins = quantiles.loc[self.alpha].to_dict()
-        q_maxs = quantiles.loc[1.0 - self.alpha].to_dict()
-        means = X_test.mean().to_dict()
+        targets = self._build_targets(X_test=X_test)
         info_to_complete = pd.concat(
             [
                 pd.DataFrame(
                     {
                         "tau": self.taus,
-                        "target": [
-                            means[feature]
-                            + tau
-                            * (
-                                max(means[feature] - q_mins[feature], 0)
-                                if tau < 0
-                                else max(q_maxs[feature] - means[feature], 0)
-                            )
-                            for tau in self.taus
-                        ],
+                        "target": targets[feature],
                         "feature": [feature] * len(self.taus),
                         "label": [label] * len(self.taus),
                     }
@@ -635,5 +642,48 @@ class CacheExplainer(BaseExplainer):
             title=f"{criterion} {metric_name}",
             n_features=n_features,
             colors=colors,
+            size=size,
+        )
+
+    def plot_weight_distribution(
+        self, feature_values, proportion, threshold=None, color=None, size=None
+    ):
+        """Plot, for every target mean, how many individuals capture
+        `proportion` of the total weight. For instance, we could see that for
+        a target mean of 25 year-old (if the feature is the age), 50% of the
+        weight is distributed to 14% of the individuals "only". If "few" individuals
+        get "a lot of" weight, it means that the stressed distribution is "quite"
+        different from the original one and that the results are not reliable. Defining
+        a relevant threshold is an open question.
+
+        Parameters:
+            feature_values (pd.Series): See `ethik.base_explainer.BaseExplainer.compute_weights()`.
+            proportion (float): The proportion of weight to check, between 0 and 1.
+            threshold (float, optional): An optional threshold to display on the
+                plot. Must be between 0 and 1.
+            colors (list, optional): An optional list of colors for all targets.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        """
+        #  If `feature_values.name` is `None`, converting it to a dataframe
+        # will create a column `0`, which will not be matched by the query below
+        # since its "feature" column will be `None` and not `0`.
+        if feature_values.name is None:
+            feature_values = feature_values.rename("feature")
+
+        X_test = pd.DataFrame(to_pandas(feature_values))
+        targets = self._build_targets(X_test=X_test)[feature_values.name]
+
+        return super().plot_weight_distribution(
+            feature_values=feature_values,
+            targets=targets,
+            proportion=proportion,
+            threshold=threshold,
+            color=color,
             size=size,
         )

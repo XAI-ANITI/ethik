@@ -865,7 +865,80 @@ class BaseExplainer:
         )
         return fig
 
-    def plot_weights(self, feature_values, targets, colors=None, size=None):
+    def plot_weight_distribution(
+        self, feature_values, targets, proportion, threshold=None, color=None, size=None
+    ):
+        """Plot, for every target in `targets`, how many individuals capture
+        `proportion` of the total weight. For instance, we could see that for
+        a target mean of 25 year-old (if the feature is the age), 50% of the
+        weight is distributed to 14% of the individuals "only". If "few" individuals
+        get "a lot of" weight, it means that the stressed distribution is "quite"
+        different from the original one and that the results are not reliable. Defining
+        a relevant threshold is an open question.
+
+        Parameters:
+            feature_values (pd.Series): See `BaseExplainer.compute_weights()`.
+            targets (list): See `BaseExplainer.compute_weights()`.
+            proportion (float): The proportion of weight to check, between 0 and 1.
+            threshold (float, optional): An optional threshold to display on the
+                plot. Must be between 0 and 1.
+            colors (list, optional): An optional list of colors for all targets.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        """
+        fig = go.Figure()
+        weights = self.compute_weights(feature_values, targets)
+        n_individuals = len(feature_values)
+        targets = list(sorted(targets))
+        y = np.zeros(len(targets))
+
+        for i, target in enumerate(targets):
+            w = np.sort(weights[target])
+            cum_weights = np.cumsum(w[::-1])
+            y[i] = np.argmax(cum_weights >= proportion) / n_individuals
+
+        fig.add_bar(x=targets, y=y, hoverinfo="x+y", marker=dict(color=color))
+
+        width = height = None
+        if size is not None:
+            width, height = size
+
+        if threshold is None:
+            shapes = []
+        else:
+            shapes = [
+                go.layout.Shape(
+                    type="line",
+                    x0=0,
+                    y0=threshold,
+                    x1=1,
+                    y1=threshold,
+                    xref="paper",
+                    line=dict(width=1),
+                )
+            ]
+
+        fig.update_layout(
+            margin=dict(t=30, b=40),
+            showlegend=False,
+            xaxis=dict(title=feature_values.name or "feature"),
+            yaxis=dict(
+                title=f"Individuals getting {int(proportion*100)}% of the weight",
+                tickformat="%",
+                range=[0, proportion + 0.05],
+            ),
+            width=width,
+            height=height,
+            shapes=shapes,
+        )
+        return fig
+
+    def plot_cumulative_weights(self, feature_values, targets, colors=None, size=None):
         """Plot the cumulative weights to stress the distribution of `feature_values`
         for each mean in `targets`. The weights are first decreasingly sorted so
         that we can easily answer the question "how many individuals capture
