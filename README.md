@@ -32,7 +32,7 @@
 * [Authors](#authors)
 * [License](#license)
 
-**The documentation can be found [here](https://maxhalford.github.io/ethik/)**.
+**The documentation can be found [here](https://xai-aniti.github.io/ethik/)**.
 
 ## Introduction
 

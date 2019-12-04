@@ -120,7 +120,7 @@ if __name__ == "__main__":
         dict(
             fig=explainer.plot_influence(X_test=X_test["age"], y_pred=y_pred),
             name="influence_age",
-            description="We can plot the average output of a model relatively to the average value of a feature. Here, we can see that, on average, the older the richer until a certain limit. From about 50 year-old, the older the poorer, which probably reflects the fact that people are about to retire so companies don't especially want to invest in them.",
+            description="We can plot the average output of a model relatively to the average value of a feature. Here, we plot the portion of bank customers predicted by machine learning decision rules as having an income higher than $50k with respect to their age. We can see that, on average, the older the richer until a certain limit. From about 50 year-old, the older the poorer, which probably reflects the fact that people are about to retire so companies don't especially want to invest in them.",
         )
     )
 
@@ -130,7 +130,7 @@ if __name__ == "__main__":
                 X_test=X_test[["age", "education-num"]], y_pred=y_pred
             ),
             name="influence_multiple_features",
-            description="We can plot the influence of multiple features. The x axis represents the quantiles: -1 is 5%, 0 is the original mean and 1 is 95%.",
+            description="We can plot simultaneously the influence of multiple features and not only a single one as above. The x axis represents the quantiles of each variable and not its values, in order to compare the variables influence in a blink. -1 is 5%, 0 is the original mean and 1 is 95%.",
         )
     )
 
@@ -177,7 +177,7 @@ if __name__ == "__main__":
                 feature_values=X_test["age"], targets=[27, 45], bins=60
             ),
             name="stressed_distributions",
-            description="As explained in the paper, we stress the probability distribution to obtain a different mean while minimizing the Kullback-Leibler divergence with the original distribution. We can visualize the stressed distributions.",
+            description='For advanced users, we can visualize the stressed distributions. As explained in <a href="https://arxiv.org/abs/1810.07924">the paper</a>, we indeed stress the probability distribution to obtain a different mean while minimizing the Kullback-Leibler divergence with the original distribution.',
         )
     )
 
