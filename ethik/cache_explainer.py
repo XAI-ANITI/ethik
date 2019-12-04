@@ -11,6 +11,7 @@ import plotly.graph_objs as go
 from .base_explainer import BaseExplainer
 from .query import Query
 from .utils import set_fig_size, to_pandas
+from .warnings import ConvergenceWarning
 
 __all__ = ["CacheExplainer"]
 
@@ -153,10 +154,19 @@ class CacheExplainer(BaseExplainer):
         self.info = explain(query=self.info)
 
         queried_groups = query["group"].unique()
-        return self.info[
+        ret = self.info[
             self.info["group"].isin(queried_groups)
             & self.info["label"].isin(y_pred.columns)
         ]
+
+        n_not_converged = len(ret[~ret["converged"]])
+        if n_not_converged:
+            warnings.warn(
+                message=f"{n_not_converged} groups didn't converge.",
+                category=ConvergenceWarning,
+            )
+
+        return ret
 
     def explain_influence(self, X_test, y_pred, link_variables=False, constraints=None):
         """Compute the influence of the model for the features in `X_test`.

@@ -15,7 +15,6 @@ from scipy import stats
 from tqdm import tqdm
 
 from .utils import join_with_overlap, plot_template, safe_scale, to_pandas, yield_masks
-from .warnings import ConvergenceWarning
 
 pio.templates.default = plot_template
 
@@ -101,9 +100,9 @@ def compute_ksi(group_id, x, target_mean, max_iterations, tol):
     ksis = np.zeros(len(target_mean))
 
     if np.isclose(target_mean, mean, atol=tol).all():
-        return {(group_id, feature): 0.0 for feature in features}
+        return {(group_id, feature): (0.0, True) for feature in features}
 
-    success = False
+    converged = False
     try:
         res = optimize.minimize(
             fun=F(x=x, target_mean=(target_mean - mean) / std, tol=tol),
@@ -113,19 +112,11 @@ def compute_ksi(group_id, x, target_mean, max_iterations, tol):
         )
     except ConvergenceSuccess as cs:
         ksis = cs.ksi
-        success = True
+        converged = True
 
-    if not success:
-        warnings.warn(
-            message=(
-                f"Convergence warning for group {group_id}, with features {list(features)}"
-                + f" and targets {list(target_mean)}:\n\n"
-                + str(res)
-            ),
-            category=ConvergenceWarning,
-        )
-
-    return {(group_id, feature): ksi for feature, ksi in zip(features, ksis)}
+    return {
+        (group_id, feature): (ksi, converged) for feature, ksi in zip(features, ksis)
+    }
 
 
 class BaseExplainer:
@@ -205,6 +196,8 @@ class BaseExplainer:
         """
         if "ksi" not in query.columns:
             query["ksi"] = None
+        if "converged" not in query.columns:
+            query["converged"] = None
 
         query_to_complete = query[query["ksi"].isnull()]
         # We keep the group for one label only
@@ -222,12 +215,17 @@ class BaseExplainer:
             )
             for gid, part in groups.groupby("group")
         )
-        ksis = dict(collections.ChainMap(*ksis))
+        ksis = collections.ChainMap(*ksis)
+        converged = {k: t[1] for k, t in ksis.items()}
+        ksis = {k: t[0] for k, t in ksis.items()}
 
         query["ksi"] = query.apply(
             lambda r: ksis.get((r["group"], r["feature"]), r["ksi"]), axis="columns"
         )
-        query["ksi"] = query["ksi"].fillna(0.0)
+        query["converged"] = query.apply(
+            lambda r: converged.get((r["group"], r["feature"]), r["converged"]),
+            axis="columns",
+        )
         return query
 
     def _explain(
@@ -319,7 +317,6 @@ class BaseExplainer:
             ]
         )
 
-        # Merge the new queryrmation with the current queryrmation
         query = join_with_overlap(left=query, right=explanation, on=key_cols)
         return query
 
