@@ -528,7 +528,7 @@ class CacheExplainer(BaseExplainer):
                 text=["Dataset mean"],
                 showlegend=False,
                 mode="markers",
-                name="Original mean",
+                name="Dataset mean",
                 hoverinfo="text",
                 marker=dict(symbol="x", size=9, color=colors.get(feat)),
             )
@@ -581,9 +581,21 @@ class CacheExplainer(BaseExplainer):
             zmax=z_max,
             colorscale=colorscale or "Reds",
             colorbar=dict(title=z_label),
+            hoverinfo="x+y+z",
         )
 
-        #  TODO: plot original means
+        mean_x = explanation.query(f'feature == "{fx}" and tau == 0').iloc[0]["target"]
+        mean_y = explanation.query(f'feature == "{fy}" and tau == 0').iloc[0]["target"]
+        fig.add_scatter(
+            x=[mean_x],
+            y=[mean_y],
+            text=["Dataset mean"],
+            showlegend=False,
+            mode="markers",
+            name="Dataset mean",
+            hoverinfo="text",
+            marker=dict(symbol="x", size=9, color="black"),
+        )
 
         title = None
         if constraints is not None:
