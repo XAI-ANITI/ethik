@@ -132,11 +132,12 @@ class ClassificationExplainer(CacheExplainer):
         )
         for ilabel, (label, plot) in enumerate(zip(labels, plots)):
             fig.update_layout({f"yaxis{ilabel+1}": dict(title=plot.layout.yaxis.title)})
-            for trace in plot["data"]:
-                trace["showscale"] = ilabel == 0
-                trace["colorbar"]["title"] = ""
-                trace["hoverinfo"] = "x+y+z"
-                fig.add_trace(trace, row=ilabel + 1, col=1)
+            heatmap, ds_mean = plot["data"]
+            heatmap["showscale"] = ilabel == 0
+            heatmap["colorbar"]["title"] = ""
+            heatmap["hoverinfo"] = "x+y+z"
+            fig.add_trace(heatmap, row=ilabel + 1, col=1)
+            fig.add_trace(ds_mean, row=ilabel + 1, col=1)
 
         fig.update_xaxes(
             showline=True,
