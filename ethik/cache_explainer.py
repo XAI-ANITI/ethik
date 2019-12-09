@@ -925,3 +925,46 @@ class CacheExplainer(BaseExplainer):
             colors=colors,
             size=size,
         )
+
+    def plot_weight_distribution(
+        self, feature_values, proportion, threshold=None, color=None, size=None
+    ):
+        """Plot, for every target mean, how many individuals capture
+        `proportion` of the total weight. For instance, we could see that for
+        a target mean of 25 year-old (if the feature is the age), 50% of the
+        weight is distributed to 14% of the individuals "only". If "few" individuals
+        get "a lot of" weight, it means that the stressed distribution is "quite"
+        different from the original one and that the results are not reliable. Defining
+        a relevant threshold is an open question.
+
+        Parameters:
+            feature_values (pd.Series): See `ethik.base_explainer.BaseExplainer.compute_weights()`.
+            proportion (float): The proportion of weight to check, between 0 and 1.
+            threshold (float, optional): An optional threshold to display on the
+                plot. Must be between 0 and 1.
+            colors (list, optional): An optional list of colors for all targets.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        """
+        #  If `feature_values.name` is `None`, converting it to a dataframe
+        # will create a column `0`, which will not be matched by the query below
+        # since its "feature" column will be `None` and not `0`.
+        if feature_values.name is None:
+            feature_values = feature_values.rename("feature")
+
+        X_test = pd.DataFrame(to_pandas(feature_values))
+        targets = self._build_targets(X_test=X_test)[feature_values.name]
+
+        return super().plot_weight_distribution(
+            feature_values=feature_values,
+            targets=targets,
+            proportion=proportion,
+            threshold=threshold,
+            color=color,
+            size=size,
+        )
