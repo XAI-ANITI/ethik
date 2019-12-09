@@ -28,12 +28,7 @@ VERSION = None
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-# What packages are required for this module to be executed?
-with io.open(os.path.join(here, "requirements.txt"), encoding="utf-8") as f:
-    install_requires = f.read().splitlines()
-
 # Import the README and use it as the long-description.
-# Note: this will only work if 'README.rst' is present in your MANIFEST.in file!
 with io.open(os.path.join(here, "README.md"), encoding="utf-8") as f:
     long_description = "\n" + f.read()
 
@@ -100,7 +95,15 @@ setup(
     # entry_points={
     #     'console_scripts': ['mycli=mymodule:cli'],
     # },
-    install_requires=install_requires,
+    install_requires=[
+        "colorlover>=0.3.0",
+        "joblib>=0.13.2",
+        "numpy>=1.16.1",
+        "pandas>=0.24.0",
+        "plotly>=4.1.1",
+        "scipy>=1.3.0",
+        "tqdm>=4.36.1",
+    ],
     include_package_data=True,
     package_data={NAME: ["data/*"]},
     license="BSD-3",
