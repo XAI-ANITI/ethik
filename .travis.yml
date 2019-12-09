@@ -12,7 +12,7 @@ stages:
 env:
 - IPY_KERNEL=python3
 
-install: make install_dev && python setup.py install
+install: make install_dev
 script: make -j 4 test
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
   - stage: doc
     name: "Deploy documentation"
     python: 3.7
-    install: make install_dev && python setup.py install
+    install: make install_dev
     script: make deploy_doc
     on:
       all_branches: true
