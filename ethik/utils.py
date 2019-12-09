@@ -37,12 +37,18 @@ plot_template = go.layout.Template(
 )
 
 
+def set_fig_size(fig, size, width=None, height=None):
+    if size is not None:
+        width, height = size
+    fig.update_layout(width=width, height=height)
+
+
 def safe_scale(x):
     # If the std is zero, the values are constant and equal to the mean, so
     # the difference is zero.
     if isinstance(x, pd.DataFrame):
         return (x - x.mean()) / x.std().replace(0, 1)
-    return (x - x.mean()) / (x.std() or 1)
+    return (x - x.mean(axis=0)) / (x.std(axis=0) or 1)
 
 
 def extract_category(X, cat):

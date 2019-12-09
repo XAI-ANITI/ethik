@@ -4,13 +4,15 @@ import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 
 from .cache_explainer import CacheExplainer
-from .utils import to_pandas
+from .utils import set_fig_size, to_pandas
 
 __all__ = ["ClassificationExplainer"]
 
 
 class ClassificationExplainer(CacheExplainer):
-    def plot_influence(self, X_test, y_pred, colors=None, yrange=None, size=None):
+    def plot_influence(
+        self, X_test, y_pred, colors=None, yrange=None, size=None, constraints=None
+    ):
         """Plot the influence for the features in `X_test`.
 
         See `ethik.cache_explainer.CacheExplainer.plot_influence()`.
@@ -23,7 +25,12 @@ class ClassificationExplainer(CacheExplainer):
 
         if len(y_pred.columns) == 1:
             return super().plot_influence(
-                X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange, size=size
+                X_test=X_test,
+                y_pred=y_pred.iloc[:, 0],
+                colors=colors,
+                yrange=yrange,
+                size=size,
+                constraints=constraints,
             )
 
         if colors is None:
@@ -37,7 +44,11 @@ class ClassificationExplainer(CacheExplainer):
         for label in labels:
             plots.append(
                 super().plot_influence(
-                    X_test, y_pred[label], colors=colors, yrange=yrange
+                    X_test=X_test,
+                    y_pred=y_pred[label],
+                    colors=colors,
+                    yrange=yrange,
+                    constraints=constraints,
                 )
             )
 
@@ -48,10 +59,6 @@ class ClassificationExplainer(CacheExplainer):
                 trace["showlegend"] = ilabel == 0 and trace["showlegend"]
                 trace["legendgroup"] = trace["name"]
                 fig.add_trace(trace, row=ilabel + 1, col=1)
-
-        width = height = None
-        if size is not None:
-            width, height = size
 
         fig.update_xaxes(
             nticks=5,
@@ -74,11 +81,86 @@ class ClassificationExplainer(CacheExplainer):
                     title="tau"
                     if len(X_test.columns) > 1
                     else f"Average {X_test.columns[0]}"
-                ),
-                "width": width,
-                "height": height,
+                )
             }
         )
+        set_fig_size(fig, size)
+        return fig
+
+    def plot_influence_2d(
+        self, X_test, y_pred, z_range=None, colorscale=None, size=None, constraints=None
+    ):
+        """Plot the combined influence for the features in `X_test`.
+
+        See `ethik.cache_explainer.CacheExplainer.plot_influence_2d()`.
+        """
+        if z_range is None:
+            z_range = [0, 1]
+
+        X_test = pd.DataFrame(to_pandas(X_test))
+        y_pred = pd.DataFrame(to_pandas(y_pred))
+
+        if len(y_pred.columns) == 1:
+            return super().plot_influence_2d(
+                X_test=X_test,
+                y_pred=y_pred,
+                z_range=z_range,
+                colorscale=colorscale,
+                size=size,
+                constraints=constraints,
+            )
+
+        labels = y_pred.columns
+        plots = []
+        for label in labels:
+            plots.append(
+                super().plot_influence_2d(
+                    X_test=X_test,
+                    y_pred=y_pred[label],
+                    z_range=z_range,
+                    colorscale=colorscale,
+                    size=size,
+                    constraints=constraints,
+                )
+            )
+
+        fig = make_subplots(
+            rows=len(labels),
+            cols=1,
+            shared_xaxes=True,
+            subplot_titles=[p["data"][0]["colorbar"]["title"].text for p in plots],
+        )
+        for ilabel, (label, plot) in enumerate(zip(labels, plots)):
+            fig.update_layout({f"yaxis{ilabel+1}": dict(title=plot.layout.yaxis.title)})
+            heatmap, ds_mean = plot["data"]
+            heatmap["showscale"] = ilabel == 0
+            heatmap["colorbar"]["title"] = ""
+            heatmap["hoverinfo"] = "x+y+z"
+            fig.add_trace(heatmap, row=ilabel + 1, col=1)
+            fig.add_trace(ds_mean, row=ilabel + 1, col=1)
+
+        fig.update_xaxes(
+            showline=True,
+            showgrid=True,
+            zeroline=False,
+            mirror=True,
+            linecolor="black",
+            gridcolor="#eee",
+        )
+        fig.update_yaxes(
+            showline=True,
+            showgrid=True,
+            mirror=True,
+            linecolor="black",
+            gridcolor="#eee",
+        )
+        fig.update_layout(
+            {
+                f"xaxis{len(labels)}": dict(title=plots[0].layout.xaxis.title),
+                "title": plots[0].layout.title,
+            }
+        )
+        set_fig_size(fig, size)
         return fig
 
     def plot_distributions(
@@ -152,10 +234,6 @@ class ClassificationExplainer(CacheExplainer):
                 trace["legendgroup"] = itrace
                 fig.add_trace(trace, row=ilabel + 1, col=1)
 
-        width = height = None
-        if size is not None:
-            width, height = size
-
         fig.update_xaxes(
             showline=True,
             showgrid=True,
@@ -166,7 +244,7 @@ class ClassificationExplainer(CacheExplainer):
         fig.update_yaxes(
             showline=True, showgrid=True, linecolor="black", gridcolor="#eee"
         )
-        fig.update_layout(width=width, height=height)
+        set_fig_size(fig, size)
         return fig
 
     def plot_influence_comparison(
@@ -215,8 +293,6 @@ class ClassificationExplainer(CacheExplainer):
         title = None
         shapes = []
         for ilabel, (label, plot) in enumerate(zip(labels, plots)):
-            if ilabel == 0:
-                title = plot.layout.xaxis.title
             fig.update_layout({f"yaxis{ilabel+1}": dict(title=label)})
             for trace in plot["data"]:
                 shapes.append(
@@ -232,11 +308,6 @@ class ClassificationExplainer(CacheExplainer):
                 )
                 fig.add_trace(trace, row=ilabel + 1, col=1)
 
-        width = 500
-        height = 100 + 60 * len(features) + 30 * len(labels)
-        if size is not None:
-            width, height = size
-
         fig.update_xaxes(
             range=yrange,
             showline=True,
@@ -251,9 +322,10 @@ class ClassificationExplainer(CacheExplainer):
         )
         fig.update_layout(
             showlegend=False,
-            xaxis1=dict(title=title),
+            xaxis1=dict(title=plots[0].layout.xaxis.title),
             shapes=shapes,
-            width=width,
-            height=height,
+        )
+        set_fig_size(
+            fig, size, width=500, height=100 + 60 * len(features) + 30 * len(labels)
         )
         return fig

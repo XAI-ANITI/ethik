@@ -81,51 +81,15 @@ def test_memoization():
     # Without memoization
     explainer = ethik.RegressionExplainer(memoize=False, n_jobs=1)
     explainer.explain_influence(X_test[["INDUS", "NOX"]], y_pred)
-    assert explainer.info["feature"].unique().tolist() == ["INDUS", "NOX"]
+    assert set(explainer.info["feature"].unique()) == set(["INDUS", "NOX"])
     explainer.explain_influence(X_test[["INDUS"]], y_pred)
-    assert explainer.info["feature"].unique().tolist() == ["INDUS"]
+    assert set(explainer.info["feature"].unique()) == set(["INDUS"])
 
     # With memoization
     explainer = ethik.RegressionExplainer(memoize=True, n_jobs=1)
     influence = explainer.explain_influence(X_test[["INDUS", "NOX"]], y_pred)
-    assert influence["feature"].unique().tolist() == ["INDUS", "NOX"]
-    assert explainer.info["feature"].unique().tolist() == ["INDUS", "NOX"]
+    assert set(influence["feature"].unique()) == set(["INDUS", "NOX"])
+    assert set(explainer.info["feature"].unique()) == set(["INDUS", "NOX"])
     influence = explainer.explain_influence(X_test[["INDUS"]], y_pred)
-    assert influence["feature"].unique().tolist() == ["INDUS"]
-    assert explainer.info["feature"].unique().tolist() == ["INDUS", "NOX"]
-
-
-def test_determine_pairs_to_do():
-    X, y = load_iris()
-
-    # Train a model and make predictions
-    X_train, X_test, y_train, y_test = model_selection.train_test_split(
-        X, y, shuffle=True
-    )
-    model = pipeline.make_pipeline(
-        preprocessing.StandardScaler(),
-        linear_model.LogisticRegression(solver="lbfgs", multi_class="auto"),
-    )
-    model.fit(X_train, y_train)
-    y_pred = model.predict_proba(X_test)
-    y_pred = pd.DataFrame(y_pred, columns=model.classes_)
-
-    # With memoization
-
-    explainer = ethik.ClassificationExplainer(memoize=True, n_jobs=1)
-
-    to_do = explainer._determine_pairs_to_do(["sepal length (cm)"], ["setosa"])
-    assert to_do == {"sepal length (cm)": ["setosa"]}
-
-    explainer.explain_influence(X_test["sepal length (cm)"], y_pred["setosa"])
-
-    to_do = explainer._determine_pairs_to_do(["sepal length (cm)"], ["setosa"])
-    assert to_do == {}
-
-    to_do = explainer._determine_pairs_to_do(
-        ["sepal length (cm)", "petal width (cm)"], ["setosa", "virginica"]
-    )
-    assert to_do == {
-        "petal width (cm)": ["setosa", "virginica"],
-        "sepal length (cm)": ["virginica"],
-    }
+    assert set(influence["feature"].unique()) == set(["INDUS"])
+    assert set(explainer.info["feature"].unique()) == set(["INDUS", "NOX"])
