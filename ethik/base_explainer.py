@@ -54,19 +54,24 @@ class F:
     def __call__(self, ksi):
         """Returns the loss and the gradient for a particular ksi value."""
 
+        n = len(self.x)
         if len(ksi) == 1:
-            lambdas = special.softmax(self.x * ksi[0])
-            current_mean = np.average(self.x, weights=lambdas, axis=0)[0]
-            loss = (current_mean - self.target_mean[0]) ** 2
+            t = self.target_mean[0]
+            x = self.x[:, 0]
+            e = np.exp(ksi[0] * x)
+            s = np.sum(e)
+            loss = np.log(1 / n * s) - ksi[0] * t
+            g = np.sum(x * e) / s - t
         else:
-            lambdas = special.softmax(np.dot(self.x, ksi))
-            current_mean = np.average(self.x, weights=lambdas, axis=0)
-            loss = np.linalg.norm(current_mean - self.target_mean)
+            t = self.target_mean
+            x = self.x
+            e = np.exp(np.dot(x, ksi))
+            s = np.sum(e)
+            loss = np.log(1 / n * s) - np.dot(ksi, t)
+            g = np.sum(x * e) / s - t
 
         if loss < self.tol:
             raise ConvergenceSuccess(ksi=ksi)
-
-        g = current_mean - self.target_mean
 
         return loss, g
 
