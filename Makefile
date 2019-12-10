@@ -1,8 +1,9 @@
 install:
-	pip install -r requirements.txt
+	python setup.py install
 
 install_dev: install
 	pip install -r requirements-dev.txt
+	pre-commit install # For black
 
 test_nb:
 	pytest --nbval-lax --current-env notebooks

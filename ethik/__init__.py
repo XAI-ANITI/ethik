@@ -14,9 +14,9 @@
 **Via GitHub for the latest development version**
 
 ```shell
->>> pip install git+https://github.com/MaxHalford/ethik
+>>> pip install git+https://github.com/XAI-ANITI/ethik.git
 >>> # Or through SSH:
->>> pip install git+ssh://git@github.com/MaxHalford/ethik.git
+>>> pip install git+ssh://git@github.com/XAI-ANITI/ethik.git
 ```
 
 **Development installation**
@@ -24,9 +24,7 @@
 ```shell
 >>> git clone https://github.com/MaxHalford/ethik
 >>> cd ethik
->>> python setup.py develop
->>> pip install -r requirements-dev.txt
->>> pre-commit install # For black
+>>> make install_dev
 ```
 """
 from . import datasets
