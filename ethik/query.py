@@ -146,7 +146,10 @@ class Query:
 
         q_mins = quantiles.loc[q[0]].to_dict()
         q_maxs = quantiles.loc[q[1]].to_dict()
-        means = X_test.mean().to_dict()
+        # Cannot use `means = X_test.mean().to_dict()` as it may give a different
+        # result depending on whether the feature is alone in the dataset or not
+        #  Instead, we compute the means for each pandas series independently
+        means = {feature: X_test[feature].mean() for feature in X_test.columns}
         taus = cls.taus(n_taus)
         # Need to keep the order of X_test columns
         free_features = [f for f in X_test.columns if f not in constraints]
