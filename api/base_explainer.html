@@ -59,7 +59,6 @@ from scipy import stats
 from tqdm import tqdm
 
 from .utils import join_with_overlap, plot_template, safe_scale, to_pandas, yield_masks
-from .warnings import ConvergenceWarning
 
 pio.templates.default = plot_template
 
@@ -99,79 +98,69 @@ class F:
     def __call__(self, ksi):
         &#34;&#34;&#34;Returns the loss and the gradient for a particular ksi value.&#34;&#34;&#34;
 
-        ksi = ksi[0]
-        lambdas = special.softmax(ksi * self.x)
-        current_mean = np.average(self.x, weights=lambdas)
+        if len(ksi) == 1:
+            lambdas = special.softmax(self.x * ksi[0])
+            current_mean = np.average(self.x, weights=lambdas, axis=0)[0]
+            loss = (current_mean - self.target_mean[0]) ** 2
+        else:
+            lambdas = special.softmax(np.dot(self.x, ksi))
+            current_mean = np.average(self.x, weights=lambdas, axis=0)
+            loss = np.linalg.norm(current_mean - self.target_mean)
 
-        f = (current_mean - self.target_mean) ** 2
-
-        if f &lt; self.tol:
+        if loss &lt; self.tol:
             raise ConvergenceSuccess(ksi=ksi)
 
         g = current_mean - self.target_mean
 
-        return f, np.array([g])
+        return loss, g
 
 
-def compute_ksis(x, target_means, max_iterations, tol):
+def compute_ksi(group_id, x, target_mean, max_iterations, tol):
     &#34;&#34;&#34;Find good ksis for a variable and given target means.
 
     Args:
-        x (pd.Series): The variable&#39;s values.
-        target_means (iterator of floats): The means to reach by weighting the
-            feature&#39;s values.
+        group_id (int): The id of the group of queries to answer.
+        x (pd.DataFrame): The variable&#39;s values with one column per feature.
+        target_mean (list of floats): The means to reach by weighting the
+            feature&#39;s values. Must contain as many elements as there are features.
         max_iterations (int): The maximum number of iterations of gradient descent.
         tol (float): Stopping criterion. The gradient descent will stop if the mean absolute error
             between the obtained mean and the target mean is lower than tol, even if the maximum
             number of iterations has not been reached.
 
     Returns:
-        dict: The keys are couples `(name of the variable, target mean)` and the
-            values are the ksis. For instance:
+        dict: The keys are couples `(group_id, feature)` and the
+            values are the ksis for each feature. For instance:
 
                 {
-                    (&#34;age&#34;, 20): 1.5,
-                    (&#34;age&#34;, 21): 1.6,
-                    ...
+                    (0, &#34;age&#34;): -0.81,
+                    (0, &#34;education-num&#34;): 0.05,
                 }
     &#34;&#34;&#34;
 
-    ksis = {}
+    mean, std = x.mean().values, x.std().values
+    features = x.columns
+    x = safe_scale(x).values
+    ksis = np.zeros(len(target_mean))
 
-    mean, std = x.mean(), x.std()
-    x = safe_scale(x)
+    if np.isclose(target_mean, mean, atol=tol).all():
+        return {(group_id, feature): (0.0, True) for feature in features}
 
-    for target_mean in target_means:
+    converged = False
+    try:
+        res = optimize.minimize(
+            fun=F(x=x, target_mean=(target_mean - mean) / std, tol=tol),
+            x0=ksis,  # Initial ksi value
+            jac=True,
+            method=&#34;BFGS&#34;,
+        )
+    except ConvergenceSuccess as cs:
+        ksis = cs.ksi
+        converged = True
 
-        # Skip edge case
-        if target_mean == mean:
-            ksis[(x.name, target_mean)] = 0.0
-            continue
-
-        success = False
-        try:
-            res = optimize.minimize(
-                fun=F(x=x, target_mean=(target_mean - mean) / std, tol=tol),
-                x0=[0],  # Initial ksi value
-                jac=True,
-                method=&#34;BFGS&#34;,
-            )
-        except ConvergenceSuccess as cs:
-            ksi = cs.ksi
-            success = True
-
-        if not success:
-            warnings.warn(
-                message=(
-                    f&#34;convergence warning for {x.name}, with target mean {target_mean}:\n\n&#34;
-                    + str(res)
-                ),
-                category=ConvergenceWarning,
-            )
-
-        ksis[(x.name, target_mean)] = ksi
-
-    return ksis
+    return {
+        (group_id, feature): (ksi, converged) for feature, ksi in zip(features, ksis)
+    }
 
 
 class BaseExplainer:
@@ -243,31 +232,44 @@ class BaseExplainer:
             X_test (pd.DataFrame): A dataframe with categorical features ALREADY
                 one-hot encoded.
             query (pd.DataFrame): A dataframe with at least two columns &#34;feature&#34;
-                and &#34;target&#34;. This dataframe will be altered.
+                and &#34;target&#34;. This dataframe will be altered. The values in &#34;feature&#34;
+                must match a column in `X_test`.
 
         Returns:
             pd.DataFrame: The `query` dataframe with an additional column &#34;ksi&#34;.
         &#34;&#34;&#34;
         if &#34;ksi&#34; not in query.columns:
             query[&#34;ksi&#34;] = None
+        if &#34;converged&#34; not in query.columns:
+            query[&#34;converged&#34;] = None
 
-        X_test = pd.DataFrame(to_pandas(X_test))
         query_to_complete = query[query[&#34;ksi&#34;].isnull()]
+        # We keep the group for one label only
+        groups = query_to_complete.groupby([&#34;group&#34;, &#34;feature&#34;]).first()
+
+        # `groups` is a dataframe with multi-index `(group, feature)`
+
         ksis = joblib.Parallel(n_jobs=self.n_jobs)(
-            joblib.delayed(compute_ksis)(
-                x=X_test[feature],
-                target_means=part[&#34;target&#34;].unique(),
+            joblib.delayed(compute_ksi)(
+                group_id=gid,
+                x=X_test[part.index.get_level_values(&#34;feature&#34;).values],
+                target_mean=part[&#34;target&#34;].values,
                 max_iterations=self.max_iterations,
                 tol=self.tol,
             )
-            for feature, part in query_to_complete.groupby(&#34;feature&#34;)
+            for gid, part in groups.groupby(&#34;group&#34;)
         )
-        ksis = dict(collections.ChainMap(*ksis))
+        ksis = collections.ChainMap(*ksis)
+        converged = {k: t[1] for k, t in ksis.items()}
+        ksis = {k: t[0] for k, t in ksis.items()}
 
         query[&#34;ksi&#34;] = query.apply(
-            lambda r: ksis.get((r[&#34;feature&#34;], r[&#34;target&#34;]), r[&#34;ksi&#34;]), axis=&#34;columns&#34;
+            lambda r: ksis.get((r[&#34;group&#34;], r[&#34;feature&#34;]), r[&#34;ksi&#34;]), axis=&#34;columns&#34;
         )
-        query[&#34;ksi&#34;] = query[&#34;ksi&#34;].fillna(0.0)
+        query[&#34;converged&#34;] = query.apply(
+            lambda r: converged.get((r[&#34;group&#34;], r[&#34;feature&#34;]), r[&#34;converged&#34;]),
+            axis=&#34;columns&#34;,
+        )
         return query
 
     def _explain(
@@ -300,7 +302,7 @@ class BaseExplainer:
             
         Returns:
         &#34;&#34;&#34;
-        query = query.copy()
+        query = query.copy()  #  We make it clear that the given query is not altered
 
         if compute_kwargs is None:
             compute_kwargs = {}
@@ -359,25 +361,28 @@ class BaseExplainer:
             ]
         )
 
-        # Merge the new queryrmation with the current queryrmation
         query = join_with_overlap(left=query, right=explanation, on=key_cols)
         return query
 
     def _compute_influence(self, X_test, y_pred, query):
-        keys = query.groupby([&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;]).groups.keys()
+        groups = query.groupby([&#34;group&#34;, &#34;label&#34;])
         return pd.DataFrame(
             [
                 (
-                    feature,
+                    gid,
                     label,
-                    ksi,
                     sample_index,
                     np.average(
                         y_pred[label][mask],
-                        weights=special.softmax(ksi * X_test[feature][mask]),
+                        weights=special.softmax(
+                            X_test[group[&#34;feature&#34;].iloc[0]][mask]
+                            * group[&#34;ksi&#34;].iloc[0]
+                            if len(group[&#34;ksi&#34;]) == 1
+                            else np.dot(X_test[group[&#34;feature&#34;]][mask], group[&#34;ksi&#34;])
+                        ),
                     ),
                 )
-                for (sample_index, mask), (feature, label, ksi) in tqdm(
+                for (sample_index, mask), ((gid, label), group) in tqdm(
                     itertools.product(
                         enumerate(
                             yield_masks(
@@ -386,13 +391,13 @@ class BaseExplainer:
                                 p=self.sample_frac,
                             )
                         ),
-                        keys,
+                        groups,
                     ),
                     disable=not self.verbose,
-                    total=len(keys) * self.n_samples,
+                    total=len(groups) * self.n_samples,
                 )
             ],
-            columns=[&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;, &#34;sample_index&#34;, &#34;influence&#34;],
+            columns=[&#34;group&#34;, &#34;label&#34;, &#34;sample_index&#34;, &#34;influence&#34;],
         )
 
     def _explain_influence(self, X_test, y_pred, query):
@@ -400,27 +405,31 @@ class BaseExplainer:
             X_test=X_test,
             y_pred=y_pred,
             dest_col=&#34;influence&#34;,
-            key_cols=[&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;],
+            key_cols=[&#34;group&#34;, &#34;label&#34;],
             compute=self._compute_influence,
             query=query,
         )
 
     def _compute_performance(self, X_test, y_pred, query, y_test, metric):
         metric_name = self.get_metric_name(metric)
-        keys = query.groupby([&#34;feature&#34;, &#34;ksi&#34;]).groups.keys()
+        groups = query.groupby([&#34;group&#34;])
         return pd.DataFrame(
             [
                 (
-                    feature,
-                    ksi,
+                    gid,
                     sample_index,
                     metric(
                         y_test[mask],
                         y_pred[mask],
-                        sample_weight=special.softmax(ksi * X_test[feature][mask]),
+                        sample_weight=special.softmax(
+                            X_test[group[&#34;feature&#34;].iloc[0]][mask]
+                            * group[&#34;ksi&#34;].iloc[0]
+                            if len(group[&#34;ksi&#34;]) == 1
+                            else np.dot(X_test[group[&#34;feature&#34;]][mask], group[&#34;ksi&#34;])
+                        ),
                     ),
                 )
-                for (sample_index, mask), (feature, ksi) in tqdm(
+                for (sample_index, mask), (gid, group) in tqdm(
                     itertools.product(
                         enumerate(
                             yield_masks(
@@ -429,13 +438,13 @@ class BaseExplainer:
                                 p=self.sample_frac,
                             )
                         ),
-                        keys,
+                        groups,
                     ),
                     disable=not self.verbose,
-                    total=len(keys) * self.n_samples,
+                    total=len(groups) * self.n_samples,
                 )
             ],
-            columns=[&#34;feature&#34;, &#34;ksi&#34;, &#34;sample_index&#34;, metric_name],
+            columns=[&#34;group&#34;, &#34;sample_index&#34;, metric_name],
         )
 
     def _explain_performance(self, X_test, y_test, y_pred, metric, query):
@@ -444,7 +453,7 @@ class BaseExplainer:
             X_test=X_test,
             y_pred=y_pred,
             dest_col=metric_name,
-            key_cols=[&#34;feature&#34;, &#34;ksi&#34;],
+            key_cols=[&#34;group&#34;],
             compute=self._compute_performance,
             query=query,
             compute_kwargs=dict(y_test=np.asarray(y_test), metric=metric),
@@ -530,6 +539,7 @@ class BaseExplainer:
                 for feature in individuals.columns
             ]
         )
+        query[&#34;group&#34;] = list(range(len(query)))
         info = explain(X_test=X_test, y_pred=y_pred, query=query)
 
         #  `info` looks like:
@@ -662,7 +672,8 @@ class BaseExplainer:
 
         Parameters:
             feature_values (pd.Series): A named pandas series containing the dataset values
-                for a given feature.
+                for a given feature. Let&#39;s notice that this method do not handle
+                multi-dimensional optimization.
             targets (list): A list of means to reach for the feature `feature_values`.
                 All of them must be between `feature_values.min()` and `feature_values.max()`.
 
@@ -670,14 +681,21 @@ class BaseExplainer:
             dict: The keys are the targets and the values are lists of
                 `len(feature_values)` weights (one per data sample).
         &#34;&#34;&#34;
+        #  If `feature_values.name` is `None`, converting it to a dataframe
+        # will create a column `0`, which will not be matched by the query below
+        # since its &#34;feature&#34; column will be `None` and not `0`.
+        if feature_values.name is None:
+            feature_values = feature_values.rename(&#34;feature&#34;)
+
         query = pd.DataFrame(
             dict(
+                group=list(range(len(targets))),
                 feature=[feature_values.name] * len(targets),
                 target=targets,
                 label=[&#34;&#34;] * len(targets),
             )
         )
-        ksis = self._fill_ksis(feature_values, query)[&#34;ksi&#34;]
+        ksis = self._fill_ksis(pd.DataFrame(feature_values), query)[&#34;ksi&#34;]
         scaled_values = safe_scale(feature_values)
         return {
             target: special.softmax(ksi * scaled_values)
@@ -694,7 +712,8 @@ class BaseExplainer:
 
         Parameters:
             feature_values (pd.Series): A named pandas series containing the dataset values
-                for a given feature.
+                for a given feature. Let&#39;s notice that this method do not handle
+                multi-dimensional optimization.
             targets (list): A list of means to reach for the feature `feature_values`.
                 All of them must be between `feature_values.min()` and `feature_values.max()`.
             bins (int, optional): See `numpy.histogram()`. If `None` (the default),
@@ -807,97 +826,129 @@ class BaseExplainer:
                 distributions[target][&#34;kde&#34;] = stats.gaussian_kde(data, weights=w)
         return distributions
 
-    def _plot_explanation(
-        self, explanation, col, y_label, colors=None, yrange=None, size=None
+    def plot_weight_distribution(
+        self, feature_values, targets, proportion, threshold=None, color=None, size=None
     ):
-        features = explanation[&#34;feature&#34;].unique()
+        &#34;&#34;&#34;Plot, for every target in `targets`, how many individuals capture
+        `proportion` of the total weight. For instance, we could see that for
+        a target mean of 25 year-old (if the feature is the age), 50% of the
+        weight is distributed to 14% of the individuals &#34;only&#34;. If &#34;few&#34; individuals
+        get &#34;a lot of&#34; weight, it means that the stressed distribution is &#34;quite&#34;
+        different from the original one and that the results are not reliable. Defining
+        a relevant threshold is an open question.
 
-        if colors is None:
-            colors = {}
-        elif type(colors) is str:
-            colors = {feat: colors for feat in features}
+        Parameters:
+            feature_values (pd.Series): See `BaseExplainer.compute_weights()`.
+            targets (list): See `BaseExplainer.compute_weights()`.
+            proportion (float): The proportion of weight to check, between 0 and 1.
+            threshold (float, optional): An optional threshold to display on the
+                plot. Must be between 0 and 1.
+            colors (list, optional): An optional list of colors for all targets.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        &#34;&#34;&#34;
+        fig = go.Figure()
+        weights = self.compute_weights(feature_values, targets)
+        n_individuals = len(feature_values)
+        targets = list(sorted(targets))
+        y = np.zeros(len(targets))
+
+        for i, target in enumerate(targets):
+            w = np.sort(weights[target])
+            cum_weights = np.cumsum(w[::-1])
+            y[i] = np.argmax(cum_weights &gt;= proportion) / n_individuals
+
+        fig.add_bar(x=targets, y=y, hoverinfo=&#34;x+y&#34;, marker=dict(color=color))
 
         width = height = None
         if size is not None:
             width, height = size
 
-        #  There are multiple features, we plot them together with taus
-        if len(features) &gt; 1:
-            fig = go.Figure()
-
-            for i, feat in enumerate(features):
-                taus = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;tau&#34;]
-                targets = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;target&#34;]
-                y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
-                fig.add_trace(
-                    go.Scatter(
-                        x=taus,
-                        y=y,
-                        mode=&#34;lines+markers&#34;,
-                        hoverinfo=&#34;y&#34;,
-                        name=feat,
-                        customdata=list(zip(taus, targets)),
-                        marker=dict(color=colors.get(feat)),
-                    )
+        if threshold is None:
+            shapes = []
+        else:
+            shapes = [
+                go.layout.Shape(
+                    type=&#34;line&#34;,
+                    x0=0,
+                    y0=threshold,
+                    x1=1,
+                    y1=threshold,
+                    xref=&#34;paper&#34;,
+                    line=dict(width=1),
                 )
+            ]
 
-            fig.update_layout(
-                margin=dict(t=30, r=50, b=40),
-                xaxis=dict(title=&#34;tau&#34;, nticks=5),
-                yaxis=dict(title=y_label, range=yrange),
-                width=width,
-                height=height,
+        fig.update_layout(
+            margin=dict(t=30, b=40),
+            showlegend=False,
+            xaxis=dict(title=feature_values.name or &#34;feature&#34;),
+            yaxis=dict(
+                title=f&#34;Individuals getting {int(proportion*100)}% of the weight&#34;,
+                tickformat=&#34;%&#34;,
+                range=[0, proportion + 0.05],
+            ),
+            width=width,
+            height=height,
+            shapes=shapes,
+        )
+        return fig
+
+    def plot_cumulative_weights(self, feature_values, targets, colors=None, size=None):
+        &#34;&#34;&#34;Plot the cumulative weights to stress the distribution of `feature_values`
+        for each mean in `targets`. The weights are first decreasingly sorted so
+        that we can easily answer the question &#34;how many individuals capture
+        X% of the weight?&#34;. 
+        
+        Parameters:
+            feature_values (pd.Series): See `BaseExplainer.compute_weights()`.
+            targets (list): See `BaseExplainer.compute_weights()`.
+            colors (list, optional): An optional list of colors for all targets.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        &#34;&#34;&#34;
+        if colors is None:
+            colors = cl.interp(
+                cl.scales[&#34;11&#34;][&#34;qual&#34;][&#34;Paired&#34;],
+                len(targets) + 1,  #  +1 otherwise it raises an error if ksis is empty
             )
-            return fig
 
-        #  There is only one feature, we plot it with its nominal values.
-        feat = features[0]
         fig = go.Figure()
-        x = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;target&#34;]
-        y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
-        mean_row = explanation.query(f&#39;feature == &#34;{feat}&#34; and tau == 0&#39;).iloc[0]
+        weights = self.compute_weights(feature_values, targets)
+        n = len(feature_values)
+        x = np.arange(n) / n
 
-        if self.n_samples &gt; 1:
-            low = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_low&#34;]
-            high = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_high&#34;]
-            fig.add_trace(
-                go.Scatter(
-                    x=np.concatenate((x, x[::-1])),
-                    y=np.concatenate((low, high[::-1])),
-                    name=f&#34;{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%&#34;,
-                    fill=&#34;toself&#34;,
-                    fillcolor=colors.get(feat),
-                    line_color=&#34;rgba(0, 0, 0, 0)&#34;,
-                    opacity=0.3,
-                )
-            )
-
-        fig.add_trace(
-            go.Scatter(
+        for target, color in zip(targets, colors):
+            w = np.sort(weights[target])
+            y = np.cumsum(w[::-1])
+            fig.add_scatter(
                 x=x,
                 y=y,
-                mode=&#34;lines+markers&#34;,
+                mode=&#34;lines&#34;,
                 hoverinfo=&#34;x+y&#34;,
-                showlegend=False,
-                marker=dict(color=colors.get(feat)),
+                name=f&#34;E[{feature_values.name}] = {target:.2f}&#34;,
+                marker=dict(color=color),
             )
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=[mean_row[&#34;target&#34;]],
-                y=[mean_row[col]],
-                text=[&#34;Dataset mean&#34;],
-                showlegend=False,
-                mode=&#34;markers&#34;,
-                name=&#34;Original mean&#34;,
-                hoverinfo=&#34;text&#34;,
-                marker=dict(symbol=&#34;x&#34;, size=9, color=colors.get(feat)),
-            )
-        )
+
+        width = height = None
+        if size is not None:
+            width, height = size
+
         fig.update_layout(
-            margin=dict(t=30, r=0, b=40),
-            xaxis=dict(title=f&#34;Average {feat}&#34;),
-            yaxis=dict(title=y_label, range=yrange),
+            margin=dict(t=30, b=40),
+            showlegend=True,
+            xaxis=dict(title=&#34;Proportion of individuals&#34;, tickformat=&#34;%&#34;),
+            yaxis=dict(title=&#34;Cumulative weights&#34;, range=[0, 1.05]),
             width=width,
             height=height,
         )
@@ -933,6 +984,12 @@ class BaseExplainer:
                 distribution. Default is `&#34;black&#34;`. If `None`, the original
                 distribution is not plotted.
             size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
         &#34;&#34;&#34;
         if targets is None:
             targets = []
@@ -1110,10 +1167,10 @@ class BaseExplainer:
             size (tuple, optional): An optional couple `(width, height)` in pixels.
 
         Returns:
-            pd.DataFrame: A dataframe with four columns (&#34;feature&#34;, &#34;label&#34;,
-                &#34;reference&#34; and &#34;compared&#34;). For each couple `(feature, label)`,
-                `reference` (resp. `compared`) is the average output of the model
-                if the average individual were `reference` (resp. `compared`).
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
         &#34;&#34;&#34;
         y_pred = pd.DataFrame(to_pandas(y_pred))
         if len(y_pred.columns) &gt; 1:
@@ -1177,10 +1234,10 @@ class BaseExplainer:
             size (tuple, optional): An optional couple `(width, height)` in pixels.
 
         Returns:
-            pd.DataFrame: A dataframe with four columns (&#34;feature&#34;, &#34;label&#34;,
-                &#34;reference&#34; and &#34;compared&#34;). For each couple `(feature, label)`,
-                `reference` (resp. `compared`) is the average output of the model
-                if the average individual were `reference` (resp. `compared`).
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
         &#34;&#34;&#34;
         comparison = self.compare_performance(
             X_test, y_test, y_pred, metric, reference, compared
@@ -1300,31 +1357,44 @@ class BaseExplainer:
             X_test (pd.DataFrame): A dataframe with categorical features ALREADY
                 one-hot encoded.
             query (pd.DataFrame): A dataframe with at least two columns &#34;feature&#34;
-                and &#34;target&#34;. This dataframe will be altered.
+                and &#34;target&#34;. This dataframe will be altered. The values in &#34;feature&#34;
+                must match a column in `X_test`.
 
         Returns:
             pd.DataFrame: The `query` dataframe with an additional column &#34;ksi&#34;.
         &#34;&#34;&#34;
         if &#34;ksi&#34; not in query.columns:
             query[&#34;ksi&#34;] = None
+        if &#34;converged&#34; not in query.columns:
+            query[&#34;converged&#34;] = None
 
-        X_test = pd.DataFrame(to_pandas(X_test))
         query_to_complete = query[query[&#34;ksi&#34;].isnull()]
+        # We keep the group for one label only
+        groups = query_to_complete.groupby([&#34;group&#34;, &#34;feature&#34;]).first()
+
+        # `groups` is a dataframe with multi-index `(group, feature)`
+
         ksis = joblib.Parallel(n_jobs=self.n_jobs)(
-            joblib.delayed(compute_ksis)(
-                x=X_test[feature],
-                target_means=part[&#34;target&#34;].unique(),
+            joblib.delayed(compute_ksi)(
+                group_id=gid,
+                x=X_test[part.index.get_level_values(&#34;feature&#34;).values],
+                target_mean=part[&#34;target&#34;].values,
                 max_iterations=self.max_iterations,
                 tol=self.tol,
             )
-            for feature, part in query_to_complete.groupby(&#34;feature&#34;)
+            for gid, part in groups.groupby(&#34;group&#34;)
         )
-        ksis = dict(collections.ChainMap(*ksis))
+        ksis = collections.ChainMap(*ksis)
+        converged = {k: t[1] for k, t in ksis.items()}
+        ksis = {k: t[0] for k, t in ksis.items()}
 
         query[&#34;ksi&#34;] = query.apply(
-            lambda r: ksis.get((r[&#34;feature&#34;], r[&#34;target&#34;]), r[&#34;ksi&#34;]), axis=&#34;columns&#34;
+            lambda r: ksis.get((r[&#34;group&#34;], r[&#34;feature&#34;]), r[&#34;ksi&#34;]), axis=&#34;columns&#34;
         )
-        query[&#34;ksi&#34;] = query[&#34;ksi&#34;].fillna(0.0)
+        query[&#34;converged&#34;] = query.apply(
+            lambda r: converged.get((r[&#34;group&#34;], r[&#34;feature&#34;]), r[&#34;converged&#34;]),
+            axis=&#34;columns&#34;,
+        )
         return query
 
     def _explain(
@@ -1357,7 +1427,7 @@ class BaseExplainer:
             
         Returns:
         &#34;&#34;&#34;
-        query = query.copy()
+        query = query.copy()  #  We make it clear that the given query is not altered
 
         if compute_kwargs is None:
             compute_kwargs = {}
@@ -1416,25 +1486,28 @@ class BaseExplainer:
             ]
         )
 
-        # Merge the new queryrmation with the current queryrmation
         query = join_with_overlap(left=query, right=explanation, on=key_cols)
         return query
 
     def _compute_influence(self, X_test, y_pred, query):
-        keys = query.groupby([&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;]).groups.keys()
+        groups = query.groupby([&#34;group&#34;, &#34;label&#34;])
         return pd.DataFrame(
             [
                 (
-                    feature,
+                    gid,
                     label,
-                    ksi,
                     sample_index,
                     np.average(
                         y_pred[label][mask],
-                        weights=special.softmax(ksi * X_test[feature][mask]),
+                        weights=special.softmax(
+                            X_test[group[&#34;feature&#34;].iloc[0]][mask]
+                            * group[&#34;ksi&#34;].iloc[0]
+                            if len(group[&#34;ksi&#34;]) == 1
+                            else np.dot(X_test[group[&#34;feature&#34;]][mask], group[&#34;ksi&#34;])
+                        ),
                     ),
                 )
-                for (sample_index, mask), (feature, label, ksi) in tqdm(
+                for (sample_index, mask), ((gid, label), group) in tqdm(
                     itertools.product(
                         enumerate(
                             yield_masks(
@@ -1443,13 +1516,13 @@ class BaseExplainer:
                                 p=self.sample_frac,
                             )
                         ),
-                        keys,
+                        groups,
                     ),
                     disable=not self.verbose,
-                    total=len(keys) * self.n_samples,
+                    total=len(groups) * self.n_samples,
                 )
             ],
-            columns=[&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;, &#34;sample_index&#34;, &#34;influence&#34;],
+            columns=[&#34;group&#34;, &#34;label&#34;, &#34;sample_index&#34;, &#34;influence&#34;],
         )
 
     def _explain_influence(self, X_test, y_pred, query):
@@ -1457,27 +1530,31 @@ class BaseExplainer:
             X_test=X_test,
             y_pred=y_pred,
             dest_col=&#34;influence&#34;,
-            key_cols=[&#34;feature&#34;, &#34;label&#34;, &#34;ksi&#34;],
+            key_cols=[&#34;group&#34;, &#34;label&#34;],
             compute=self._compute_influence,
             query=query,
         )
 
     def _compute_performance(self, X_test, y_pred, query, y_test, metric):
         metric_name = self.get_metric_name(metric)
-        keys = query.groupby([&#34;feature&#34;, &#34;ksi&#34;]).groups.keys()
+        groups = query.groupby([&#34;group&#34;])
         return pd.DataFrame(
             [
                 (
-                    feature,
-                    ksi,
+                    gid,
                     sample_index,
                     metric(
                         y_test[mask],
                         y_pred[mask],
-                        sample_weight=special.softmax(ksi * X_test[feature][mask]),
+                        sample_weight=special.softmax(
+                            X_test[group[&#34;feature&#34;].iloc[0]][mask]
+                            * group[&#34;ksi&#34;].iloc[0]
+                            if len(group[&#34;ksi&#34;]) == 1
+                            else np.dot(X_test[group[&#34;feature&#34;]][mask], group[&#34;ksi&#34;])
+                        ),
                     ),
                 )
-                for (sample_index, mask), (feature, ksi) in tqdm(
+                for (sample_index, mask), (gid, group) in tqdm(
                     itertools.product(
                         enumerate(
                             yield_masks(
@@ -1486,13 +1563,13 @@ class BaseExplainer:
                                 p=self.sample_frac,
                             )
                         ),
-                        keys,
+                        groups,
                     ),
                     disable=not self.verbose,
-                    total=len(keys) * self.n_samples,
+                    total=len(groups) * self.n_samples,
                 )
             ],
-            columns=[&#34;feature&#34;, &#34;ksi&#34;, &#34;sample_index&#34;, metric_name],
+            columns=[&#34;group&#34;, &#34;sample_index&#34;, metric_name],
         )
 
     def _explain_performance(self, X_test, y_test, y_pred, metric, query):
@@ -1501,7 +1578,7 @@ class BaseExplainer:
             X_test=X_test,
             y_pred=y_pred,
             dest_col=metric_name,
-            key_cols=[&#34;feature&#34;, &#34;ksi&#34;],
+            key_cols=[&#34;group&#34;],
             compute=self._compute_performance,
             query=query,
             compute_kwargs=dict(y_test=np.asarray(y_test), metric=metric),
@@ -1587,6 +1664,7 @@ class BaseExplainer:
                 for feature in individuals.columns
             ]
         )
+        query[&#34;group&#34;] = list(range(len(query)))
         info = explain(X_test=X_test, y_pred=y_pred, query=query)
 
         #  `info` looks like:
@@ -1719,7 +1797,8 @@ class BaseExplainer:
 
         Parameters:
             feature_values (pd.Series): A named pandas series containing the dataset values
-                for a given feature.
+                for a given feature. Let&#39;s notice that this method do not handle
+                multi-dimensional optimization.
             targets (list): A list of means to reach for the feature `feature_values`.
                 All of them must be between `feature_values.min()` and `feature_values.max()`.
 
@@ -1727,14 +1806,21 @@ class BaseExplainer:
             dict: The keys are the targets and the values are lists of
                 `len(feature_values)` weights (one per data sample).
         &#34;&#34;&#34;
+        #  If `feature_values.name` is `None`, converting it to a dataframe
+        # will create a column `0`, which will not be matched by the query below
+        # since its &#34;feature&#34; column will be `None` and not `0`.
+        if feature_values.name is None:
+            feature_values = feature_values.rename(&#34;feature&#34;)
+
         query = pd.DataFrame(
             dict(
+                group=list(range(len(targets))),
                 feature=[feature_values.name] * len(targets),
                 target=targets,
                 label=[&#34;&#34;] * len(targets),
             )
         )
-        ksis = self._fill_ksis(feature_values, query)[&#34;ksi&#34;]
+        ksis = self._fill_ksis(pd.DataFrame(feature_values), query)[&#34;ksi&#34;]
         scaled_values = safe_scale(feature_values)
         return {
             target: special.softmax(ksi * scaled_values)
@@ -1751,7 +1837,8 @@ class BaseExplainer:
 
         Parameters:
             feature_values (pd.Series): A named pandas series containing the dataset values
-                for a given feature.
+                for a given feature. Let&#39;s notice that this method do not handle
+                multi-dimensional optimization.
             targets (list): A list of means to reach for the feature `feature_values`.
                 All of them must be between `feature_values.min()` and `feature_values.max()`.
             bins (int, optional): See `numpy.histogram()`. If `None` (the default),
@@ -1864,97 +1951,129 @@ class BaseExplainer:
                 distributions[target][&#34;kde&#34;] = stats.gaussian_kde(data, weights=w)
         return distributions
 
-    def _plot_explanation(
-        self, explanation, col, y_label, colors=None, yrange=None, size=None
+    def plot_weight_distribution(
+        self, feature_values, targets, proportion, threshold=None, color=None, size=None
     ):
-        features = explanation[&#34;feature&#34;].unique()
+        &#34;&#34;&#34;Plot, for every target in `targets`, how many individuals capture
+        `proportion` of the total weight. For instance, we could see that for
+        a target mean of 25 year-old (if the feature is the age), 50% of the
+        weight is distributed to 14% of the individuals &#34;only&#34;. If &#34;few&#34; individuals
+        get &#34;a lot of&#34; weight, it means that the stressed distribution is &#34;quite&#34;
+        different from the original one and that the results are not reliable. Defining
+        a relevant threshold is an open question.
 
-        if colors is None:
-            colors = {}
-        elif type(colors) is str:
-            colors = {feat: colors for feat in features}
+        Parameters:
+            feature_values (pd.Series): See `BaseExplainer.compute_weights()`.
+            targets (list): See `BaseExplainer.compute_weights()`.
+            proportion (float): The proportion of weight to check, between 0 and 1.
+            threshold (float, optional): An optional threshold to display on the
+                plot. Must be between 0 and 1.
+            colors (list, optional): An optional list of colors for all targets.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        &#34;&#34;&#34;
+        fig = go.Figure()
+        weights = self.compute_weights(feature_values, targets)
+        n_individuals = len(feature_values)
+        targets = list(sorted(targets))
+        y = np.zeros(len(targets))
+
+        for i, target in enumerate(targets):
+            w = np.sort(weights[target])
+            cum_weights = np.cumsum(w[::-1])
+            y[i] = np.argmax(cum_weights &gt;= proportion) / n_individuals
+
+        fig.add_bar(x=targets, y=y, hoverinfo=&#34;x+y&#34;, marker=dict(color=color))
 
         width = height = None
         if size is not None:
             width, height = size
 
-        #  There are multiple features, we plot them together with taus
-        if len(features) &gt; 1:
-            fig = go.Figure()
-
-            for i, feat in enumerate(features):
-                taus = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;tau&#34;]
-                targets = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;target&#34;]
-                y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
-                fig.add_trace(
-                    go.Scatter(
-                        x=taus,
-                        y=y,
-                        mode=&#34;lines+markers&#34;,
-                        hoverinfo=&#34;y&#34;,
-                        name=feat,
-                        customdata=list(zip(taus, targets)),
-                        marker=dict(color=colors.get(feat)),
-                    )
+        if threshold is None:
+            shapes = []
+        else:
+            shapes = [
+                go.layout.Shape(
+                    type=&#34;line&#34;,
+                    x0=0,
+                    y0=threshold,
+                    x1=1,
+                    y1=threshold,
+                    xref=&#34;paper&#34;,
+                    line=dict(width=1),
                 )
+            ]
 
-            fig.update_layout(
-                margin=dict(t=30, r=50, b=40),
-                xaxis=dict(title=&#34;tau&#34;, nticks=5),
-                yaxis=dict(title=y_label, range=yrange),
-                width=width,
-                height=height,
+        fig.update_layout(
+            margin=dict(t=30, b=40),
+            showlegend=False,
+            xaxis=dict(title=feature_values.name or &#34;feature&#34;),
+            yaxis=dict(
+                title=f&#34;Individuals getting {int(proportion*100)}% of the weight&#34;,
+                tickformat=&#34;%&#34;,
+                range=[0, proportion + 0.05],
+            ),
+            width=width,
+            height=height,
+            shapes=shapes,
+        )
+        return fig
+
+    def plot_cumulative_weights(self, feature_values, targets, colors=None, size=None):
+        &#34;&#34;&#34;Plot the cumulative weights to stress the distribution of `feature_values`
+        for each mean in `targets`. The weights are first decreasingly sorted so
+        that we can easily answer the question &#34;how many individuals capture
+        X% of the weight?&#34;. 
+        
+        Parameters:
+            feature_values (pd.Series): See `BaseExplainer.compute_weights()`.
+            targets (list): See `BaseExplainer.compute_weights()`.
+            colors (list, optional): An optional list of colors for all targets.
+            size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
+        &#34;&#34;&#34;
+        if colors is None:
+            colors = cl.interp(
+                cl.scales[&#34;11&#34;][&#34;qual&#34;][&#34;Paired&#34;],
+                len(targets) + 1,  #  +1 otherwise it raises an error if ksis is empty
             )
-            return fig
 
-        #  There is only one feature, we plot it with its nominal values.
-        feat = features[0]
         fig = go.Figure()
-        x = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[&#34;target&#34;]
-        y = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[col]
-        mean_row = explanation.query(f&#39;feature == &#34;{feat}&#34; and tau == 0&#39;).iloc[0]
+        weights = self.compute_weights(feature_values, targets)
+        n = len(feature_values)
+        x = np.arange(n) / n
 
-        if self.n_samples &gt; 1:
-            low = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_low&#34;]
-            high = explanation.query(f&#39;feature == &#34;{feat}&#34;&#39;)[f&#34;{col}_high&#34;]
-            fig.add_trace(
-                go.Scatter(
-                    x=np.concatenate((x, x[::-1])),
-                    y=np.concatenate((low, high[::-1])),
-                    name=f&#34;{self.conf_level * 100}% - {(1 - self.conf_level) * 100}%&#34;,
-                    fill=&#34;toself&#34;,
-                    fillcolor=colors.get(feat),
-                    line_color=&#34;rgba(0, 0, 0, 0)&#34;,
-                    opacity=0.3,
-                )
-            )
-
-        fig.add_trace(
-            go.Scatter(
+        for target, color in zip(targets, colors):
+            w = np.sort(weights[target])
+            y = np.cumsum(w[::-1])
+            fig.add_scatter(
                 x=x,
                 y=y,
-                mode=&#34;lines+markers&#34;,
+                mode=&#34;lines&#34;,
                 hoverinfo=&#34;x+y&#34;,
-                showlegend=False,
-                marker=dict(color=colors.get(feat)),
+                name=f&#34;E[{feature_values.name}] = {target:.2f}&#34;,
+                marker=dict(color=color),
             )
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=[mean_row[&#34;target&#34;]],
-                y=[mean_row[col]],
-                text=[&#34;Dataset mean&#34;],
-                showlegend=False,
-                mode=&#34;markers&#34;,
-                name=&#34;Original mean&#34;,
-                hoverinfo=&#34;text&#34;,
-                marker=dict(symbol=&#34;x&#34;, size=9, color=colors.get(feat)),
-            )
-        )
+
+        width = height = None
+        if size is not None:
+            width, height = size
+
         fig.update_layout(
-            margin=dict(t=30, r=0, b=40),
-            xaxis=dict(title=f&#34;Average {feat}&#34;),
-            yaxis=dict(title=y_label, range=yrange),
+            margin=dict(t=30, b=40),
+            showlegend=True,
+            xaxis=dict(title=&#34;Proportion of individuals&#34;, tickformat=&#34;%&#34;),
+            yaxis=dict(title=&#34;Cumulative weights&#34;, range=[0, 1.05]),
             width=width,
             height=height,
         )
@@ -1990,6 +2109,12 @@ class BaseExplainer:
                 distribution. Default is `&#34;black&#34;`. If `None`, the original
                 distribution is not plotted.
             size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+        Returns:
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
         &#34;&#34;&#34;
         if targets is None:
             targets = []
@@ -2167,10 +2292,10 @@ class BaseExplainer:
             size (tuple, optional): An optional couple `(width, height)` in pixels.
 
         Returns:
-            pd.DataFrame: A dataframe with four columns (&#34;feature&#34;, &#34;label&#34;,
-                &#34;reference&#34; and &#34;compared&#34;). For each couple `(feature, label)`,
-                `reference` (resp. `compared`) is the average output of the model
-                if the average individual were `reference` (resp. `compared`).
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
         &#34;&#34;&#34;
         y_pred = pd.DataFrame(to_pandas(y_pred))
         if len(y_pred.columns) &gt; 1:
@@ -2234,10 +2359,10 @@ class BaseExplainer:
             size (tuple, optional): An optional couple `(width, height)` in pixels.
 
         Returns:
-            pd.DataFrame: A dataframe with four columns (&#34;feature&#34;, &#34;label&#34;,
-                &#34;reference&#34; and &#34;compared&#34;). For each couple `(feature, label)`,
-                `reference` (resp. `compared`) is the average output of the model
-                if the average individual were `reference` (resp. `compared`).
+            plotly.graph_objs.Figure:
+                A Plotly figure. It shows automatically in notebook cells but you
+                can also call the `.show()` method to plot multiple charts in the
+                same cell.
         &#34;&#34;&#34;
         comparison = self.compare_performance(
             X_test, y_test, y_pred, metric, reference, compared
@@ -2476,7 +2601,8 @@ divergence with the original distribution.</p>
 <dl>
 <dt><strong><code>feature_values</code></strong> :&ensp;<code>pd.Series</code></dt>
 <dd>A named pandas series containing the dataset values
-for a given feature.</dd>
+for a given feature. Let's notice that this method do not handle
+multi-dimensional optimization.</dd>
 <dt><strong><code>targets</code></strong> :&ensp;<code>list</code></dt>
 <dd>A list of means to reach for the feature <code>feature_values</code>.
 All of them must be between <code>feature_values.min()</code> and <code>feature_values.max()</code>.</dd>
@@ -2598,7 +2724,8 @@ mean age is 20 and 30:</p>
 
     Parameters:
         feature_values (pd.Series): A named pandas series containing the dataset values
-            for a given feature.
+            for a given feature. Let&#39;s notice that this method do not handle
+            multi-dimensional optimization.
         targets (list): A list of means to reach for the feature `feature_values`.
             All of them must be between `feature_values.min()` and `feature_values.max()`.
         bins (int, optional): See `numpy.histogram()`. If `None` (the default),
@@ -2726,7 +2853,8 @@ mean age is 20 and 30:</p>
 <dl>
 <dt><strong><code>feature_values</code></strong> :&ensp;<code>pd.Series</code></dt>
 <dd>A named pandas series containing the dataset values
-for a given feature.</dd>
+for a given feature. Let's notice that this method do not handle
+multi-dimensional optimization.</dd>
 <dt><strong><code>targets</code></strong> :&ensp;<code>list</code></dt>
 <dd>A list of means to reach for the feature <code>feature_values</code>.
 All of them must be between <code>feature_values.min()</code> and <code>feature_values.max()</code>.</dd>
@@ -2748,7 +2876,8 @@ All of them must be between <code>feature_values.min()</code> and <code>feature_
 
     Parameters:
         feature_values (pd.Series): A named pandas series containing the dataset values
-            for a given feature.
+            for a given feature. Let&#39;s notice that this method do not handle
+            multi-dimensional optimization.
         targets (list): A list of means to reach for the feature `feature_values`.
             All of them must be between `feature_values.min()` and `feature_values.max()`.
 
@@ -2756,14 +2885,21 @@ All of them must be between <code>feature_values.min()</code> and <code>feature_
         dict: The keys are the targets and the values are lists of
             `len(feature_values)` weights (one per data sample).
     &#34;&#34;&#34;
+    #  If `feature_values.name` is `None`, converting it to a dataframe
+    # will create a column `0`, which will not be matched by the query below
+    # since its &#34;feature&#34; column will be `None` and not `0`.
+    if feature_values.name is None:
+        feature_values = feature_values.rename(&#34;feature&#34;)
+
     query = pd.DataFrame(
         dict(
+            group=list(range(len(targets))),
             feature=[feature_values.name] * len(targets),
             target=targets,
             label=[&#34;&#34;] * len(targets),
         )
     )
-    ksis = self._fill_ksis(feature_values, query)[&#34;ksi&#34;]
+    ksis = self._fill_ksis(pd.DataFrame(feature_values), query)[&#34;ksi&#34;]
     scaled_values = safe_scale(feature_values)
     return {
         target: special.softmax(ksi * scaled_values)
@@ -2819,6 +2955,99 @@ performance with respect of the given metric.</p>
 </dd>
   
               
+    <dt id="ethik.base_explainer.BaseExplainer.plot_cumulative_weights"><code class="name flex">
+        
+        <span>def <span class="ident">plot_cumulative_weights</span></span>(<span>self, feature_values, targets, colors=None, size=None)</span>
+    </code></dt>
+    <dd>
+  
+  <section class="desc"><p>Plot the cumulative weights to stress the distribution of <code>feature_values</code>
+for each mean in <code>targets</code>. The weights are first decreasingly sorted so
+that we can easily answer the question "how many individuals capture
+X% of the weight?". </p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>feature_values</code></strong> :&ensp;<code>pd.Series</code></dt>
+<dd>See <a title="ethik.base_explainer.BaseExplainer.compute_weights" href="#ethik.base_explainer.BaseExplainer.compute_weights"><code>BaseExplainer.compute_weights()</code></a>.</dd>
+<dt><strong><code>targets</code></strong> :&ensp;<code>list</code></dt>
+<dd>See <a title="ethik.base_explainer.BaseExplainer.compute_weights" href="#ethik.base_explainer.BaseExplainer.compute_weights"><code>BaseExplainer.compute_weights()</code></a>.</dd>
+<dt><strong><code>colors</code></strong> :&ensp;<code>list</code>, optional</dt>
+<dd>An optional list of colors for all targets.</dd>
+<dt><strong><code>size</code></strong> :&ensp;<code>tuple</code>, optional</dt>
+<dd>An optional couple <code>(width, height)</code> in pixels.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>plotly.graph_objs.Figure</code>:</dt>
+<dd>A Plotly figure. It shows automatically in notebook cells but you
+can also call the <code>.show()</code> method to plot multiple charts in the
+same cell.</dd>
+</dl></section>
+  
+    
+      <details class="source">
+        <summary>
+            <span>Expand source code</span>
+        </summary>
+        <pre><code class="python">def plot_cumulative_weights(self, feature_values, targets, colors=None, size=None):
+    &#34;&#34;&#34;Plot the cumulative weights to stress the distribution of `feature_values`
+    for each mean in `targets`. The weights are first decreasingly sorted so
+    that we can easily answer the question &#34;how many individuals capture
+    X% of the weight?&#34;. 
+    
+    Parameters:
+        feature_values (pd.Series): See `BaseExplainer.compute_weights()`.
+        targets (list): See `BaseExplainer.compute_weights()`.
+        colors (list, optional): An optional list of colors for all targets.
+        size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+    Returns:
+        plotly.graph_objs.Figure:
+            A Plotly figure. It shows automatically in notebook cells but you
+            can also call the `.show()` method to plot multiple charts in the
+            same cell.
+    &#34;&#34;&#34;
+    if colors is None:
+        colors = cl.interp(
+            cl.scales[&#34;11&#34;][&#34;qual&#34;][&#34;Paired&#34;],
+            len(targets) + 1,  #  +1 otherwise it raises an error if ksis is empty
+        )
+
+    fig = go.Figure()
+    weights = self.compute_weights(feature_values, targets)
+    n = len(feature_values)
+    x = np.arange(n) / n
+
+    for target, color in zip(targets, colors):
+        w = np.sort(weights[target])
+        y = np.cumsum(w[::-1])
+        fig.add_scatter(
+            x=x,
+            y=y,
+            mode=&#34;lines&#34;,
+            hoverinfo=&#34;x+y&#34;,
+            name=f&#34;E[{feature_values.name}] = {target:.2f}&#34;,
+            marker=dict(color=color),
+        )
+
+    width = height = None
+    if size is not None:
+        width, height = size
+
+    fig.update_layout(
+        margin=dict(t=30, b=40),
+        showlegend=True,
+        xaxis=dict(title=&#34;Proportion of individuals&#34;, tickformat=&#34;%&#34;),
+        yaxis=dict(title=&#34;Cumulative weights&#34;, range=[0, 1.05]),
+        width=width,
+        height=height,
+    )
+    return fig</code></pre>
+      </details>
+
+</dd>
+  
+              
     <dt id="ethik.base_explainer.BaseExplainer.plot_distributions"><code class="name flex">
         
         <span>def <span class="ident">plot_distributions</span></span>(<span>self, feature_values, targets=None, y_pred=None, bins=None, show_hist=False, show_curve=True, colors=None, dataset_color='black', size=None)</span>
@@ -2852,6 +3081,13 @@ distribution. Default is <code>"black"</code>. If <code>None</code>, the origina
 distribution is not plotted.</dd>
 <dt><strong><code>size</code></strong> :&ensp;<code>tuple</code>, optional</dt>
 <dd>An optional couple <code>(width, height)</code> in pixels.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>plotly.graph_objs.Figure</code>:</dt>
+<dd>A Plotly figure. It shows automatically in notebook cells but you
+can also call the <code>.show()</code> method to plot multiple charts in the
+same cell.</dd>
 </dl></section>
   
     
@@ -2889,6 +3125,12 @@ distribution is not plotted.</dd>
             distribution. Default is `&#34;black&#34;`. If `None`, the original
             distribution is not plotted.
         size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+    Returns:
+        plotly.graph_objs.Figure:
+            A Plotly figure. It shows automatically in notebook cells but you
+            can also call the `.show()` method to plot multiple charts in the
+            same cell.
     &#34;&#34;&#34;
     if targets is None:
         targets = []
@@ -3018,10 +3260,10 @@ choosen.</dd>
 </dl>
 <h2 id="returns">Returns</h2>
 <dl>
-<dt><code>pd.DataFrame</code>: <code>A</code> <code>dataframe</code> <code>with</code> <code>four</code> <code>columns</code> (<code>"feature"</code>, <code>"label"</code>,</dt>
-<dd>"reference" and "compared"). For each couple <code>(feature, label)</code>,
-<code>reference</code> (resp. <code>compared</code>) is the average output of the model
-if the average individual were <code>reference</code> (resp. <code>compared</code>).</dd>
+<dt><code>plotly.graph_objs.Figure</code>:</dt>
+<dd>A Plotly figure. It shows automatically in notebook cells but you
+can also call the <code>.show()</code> method to plot multiple charts in the
+same cell.</dd>
 </dl></section>
   
     
@@ -3059,10 +3301,10 @@ if the average individual were <code>reference</code> (resp. <code>compared</cod
         size (tuple, optional): An optional couple `(width, height)` in pixels.
 
     Returns:
-        pd.DataFrame: A dataframe with four columns (&#34;feature&#34;, &#34;label&#34;,
-            &#34;reference&#34; and &#34;compared&#34;). For each couple `(feature, label)`,
-            `reference` (resp. `compared`) is the average output of the model
-            if the average individual were `reference` (resp. `compared`).
+        plotly.graph_objs.Figure:
+            A Plotly figure. It shows automatically in notebook cells but you
+            can also call the `.show()` method to plot multiple charts in the
+            same cell.
     &#34;&#34;&#34;
     y_pred = pd.DataFrame(to_pandas(y_pred))
     if len(y_pred.columns) &gt; 1:
@@ -3134,10 +3376,10 @@ choosen.</dd>
 </dl>
 <h2 id="returns">Returns</h2>
 <dl>
-<dt><code>pd.DataFrame</code>: <code>A</code> <code>dataframe</code> <code>with</code> <code>four</code> <code>columns</code> (<code>"feature"</code>, <code>"label"</code>,</dt>
-<dd>"reference" and "compared"). For each couple <code>(feature, label)</code>,
-<code>reference</code> (resp. <code>compared</code>) is the average output of the model
-if the average individual were <code>reference</code> (resp. <code>compared</code>).</dd>
+<dt><code>plotly.graph_objs.Figure</code>:</dt>
+<dd>A Plotly figure. It shows automatically in notebook cells but you
+can also call the <code>.show()</code> method to plot multiple charts in the
+same cell.</dd>
 </dl></section>
   
     
@@ -3191,10 +3433,10 @@ if the average individual were <code>reference</code> (resp. <code>compared</cod
         size (tuple, optional): An optional couple `(width, height)` in pixels.
 
     Returns:
-        pd.DataFrame: A dataframe with four columns (&#34;feature&#34;, &#34;label&#34;,
-            &#34;reference&#34; and &#34;compared&#34;). For each couple `(feature, label)`,
-            `reference` (resp. `compared`) is the average output of the model
-            if the average individual were `reference` (resp. `compared`).
+        plotly.graph_objs.Figure:
+            A Plotly figure. It shows automatically in notebook cells but you
+            can also call the `.show()` method to plot multiple charts in the
+            same cell.
     &#34;&#34;&#34;
     comparison = self.compare_performance(
         X_test, y_test, y_pred, metric, reference, compared
@@ -3214,6 +3456,125 @@ if the average individual were <code>reference</code> (resp. <code>compared</cod
         size=size,
         yrange=yrange,
     )</code></pre>
+      </details>
+
+</dd>
+  
+              
+    <dt id="ethik.base_explainer.BaseExplainer.plot_weight_distribution"><code class="name flex">
+        
+        <span>def <span class="ident">plot_weight_distribution</span></span>(<span>self, feature_values, targets, proportion, threshold=None, color=None, size=None)</span>
+    </code></dt>
+    <dd>
+  
+  <section class="desc"><p>Plot, for every target in <code>targets</code>, how many individuals capture
+<code>proportion</code> of the total weight. For instance, we could see that for
+a target mean of 25 year-old (if the feature is the age), 50% of the
+weight is distributed to 14% of the individuals "only". If "few" individuals
+get "a lot of" weight, it means that the stressed distribution is "quite"
+different from the original one and that the results are not reliable. Defining
+a relevant threshold is an open question.</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>feature_values</code></strong> :&ensp;<code>pd.Series</code></dt>
+<dd>See <a title="ethik.base_explainer.BaseExplainer.compute_weights" href="#ethik.base_explainer.BaseExplainer.compute_weights"><code>BaseExplainer.compute_weights()</code></a>.</dd>
+<dt><strong><code>targets</code></strong> :&ensp;<code>list</code></dt>
+<dd>See <a title="ethik.base_explainer.BaseExplainer.compute_weights" href="#ethik.base_explainer.BaseExplainer.compute_weights"><code>BaseExplainer.compute_weights()</code></a>.</dd>
+<dt><strong><code>proportion</code></strong> :&ensp;<code>float</code></dt>
+<dd>The proportion of weight to check, between 0 and 1.</dd>
+<dt><strong><code>threshold</code></strong> :&ensp;<code>float</code>, optional</dt>
+<dd>An optional threshold to display on the
+plot. Must be between 0 and 1.</dd>
+<dt><strong><code>colors</code></strong> :&ensp;<code>list</code>, optional</dt>
+<dd>An optional list of colors for all targets.</dd>
+<dt><strong><code>size</code></strong> :&ensp;<code>tuple</code>, optional</dt>
+<dd>An optional couple <code>(width, height)</code> in pixels.</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>plotly.graph_objs.Figure</code>:</dt>
+<dd>A Plotly figure. It shows automatically in notebook cells but you
+can also call the <code>.show()</code> method to plot multiple charts in the
+same cell.</dd>
+</dl></section>
+  
+    
+      <details class="source">
+        <summary>
+            <span>Expand source code</span>
+        </summary>
+        <pre><code class="python">def plot_weight_distribution(
+    self, feature_values, targets, proportion, threshold=None, color=None, size=None
+):
+    &#34;&#34;&#34;Plot, for every target in `targets`, how many individuals capture
+    `proportion` of the total weight. For instance, we could see that for
+    a target mean of 25 year-old (if the feature is the age), 50% of the
+    weight is distributed to 14% of the individuals &#34;only&#34;. If &#34;few&#34; individuals
+    get &#34;a lot of&#34; weight, it means that the stressed distribution is &#34;quite&#34;
+    different from the original one and that the results are not reliable. Defining
+    a relevant threshold is an open question.
+
+    Parameters:
+        feature_values (pd.Series): See `BaseExplainer.compute_weights()`.
+        targets (list): See `BaseExplainer.compute_weights()`.
+        proportion (float): The proportion of weight to check, between 0 and 1.
+        threshold (float, optional): An optional threshold to display on the
+            plot. Must be between 0 and 1.
+        colors (list, optional): An optional list of colors for all targets.
+        size (tuple, optional): An optional couple `(width, height)` in pixels.
+
+    Returns:
+        plotly.graph_objs.Figure:
+            A Plotly figure. It shows automatically in notebook cells but you
+            can also call the `.show()` method to plot multiple charts in the
+            same cell.
+    &#34;&#34;&#34;
+    fig = go.Figure()
+    weights = self.compute_weights(feature_values, targets)
+    n_individuals = len(feature_values)
+    targets = list(sorted(targets))
+    y = np.zeros(len(targets))
+
+    for i, target in enumerate(targets):
+        w = np.sort(weights[target])
+        cum_weights = np.cumsum(w[::-1])
+        y[i] = np.argmax(cum_weights &gt;= proportion) / n_individuals
+
+    fig.add_bar(x=targets, y=y, hoverinfo=&#34;x+y&#34;, marker=dict(color=color))
+
+    width = height = None
+    if size is not None:
+        width, height = size
+
+    if threshold is None:
+        shapes = []
+    else:
+        shapes = [
+            go.layout.Shape(
+                type=&#34;line&#34;,
+                x0=0,
+                y0=threshold,
+                x1=1,
+                y1=threshold,
+                xref=&#34;paper&#34;,
+                line=dict(width=1),
+            )
+        ]
+
+    fig.update_layout(
+        margin=dict(t=30, b=40),
+        showlegend=False,
+        xaxis=dict(title=feature_values.name or &#34;feature&#34;),
+        yaxis=dict(
+            title=f&#34;Individuals getting {int(proportion*100)}% of the weight&#34;,
+            tickformat=&#34;%&#34;,
+            range=[0, proportion + 0.05],
+        ),
+        width=width,
+        height=height,
+        shapes=shapes,
+    )
+    return fig</code></pre>
       </details>
 
 </dd>
@@ -3261,9 +3622,11 @@ if the average individual were <code>reference</code> (resp. <code>compared</cod
     <li><code><a title="ethik.base_explainer.BaseExplainer.compute_distributions" href="#ethik.base_explainer.BaseExplainer.compute_distributions">compute_distributions</a></code></li>
     <li><code><a title="ethik.base_explainer.BaseExplainer.compute_weights" href="#ethik.base_explainer.BaseExplainer.compute_weights">compute_weights</a></code></li>
     <li><code><a title="ethik.base_explainer.BaseExplainer.get_metric_name" href="#ethik.base_explainer.BaseExplainer.get_metric_name">get_metric_name</a></code></li>
+    <li><code><a title="ethik.base_explainer.BaseExplainer.plot_cumulative_weights" href="#ethik.base_explainer.BaseExplainer.plot_cumulative_weights">plot_cumulative_weights</a></code></li>
     <li><code><a title="ethik.base_explainer.BaseExplainer.plot_distributions" href="#ethik.base_explainer.BaseExplainer.plot_distributions">plot_distributions</a></code></li>
     <li><code><a title="ethik.base_explainer.BaseExplainer.plot_influence_comparison" href="#ethik.base_explainer.BaseExplainer.plot_influence_comparison">plot_influence_comparison</a></code></li>
     <li><code><a title="ethik.base_explainer.BaseExplainer.plot_performance_comparison" href="#ethik.base_explainer.BaseExplainer.plot_performance_comparison">plot_performance_comparison</a></code></li>
+    <li><code><a title="ethik.base_explainer.BaseExplainer.plot_weight_distribution" href="#ethik.base_explainer.BaseExplainer.plot_weight_distribution">plot_weight_distribution</a></code></li>
   </ul>
 
         </li>

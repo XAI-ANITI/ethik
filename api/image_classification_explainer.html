@@ -193,14 +193,13 @@ class ImageClassificationExplainer(CacheExplainer):
             X_test (pd.DataFrame or np.array): See `ImageClassificationExplainer.explain_influence()`.
             y_pred (pd.DataFrame or pd.Series): See `ImageClassificationExplainer.explain_influence()`.
             n_cols (int): The number of classes to render per row. Default is `3`.
+            cell_width (int, optional): The width of each cell in pixels.
 
         Returns:
             plotly.graph_objs.Figure:
                 A Plotly figure. It shows automatically in notebook cells but you
                 can also call the `.show()` method to plot multiple charts in the
                 same cell.
-
-                TODO: explain what is represented on the image.
         &#34;&#34;&#34;
         influences = self.explain_influence(X_test=X_test, y_pred=y_pred)
         z_values = {}
@@ -563,14 +562,13 @@ computations. Default is <code>True</code>.</dd>
             X_test (pd.DataFrame or np.array): See `ImageClassificationExplainer.explain_influence()`.
             y_pred (pd.DataFrame or pd.Series): See `ImageClassificationExplainer.explain_influence()`.
             n_cols (int): The number of classes to render per row. Default is `3`.
+            cell_width (int, optional): The width of each cell in pixels.
 
         Returns:
             plotly.graph_objs.Figure:
                 A Plotly figure. It shows automatically in notebook cells but you
                 can also call the `.show()` method to plot multiple charts in the
                 same cell.
-
-                TODO: explain what is represented on the image.
         &#34;&#34;&#34;
         influences = self.explain_influence(X_test=X_test, y_pred=y_pred)
         z_values = {}
@@ -880,16 +878,15 @@ corresponding set of labels in <code>y_true</code>".</dd>
 <dd>See <a title="ethik.image_classification_explainer.ImageClassificationExplainer.explain_influence" href="#ethik.image_classification_explainer.ImageClassificationExplainer.explain_influence"><code>ImageClassificationExplainer.explain_influence()</code></a>.</dd>
 <dt><strong><code>n_cols</code></strong> :&ensp;<code>int</code></dt>
 <dd>The number of classes to render per row. Default is <code>3</code>.</dd>
+<dt><strong><code>cell_width</code></strong> :&ensp;<code>int</code>, optional</dt>
+<dd>The width of each cell in pixels.</dd>
 </dl>
 <h2 id="returns">Returns</h2>
 <dl>
 <dt><code>plotly.graph_objs.Figure</code>:</dt>
-<dd>
-<p>A Plotly figure. It shows automatically in notebook cells but you
+<dd>A Plotly figure. It shows automatically in notebook cells but you
 can also call the <code>.show()</code> method to plot multiple charts in the
-same cell.</p>
-<p>TODO: explain what is represented on the image.</p>
-</dd>
+same cell.</dd>
 </dl></section>
   
     
@@ -904,14 +901,13 @@ same cell.</p>
         X_test (pd.DataFrame or np.array): See `ImageClassificationExplainer.explain_influence()`.
         y_pred (pd.DataFrame or pd.Series): See `ImageClassificationExplainer.explain_influence()`.
         n_cols (int): The number of classes to render per row. Default is `3`.
+        cell_width (int, optional): The width of each cell in pixels.
 
     Returns:
         plotly.graph_objs.Figure:
             A Plotly figure. It shows automatically in notebook cells but you
             can also call the `.show()` method to plot multiple charts in the
             same cell.
-
-            TODO: explain what is represented on the image.
     &#34;&#34;&#34;
     influences = self.explain_influence(X_test=X_test, y_pred=y_pred)
     z_values = {}
@@ -1109,11 +1105,15 @@ same cell.</p>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.compute_distributions" href="base_explainer.html#ethik.base_explainer.BaseExplainer.compute_distributions">compute_distributions</a></code></li>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.compute_weights" href="base_explainer.html#ethik.base_explainer.BaseExplainer.compute_weights">compute_weights</a></code></li>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.get_metric_name" href="base_explainer.html#ethik.base_explainer.BaseExplainer.get_metric_name">get_metric_name</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_cumulative_weights" href="base_explainer.html#ethik.base_explainer.BaseExplainer.plot_cumulative_weights">plot_cumulative_weights</a></code></li>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_distributions" href="base_explainer.html#ethik.base_explainer.BaseExplainer.plot_distributions">plot_distributions</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_influence_2d" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.plot_influence_2d">plot_influence_2d</a></code></li>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_influence_comparison" href="base_explainer.html#ethik.base_explainer.BaseExplainer.plot_influence_comparison">plot_influence_comparison</a></code></li>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_influence_ranking" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.plot_influence_ranking">plot_influence_ranking</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_performance_2d" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.plot_performance_2d">plot_performance_2d</a></code></li>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_performance_comparison" href="base_explainer.html#ethik.base_explainer.BaseExplainer.plot_performance_comparison">plot_performance_comparison</a></code></li>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_performance_ranking" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.plot_performance_ranking">plot_performance_ranking</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_weight_distribution" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.plot_weight_distribution">plot_weight_distribution</a></code></li>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.rank_by_influence" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.rank_by_influence">rank_by_influence</a></code></li>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.rank_by_performance" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.rank_by_performance">rank_by_performance</a></code></li>
                       </ul>

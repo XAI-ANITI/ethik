@@ -48,13 +48,15 @@ import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 
 from .cache_explainer import CacheExplainer
-from .utils import to_pandas
+from .utils import set_fig_size, to_pandas
 
 __all__ = [&#34;ClassificationExplainer&#34;]
 
 
 class ClassificationExplainer(CacheExplainer):
-    def plot_influence(self, X_test, y_pred, colors=None, yrange=None, size=None):
+    def plot_influence(
+        self, X_test, y_pred, colors=None, yrange=None, size=None, constraints=None
+    ):
         &#34;&#34;&#34;Plot the influence for the features in `X_test`.
 
         See `ethik.cache_explainer.CacheExplainer.plot_influence()`.
@@ -67,7 +69,12 @@ class ClassificationExplainer(CacheExplainer):
 
         if len(y_pred.columns) == 1:
             return super().plot_influence(
-                X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange, size=size
+                X_test=X_test,
+                y_pred=y_pred.iloc[:, 0],
+                colors=colors,
+                yrange=yrange,
+                size=size,
+                constraints=constraints,
             )
 
         if colors is None:
@@ -81,7 +88,11 @@ class ClassificationExplainer(CacheExplainer):
         for label in labels:
             plots.append(
                 super().plot_influence(
-                    X_test, y_pred[label], colors=colors, yrange=yrange
+                    X_test=X_test,
+                    y_pred=y_pred[label],
+                    colors=colors,
+                    yrange=yrange,
+                    constraints=constraints,
                 )
             )
 
@@ -92,10 +103,6 @@ class ClassificationExplainer(CacheExplainer):
                 trace[&#34;showlegend&#34;] = ilabel == 0 and trace[&#34;showlegend&#34;]
                 trace[&#34;legendgroup&#34;] = trace[&#34;name&#34;]
                 fig.add_trace(trace, row=ilabel + 1, col=1)
-
-        width = height = None
-        if size is not None:
-            width, height = size
 
         fig.update_xaxes(
             nticks=5,
@@ -118,11 +125,86 @@ class ClassificationExplainer(CacheExplainer):
                     title=&#34;tau&#34;
                     if len(X_test.columns) &gt; 1
                     else f&#34;Average {X_test.columns[0]}&#34;
-                ),
-                &#34;width&#34;: width,
-                &#34;height&#34;: height,
+                )
             }
         )
+        set_fig_size(fig, size)
+        return fig
+
+    def plot_influence_2d(
+        self, X_test, y_pred, z_range=None, colorscale=None, size=None, constraints=None
+    ):
+        &#34;&#34;&#34;Plot the combined influence for the features in `X_test`.
+
+        See `ethik.cache_explainer.CacheExplainer.plot_influence_2d()`.
+        &#34;&#34;&#34;
+        if z_range is None:
+            z_range = [0, 1]
+
+        X_test = pd.DataFrame(to_pandas(X_test))
+        y_pred = pd.DataFrame(to_pandas(y_pred))
+
+        if len(y_pred.columns) == 1:
+            return super().plot_influence_2d(
+                X_test=X_test,
+                y_pred=y_pred,
+                z_range=z_range,
+                colorscale=colorscale,
+                size=size,
+                constraints=constraints,
+            )
+
+        labels = y_pred.columns
+        plots = []
+        for label in labels:
+            plots.append(
+                super().plot_influence_2d(
+                    X_test=X_test,
+                    y_pred=y_pred[label],
+                    z_range=z_range,
+                    colorscale=colorscale,
+                    size=size,
+                    constraints=constraints,
+                )
+            )
+
+        fig = make_subplots(
+            rows=len(labels),
+            cols=1,
+            shared_xaxes=True,
+            subplot_titles=[p[&#34;data&#34;][0][&#34;colorbar&#34;][&#34;title&#34;].text for p in plots],
+        )
+        for ilabel, (label, plot) in enumerate(zip(labels, plots)):
+            fig.update_layout({f&#34;yaxis{ilabel+1}&#34;: dict(title=plot.layout.yaxis.title)})
+            heatmap, ds_mean = plot[&#34;data&#34;]
+            heatmap[&#34;showscale&#34;] = ilabel == 0
+            heatmap[&#34;colorbar&#34;][&#34;title&#34;] = &#34;&#34;
+            heatmap[&#34;hoverinfo&#34;] = &#34;x+y+z&#34;
+            fig.add_trace(heatmap, row=ilabel + 1, col=1)
+            fig.add_trace(ds_mean, row=ilabel + 1, col=1)
+
+        fig.update_xaxes(
+            showline=True,
+            showgrid=True,
+            zeroline=False,
+            mirror=True,
+            linecolor=&#34;black&#34;,
+            gridcolor=&#34;#eee&#34;,
+        )
+        fig.update_yaxes(
+            showline=True,
+            showgrid=True,
+            mirror=True,
+            linecolor=&#34;black&#34;,
+            gridcolor=&#34;#eee&#34;,
+        )
+        fig.update_layout(
+            {
+                f&#34;xaxis{len(labels)}&#34;: dict(title=plots[0].layout.xaxis.title),
+                &#34;title&#34;: plots[0].layout.title,
+            }
+        )
+        set_fig_size(fig, size)
         return fig
 
     def plot_distributions(
@@ -196,10 +278,6 @@ class ClassificationExplainer(CacheExplainer):
                 trace[&#34;legendgroup&#34;] = itrace
                 fig.add_trace(trace, row=ilabel + 1, col=1)
 
-        width = height = None
-        if size is not None:
-            width, height = size
-
         fig.update_xaxes(
             showline=True,
             showgrid=True,
@@ -210,7 +288,7 @@ class ClassificationExplainer(CacheExplainer):
         fig.update_yaxes(
             showline=True, showgrid=True, linecolor=&#34;black&#34;, gridcolor=&#34;#eee&#34;
         )
-        fig.update_layout(width=width, height=height)
+        set_fig_size(fig, size)
         return fig
 
     def plot_influence_comparison(
@@ -259,8 +337,6 @@ class ClassificationExplainer(CacheExplainer):
         title = None
         shapes = []
         for ilabel, (label, plot) in enumerate(zip(labels, plots)):
-            if ilabel == 0:
-                title = plot.layout.xaxis.title
             fig.update_layout({f&#34;yaxis{ilabel+1}&#34;: dict(title=label)})
             for trace in plot[&#34;data&#34;]:
                 shapes.append(
@@ -276,11 +352,6 @@ class ClassificationExplainer(CacheExplainer):
                 )
                 fig.add_trace(trace, row=ilabel + 1, col=1)
 
-        width = 500
-        height = 100 + 60 * len(features) + 30 * len(labels)
-        if size is not None:
-            width, height = size
-
         fig.update_xaxes(
             range=yrange,
             showline=True,
@@ -295,10 +366,11 @@ class ClassificationExplainer(CacheExplainer):
         )
         fig.update_layout(
             showlegend=False,
-            xaxis1=dict(title=title),
+            xaxis1=dict(title=plots[0].layout.xaxis.title),
             shapes=shapes,
-            width=width,
-            height=height,
+        )
+        set_fig_size(
+            fig, size, width=500, height=100 + 60 * len(features) + 30 * len(labels)
         )
         return fig</code></pre>
       </details>
@@ -380,7 +452,9 @@ computations. Default is <code>True</code>.</dd>
             <span>Expand source code</span>
         </summary>
         <pre><code class="python">class ClassificationExplainer(CacheExplainer):
-    def plot_influence(self, X_test, y_pred, colors=None, yrange=None, size=None):
+    def plot_influence(
+        self, X_test, y_pred, colors=None, yrange=None, size=None, constraints=None
+    ):
         &#34;&#34;&#34;Plot the influence for the features in `X_test`.
 
         See `ethik.cache_explainer.CacheExplainer.plot_influence()`.
@@ -393,7 +467,12 @@ computations. Default is <code>True</code>.</dd>
 
         if len(y_pred.columns) == 1:
             return super().plot_influence(
-                X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange, size=size
+                X_test=X_test,
+                y_pred=y_pred.iloc[:, 0],
+                colors=colors,
+                yrange=yrange,
+                size=size,
+                constraints=constraints,
             )
 
         if colors is None:
@@ -407,7 +486,11 @@ computations. Default is <code>True</code>.</dd>
         for label in labels:
             plots.append(
                 super().plot_influence(
-                    X_test, y_pred[label], colors=colors, yrange=yrange
+                    X_test=X_test,
+                    y_pred=y_pred[label],
+                    colors=colors,
+                    yrange=yrange,
+                    constraints=constraints,
                 )
             )
 
@@ -418,10 +501,6 @@ computations. Default is <code>True</code>.</dd>
                 trace[&#34;showlegend&#34;] = ilabel == 0 and trace[&#34;showlegend&#34;]
                 trace[&#34;legendgroup&#34;] = trace[&#34;name&#34;]
                 fig.add_trace(trace, row=ilabel + 1, col=1)
-
-        width = height = None
-        if size is not None:
-            width, height = size
 
         fig.update_xaxes(
             nticks=5,
@@ -444,11 +523,86 @@ computations. Default is <code>True</code>.</dd>
                     title=&#34;tau&#34;
                     if len(X_test.columns) &gt; 1
                     else f&#34;Average {X_test.columns[0]}&#34;
-                ),
-                &#34;width&#34;: width,
-                &#34;height&#34;: height,
+                )
             }
         )
+        set_fig_size(fig, size)
+        return fig
+
+    def plot_influence_2d(
+        self, X_test, y_pred, z_range=None, colorscale=None, size=None, constraints=None
+    ):
+        &#34;&#34;&#34;Plot the combined influence for the features in `X_test`.
+
+        See `ethik.cache_explainer.CacheExplainer.plot_influence_2d()`.
+        &#34;&#34;&#34;
+        if z_range is None:
+            z_range = [0, 1]
+
+        X_test = pd.DataFrame(to_pandas(X_test))
+        y_pred = pd.DataFrame(to_pandas(y_pred))
+
+        if len(y_pred.columns) == 1:
+            return super().plot_influence_2d(
+                X_test=X_test,
+                y_pred=y_pred,
+                z_range=z_range,
+                colorscale=colorscale,
+                size=size,
+                constraints=constraints,
+            )
+
+        labels = y_pred.columns
+        plots = []
+        for label in labels:
+            plots.append(
+                super().plot_influence_2d(
+                    X_test=X_test,
+                    y_pred=y_pred[label],
+                    z_range=z_range,
+                    colorscale=colorscale,
+                    size=size,
+                    constraints=constraints,
+                )
+            )
+
+        fig = make_subplots(
+            rows=len(labels),
+            cols=1,
+            shared_xaxes=True,
+            subplot_titles=[p[&#34;data&#34;][0][&#34;colorbar&#34;][&#34;title&#34;].text for p in plots],
+        )
+        for ilabel, (label, plot) in enumerate(zip(labels, plots)):
+            fig.update_layout({f&#34;yaxis{ilabel+1}&#34;: dict(title=plot.layout.yaxis.title)})
+            heatmap, ds_mean = plot[&#34;data&#34;]
+            heatmap[&#34;showscale&#34;] = ilabel == 0
+            heatmap[&#34;colorbar&#34;][&#34;title&#34;] = &#34;&#34;
+            heatmap[&#34;hoverinfo&#34;] = &#34;x+y+z&#34;
+            fig.add_trace(heatmap, row=ilabel + 1, col=1)
+            fig.add_trace(ds_mean, row=ilabel + 1, col=1)
+
+        fig.update_xaxes(
+            showline=True,
+            showgrid=True,
+            zeroline=False,
+            mirror=True,
+            linecolor=&#34;black&#34;,
+            gridcolor=&#34;#eee&#34;,
+        )
+        fig.update_yaxes(
+            showline=True,
+            showgrid=True,
+            mirror=True,
+            linecolor=&#34;black&#34;,
+            gridcolor=&#34;#eee&#34;,
+        )
+        fig.update_layout(
+            {
+                f&#34;xaxis{len(labels)}&#34;: dict(title=plots[0].layout.xaxis.title),
+                &#34;title&#34;: plots[0].layout.title,
+            }
+        )
+        set_fig_size(fig, size)
         return fig
 
     def plot_distributions(
@@ -522,10 +676,6 @@ computations. Default is <code>True</code>.</dd>
                 trace[&#34;legendgroup&#34;] = itrace
                 fig.add_trace(trace, row=ilabel + 1, col=1)
 
-        width = height = None
-        if size is not None:
-            width, height = size
-
         fig.update_xaxes(
             showline=True,
             showgrid=True,
@@ -536,7 +686,7 @@ computations. Default is <code>True</code>.</dd>
         fig.update_yaxes(
             showline=True, showgrid=True, linecolor=&#34;black&#34;, gridcolor=&#34;#eee&#34;
         )
-        fig.update_layout(width=width, height=height)
+        set_fig_size(fig, size)
         return fig
 
     def plot_influence_comparison(
@@ -585,8 +735,6 @@ computations. Default is <code>True</code>.</dd>
         title = None
         shapes = []
         for ilabel, (label, plot) in enumerate(zip(labels, plots)):
-            if ilabel == 0:
-                title = plot.layout.xaxis.title
             fig.update_layout({f&#34;yaxis{ilabel+1}&#34;: dict(title=label)})
             for trace in plot[&#34;data&#34;]:
                 shapes.append(
@@ -602,11 +750,6 @@ computations. Default is <code>True</code>.</dd>
                 )
                 fig.add_trace(trace, row=ilabel + 1, col=1)
 
-        width = 500
-        height = 100 + 60 * len(features) + 30 * len(labels)
-        if size is not None:
-            width, height = size
-
         fig.update_xaxes(
             range=yrange,
             showline=True,
@@ -621,10 +764,11 @@ computations. Default is <code>True</code>.</dd>
         )
         fig.update_layout(
             showlegend=False,
-            xaxis1=dict(title=title),
+            xaxis1=dict(title=plots[0].layout.xaxis.title),
             shapes=shapes,
-            width=width,
-            height=height,
+        )
+        set_fig_size(
+            fig, size, width=500, height=100 + 60 * len(features) + 30 * len(labels)
         )
         return fig</code></pre>
       </details>
@@ -726,10 +870,6 @@ for each mean of <code>feature_values</code> in <code>targets</code>.</p>
             trace[&#34;legendgroup&#34;] = itrace
             fig.add_trace(trace, row=ilabel + 1, col=1)
 
-    width = height = None
-    if size is not None:
-        width, height = size
-
     fig.update_xaxes(
         showline=True,
         showgrid=True,
@@ -740,7 +880,7 @@ for each mean of <code>feature_values</code> in <code>targets</code>.</p>
     fig.update_yaxes(
         showline=True, showgrid=True, linecolor=&#34;black&#34;, gridcolor=&#34;#eee&#34;
     )
-    fig.update_layout(width=width, height=height)
+    set_fig_size(fig, size)
     return fig</code></pre>
       </details>
 
@@ -749,7 +889,7 @@ for each mean of <code>feature_values</code> in <code>targets</code>.</p>
               
     <dt id="ethik.classification_explainer.ClassificationExplainer.plot_influence"><code class="name flex">
         
-        <span>def <span class="ident">plot_influence</span></span>(<span>self, X_test, y_pred, colors=None, yrange=None, size=None)</span>
+        <span>def <span class="ident">plot_influence</span></span>(<span>self, X_test, y_pred, colors=None, yrange=None, size=None, constraints=None)</span>
     </code></dt>
     <dd>
   
@@ -761,7 +901,9 @@ for each mean of <code>feature_values</code> in <code>targets</code>.</p>
         <summary>
             <span>Expand source code</span>
         </summary>
-        <pre><code class="python">def plot_influence(self, X_test, y_pred, colors=None, yrange=None, size=None):
+        <pre><code class="python">def plot_influence(
+    self, X_test, y_pred, colors=None, yrange=None, size=None, constraints=None
+):
     &#34;&#34;&#34;Plot the influence for the features in `X_test`.
 
     See `ethik.cache_explainer.CacheExplainer.plot_influence()`.
@@ -774,7 +916,12 @@ for each mean of <code>feature_values</code> in <code>targets</code>.</p>
 
     if len(y_pred.columns) == 1:
         return super().plot_influence(
-            X_test, y_pred.iloc[:, 0], colors=colors, yrange=yrange, size=size
+            X_test=X_test,
+            y_pred=y_pred.iloc[:, 0],
+            colors=colors,
+            yrange=yrange,
+            size=size,
+            constraints=constraints,
         )
 
     if colors is None:
@@ -788,7 +935,11 @@ for each mean of <code>feature_values</code> in <code>targets</code>.</p>
     for label in labels:
         plots.append(
             super().plot_influence(
-                X_test, y_pred[label], colors=colors, yrange=yrange
+                X_test=X_test,
+                y_pred=y_pred[label],
+                colors=colors,
+                yrange=yrange,
+                constraints=constraints,
             )
         )
 
@@ -799,10 +950,6 @@ for each mean of <code>feature_values</code> in <code>targets</code>.</p>
             trace[&#34;showlegend&#34;] = ilabel == 0 and trace[&#34;showlegend&#34;]
             trace[&#34;legendgroup&#34;] = trace[&#34;name&#34;]
             fig.add_trace(trace, row=ilabel + 1, col=1)
-
-    width = height = None
-    if size is not None:
-        width, height = size
 
     fig.update_xaxes(
         nticks=5,
@@ -825,11 +972,104 @@ for each mean of <code>feature_values</code> in <code>targets</code>.</p>
                 title=&#34;tau&#34;
                 if len(X_test.columns) &gt; 1
                 else f&#34;Average {X_test.columns[0]}&#34;
-            ),
-            &#34;width&#34;: width,
-            &#34;height&#34;: height,
+            )
         }
     )
+    set_fig_size(fig, size)
+    return fig</code></pre>
+      </details>
+
+</dd>
+  
+              
+    <dt id="ethik.classification_explainer.ClassificationExplainer.plot_influence_2d"><code class="name flex">
+        
+        <span>def <span class="ident">plot_influence_2d</span></span>(<span>self, X_test, y_pred, z_range=None, colorscale=None, size=None, constraints=None)</span>
+    </code></dt>
+    <dd>
+  
+  <section class="desc"><p>Plot the combined influence for the features in <code>X_test</code>.</p>
+<p>See <a title="ethik.cache_explainer.CacheExplainer.plot_influence_2d" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.plot_influence_2d"><code>CacheExplainer.plot_influence_2d()</code></a>.</p></section>
+  
+    
+      <details class="source">
+        <summary>
+            <span>Expand source code</span>
+        </summary>
+        <pre><code class="python">def plot_influence_2d(
+    self, X_test, y_pred, z_range=None, colorscale=None, size=None, constraints=None
+):
+    &#34;&#34;&#34;Plot the combined influence for the features in `X_test`.
+
+    See `ethik.cache_explainer.CacheExplainer.plot_influence_2d()`.
+    &#34;&#34;&#34;
+    if z_range is None:
+        z_range = [0, 1]
+
+    X_test = pd.DataFrame(to_pandas(X_test))
+    y_pred = pd.DataFrame(to_pandas(y_pred))
+
+    if len(y_pred.columns) == 1:
+        return super().plot_influence_2d(
+            X_test=X_test,
+            y_pred=y_pred,
+            z_range=z_range,
+            colorscale=colorscale,
+            size=size,
+            constraints=constraints,
+        )
+
+    labels = y_pred.columns
+    plots = []
+    for label in labels:
+        plots.append(
+            super().plot_influence_2d(
+                X_test=X_test,
+                y_pred=y_pred[label],
+                z_range=z_range,
+                colorscale=colorscale,
+                size=size,
+                constraints=constraints,
+            )
+        )
+
+    fig = make_subplots(
+        rows=len(labels),
+        cols=1,
+        shared_xaxes=True,
+        subplot_titles=[p[&#34;data&#34;][0][&#34;colorbar&#34;][&#34;title&#34;].text for p in plots],
+    )
+    for ilabel, (label, plot) in enumerate(zip(labels, plots)):
+        fig.update_layout({f&#34;yaxis{ilabel+1}&#34;: dict(title=plot.layout.yaxis.title)})
+        heatmap, ds_mean = plot[&#34;data&#34;]
+        heatmap[&#34;showscale&#34;] = ilabel == 0
+        heatmap[&#34;colorbar&#34;][&#34;title&#34;] = &#34;&#34;
+        heatmap[&#34;hoverinfo&#34;] = &#34;x+y+z&#34;
+        fig.add_trace(heatmap, row=ilabel + 1, col=1)
+        fig.add_trace(ds_mean, row=ilabel + 1, col=1)
+
+    fig.update_xaxes(
+        showline=True,
+        showgrid=True,
+        zeroline=False,
+        mirror=True,
+        linecolor=&#34;black&#34;,
+        gridcolor=&#34;#eee&#34;,
+    )
+    fig.update_yaxes(
+        showline=True,
+        showgrid=True,
+        mirror=True,
+        linecolor=&#34;black&#34;,
+        gridcolor=&#34;#eee&#34;,
+    )
+    fig.update_layout(
+        {
+            f&#34;xaxis{len(labels)}&#34;: dict(title=plots[0].layout.xaxis.title),
+            &#34;title&#34;: plots[0].layout.title,
+        }
+    )
+    set_fig_size(fig, size)
     return fig</code></pre>
       </details>
 
@@ -899,8 +1139,6 @@ the difference with what the output would be if the average were <code>reference
     title = None
     shapes = []
     for ilabel, (label, plot) in enumerate(zip(labels, plots)):
-        if ilabel == 0:
-            title = plot.layout.xaxis.title
         fig.update_layout({f&#34;yaxis{ilabel+1}&#34;: dict(title=label)})
         for trace in plot[&#34;data&#34;]:
             shapes.append(
@@ -916,11 +1154,6 @@ the difference with what the output would be if the average were <code>reference
             )
             fig.add_trace(trace, row=ilabel + 1, col=1)
 
-    width = 500
-    height = 100 + 60 * len(features) + 30 * len(labels)
-    if size is not None:
-        width, height = size
-
     fig.update_xaxes(
         range=yrange,
         showline=True,
@@ -935,10 +1168,11 @@ the difference with what the output would be if the average were <code>reference
     )
     fig.update_layout(
         showlegend=False,
-        xaxis1=dict(title=title),
+        xaxis1=dict(title=plots[0].layout.xaxis.title),
         shapes=shapes,
-        width=width,
-        height=height,
+    )
+    set_fig_size(
+        fig, size, width=500, height=100 + 60 * len(features) + 30 * len(labels)
     )
     return fig</code></pre>
       </details>
@@ -960,10 +1194,13 @@ the difference with what the output would be if the average were <code>reference
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.explain_influence" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.explain_influence">explain_influence</a></code></li>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.explain_performance" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.explain_performance">explain_performance</a></code></li>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.get_metric_name" href="base_explainer.html#ethik.base_explainer.BaseExplainer.get_metric_name">get_metric_name</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_cumulative_weights" href="base_explainer.html#ethik.base_explainer.BaseExplainer.plot_cumulative_weights">plot_cumulative_weights</a></code></li>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_influence_ranking" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.plot_influence_ranking">plot_influence_ranking</a></code></li>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_performance" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.plot_performance">plot_performance</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_performance_2d" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.plot_performance_2d">plot_performance_2d</a></code></li>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_performance_comparison" href="base_explainer.html#ethik.base_explainer.BaseExplainer.plot_performance_comparison">plot_performance_comparison</a></code></li>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_performance_ranking" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.plot_performance_ranking">plot_performance_ranking</a></code></li>
+                              <li><code><a title="ethik.cache_explainer.CacheExplainer.plot_weight_distribution" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.plot_weight_distribution">plot_weight_distribution</a></code></li>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.rank_by_influence" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.rank_by_influence">rank_by_influence</a></code></li>
                               <li><code><a title="ethik.cache_explainer.CacheExplainer.rank_by_performance" href="cache_explainer.html#ethik.cache_explainer.CacheExplainer.rank_by_performance">rank_by_performance</a></code></li>
                       </ul>
@@ -1006,6 +1243,7 @@ the difference with what the output would be if the average were <code>reference
   <ul class="">
     <li><code><a title="ethik.classification_explainer.ClassificationExplainer.plot_distributions" href="#ethik.classification_explainer.ClassificationExplainer.plot_distributions">plot_distributions</a></code></li>
     <li><code><a title="ethik.classification_explainer.ClassificationExplainer.plot_influence" href="#ethik.classification_explainer.ClassificationExplainer.plot_influence">plot_influence</a></code></li>
+    <li><code><a title="ethik.classification_explainer.ClassificationExplainer.plot_influence_2d" href="#ethik.classification_explainer.ClassificationExplainer.plot_influence_2d">plot_influence_2d</a></code></li>
     <li><code><a title="ethik.classification_explainer.ClassificationExplainer.plot_influence_comparison" href="#ethik.classification_explainer.ClassificationExplainer.plot_influence_comparison">plot_influence_comparison</a></code></li>
   </ul>
 
