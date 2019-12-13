@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 from sklearn import linear_model
 from sklearn import datasets
+from sklearn import neighbors
 from sklearn import model_selection
 from sklearn import pipeline
 from sklearn import preprocessing
@@ -93,3 +94,31 @@ def test_memoization():
     influence = explainer.explain_influence(X_test[["INDUS"]], y_pred)
     assert set(influence["feature"].unique()) == set(["INDUS"])
     assert set(explainer.info["feature"].unique()) == set(["INDUS", "NOX"])
+
+
+def test_target_identity():
+    X, y = load_iris()
+
+    X_train, X_test, y_train, y_test = model_selection.train_test_split(
+        X, y, shuffle=True, random_state=42
+    )
+
+    model = pipeline.make_pipeline(
+        preprocessing.StandardScaler(), neighbors.KNeighborsClassifier()
+    )
+    model.fit(X_train, y_train)
+
+    y_pred = model.predict_proba(X_test)
+    y_pred = pd.DataFrame(y_pred, columns=model.classes_)
+
+    explainer = ethik.ClassificationExplainer(memoize=True)
+    label = y_pred.columns[0]
+
+    explainer.explain_influence(X_test=X_test, y_pred=y_pred[label])
+
+    explainer.explain_influence(X_test=X_test["petal width (cm)"], y_pred=y_pred[label])
+
+    rows = explainer.info.query(
+        f"label == '{label}' and feature == 'petal width (cm)' and tau == -0.85"
+    )
+    assert len(rows) == 1
