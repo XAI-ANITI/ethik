@@ -15,6 +15,7 @@
 ### Fixed
 
 * `BaseExplainer.compute_weights()` can now be called with an unamed `pd.Series()` (and so `BaseExplainer.compute_distributions()`).
+* Fix numeric noise in `Query.from_taus()`, which now always returns exactly the same targets, independently from whether the feature is alone in the dataset or not.
 
 ## 0.0.3 - 15/11/19
 
