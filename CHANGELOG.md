@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.0.4 - 13/12/19
+
 ### Added
 
 * `BaseExplainer.plot_weights()` to visualize how many individuals capture X% of the weight used to stress the distribution.
