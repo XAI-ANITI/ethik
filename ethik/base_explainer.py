@@ -108,7 +108,7 @@ def compute_ksi(group_id, x, target_mean, max_iterations, tol):
         return {(group_id, feature): (0.0, True) for feature in features}
 
     res = optimize.minimize(
-        fun=F(x=x, target_mean=(target_mean - mean) / std),
+        fun=F(x=x, target_mean=(target_mean - mean) / np.where(std == 0, 1, std)),
         x0=np.zeros(len(target_mean)),  # Initial ksi value
         jac=True,
         method="BFGS",
