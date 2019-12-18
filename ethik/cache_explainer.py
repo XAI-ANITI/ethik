@@ -97,17 +97,7 @@ class CacheExplainer(BaseExplainer):
     def _reset_info(self):
         """Resets the info dataframe (for when memoization is turned off)."""
         self.info = pd.DataFrame(
-            columns=[
-                "group",
-                "feature",
-                "tau",
-                "target",
-                "ksi",
-                "label",
-                "influence",
-                "influence_low",
-                "influence_high",
-            ]
+            columns=["group", "feature", "tau", "target", "ksi", "label", "influence"]
         )
 
     def get_metric_name(self, metric):

@@ -68,6 +68,9 @@ class ImageClassificationExplainer(CacheExplainer):
             memoize=memoize,
             verbose=verbose,
         )
+        # `CacheExplainer()` will set `n_taus` to `2+1` as it requires an odd number
+        # of steps, but we don't need to compute `tau == 0` here
+        self.n_taus = 2
 
     def _set_image_shape(self, images):
         self.img_shape = images[0].shape

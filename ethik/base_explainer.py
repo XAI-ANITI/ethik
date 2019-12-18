@@ -215,6 +215,7 @@ class BaseExplainer:
             )
             for gid, part in groups.groupby("group")
         )
+
         ksis = collections.ChainMap(*ksis)
         converged = {k: t[1] for k, t in ksis.items()}
         ksis = {k: t[0] for k, t in ksis.items()}
@@ -264,6 +265,7 @@ class BaseExplainer:
             compute_kwargs = {}
         if dest_col not in query.columns:
             query[dest_col] = None
+        if self.n_samples > 1 and f"{dest_col}_low" not in query.columns:
             query[f"{dest_col}_low"] = None
             query[f"{dest_col}_high"] = None
 
@@ -301,24 +303,31 @@ class BaseExplainer:
         explanation = compute(
             X_test=X_test, y_pred=y_pred, query=query_to_complete, **compute_kwargs
         )
-        # We group by the key to gather the samples and compute the confidence
-        #  interval
-        explanation = explanation.groupby(key_cols)[dest_col].agg(
-            [
-                # Mean influence
-                (dest_col, "mean"),
-                # Lower bound on the mean influence
-                (f"{dest_col}_low", functools.partial(np.quantile, q=self.conf_level)),
-                # Upper bound on the mean influence
-                (
-                    f"{dest_col}_high",
-                    functools.partial(np.quantile, q=1 - self.conf_level),
-                ),
-            ]
-        )
 
-        query = join_with_overlap(left=query, right=explanation, on=key_cols)
-        return query
+        if self.n_samples == 1:
+            # Need to set the index for `join_with_overlap() below`
+            explanation = explanation.set_index(key_cols).drop(columns="sample_index")
+        else:
+            # We group by the key to gather the samples and compute the confidence
+            #  interval
+            explanation = explanation.groupby(key_cols)[dest_col].agg(
+                [
+                    # Mean influence
+                    (dest_col, "mean"),
+                    # Lower bound on the mean influence
+                    (
+                        f"{dest_col}_low",
+                        functools.partial(np.quantile, q=self.conf_level),
+                    ),
+                    # Upper bound on the mean influence
+                    (
+                        f"{dest_col}_high",
+                        functools.partial(np.quantile, q=1 - self.conf_level),
+                    ),
+                ]
+            )
+
+        return join_with_overlap(left=query, right=explanation, on=key_cols)
 
     def _compute_influence(self, X_test, y_pred, query):
         groups = query.groupby(["group", "label"])
