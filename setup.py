@@ -97,6 +97,7 @@ setup(
     # },
     install_requires=[
         "colorlover>=0.3.0",
+        "imageio>=2.5.0",
         "joblib>=0.13.2",
         "numpy>=1.16.1",
         "pandas>=0.24.0",

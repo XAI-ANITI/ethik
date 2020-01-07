@@ -1,8 +1,42 @@
 import os
 
+import imageio
 import pandas as pd
+import zipfile
 
-__all__ = ["load_adult", "load_diabetes", "load_heart_disease", "load_law_school"]
+__all__ = [
+    "load_adult",
+    "load_diabetes",
+    "load_heart_disease",
+    "load_law_school",
+    "load_wolf_or_husky",
+]
+
+
+def load_wolf_or_husky():
+    """A set of 42 images of wolves and huskies.
+
+    The wolves have a snowy background whereas the huskies have a grassy background.
+
+    References
+        1. https://arxiv.org/pdf/1602.04938.pdf
+
+    """
+
+    X = []
+    y = []
+
+    zf = zipfile.ZipFile("ethik/data/wolf_or_husky.zip")
+
+    for file in zf.namelist():
+        basename, extension = os.path.splitext(file)
+        label = basename.split("/")[1]
+        if extension == ".jpg":
+            img = imageio.imread(zf.open(file))
+            X.append(img)
+            y.append(label)
+
+    return X, y
 
 
 def load_adult():
