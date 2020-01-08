@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## Added
+
+* Added `datasets.load_wolf_or_huksy`, which a small dataset of images that either depict wolves with a snowy background, or huskies with a grassy background.
+
 ## 0.0.4 - 13/12/19
 
 ### Added
