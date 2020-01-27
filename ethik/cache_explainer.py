@@ -1,6 +1,4 @@
-import collections
 import functools
-import itertools
 import math
 import warnings
 
@@ -52,6 +50,8 @@ class CacheExplainer(BaseExplainer):
             `plot_influence_ranking` and `memoize` is `True`, then the intermediate results required by
             `plot_influence` will be reused for `plot_influence_ranking`. Memoization is turned off by
             default because it can lead to unexpected behavior depending on your usage.
+        disable_checks (bool): If `False` then the data will be checked. Setting this to ``True``
+            may bring a significant speed up if the data has many variables.
         verbose (bool): Whether or not to show progress bars during
             computations. Default is `True`.
     """
@@ -67,6 +67,7 @@ class CacheExplainer(BaseExplainer):
         tol=1e-4,
         n_jobs=1,  # Parallelism is only worth it if the dataset is "large"
         memoize=False,
+        disable_checks=True,
         verbose=True,
     ):
         super().__init__(
@@ -91,6 +92,7 @@ class CacheExplainer(BaseExplainer):
 
         self.n_taus = n_taus
         self.memoize = memoize
+        self.disable_checks = disable_checks
         self.metric_names = set()
         self._reset_info()
 
@@ -134,6 +136,7 @@ class CacheExplainer(BaseExplainer):
             q=[self.alpha, 1 - self.alpha],
             constraints=constraints,
             link_variables=link_variables,
+            disable_checks=self.disable_checks
         )
 
         query_index = pd.MultiIndex.from_arrays([query["group"], query["label"]])

@@ -123,7 +123,8 @@ class Query:
 
     @classmethod
     def from_taus(
-        cls, X_test, labels, n_taus, q, link_variables=False, constraints=None
+        cls, X_test, labels, n_taus, q, link_variables=False, constraints=None,
+        disable_checks=True
     ):
         if constraints is None:
             constraints = {}
@@ -137,8 +138,9 @@ class Query:
         quantiles = X_test.quantile(q=q)
 
         # Issue a warning if a feature doesn't have distinct quantiles
-        for feature, n_unique in quantiles.nunique().to_dict().items():
-            if n_unique == 1:
+        if not disable_checks:
+            n_unique = quantiles.nunique()
+            for feature in n_unique[n_unique == 1].index:
                 warnings.warn(
                     message=f"all the values of feature {feature} are identical",
                     category=ConstantWarning,
@@ -149,10 +151,10 @@ class Query:
         # Cannot use `means = X_test.mean().to_dict()` as it may give a different
         # result depending on whether the feature is alone in the dataset or not
         #  Instead, we compute the means for each pandas series independently
-        means = {feature: X_test[feature].mean() for feature in X_test.columns}
+        means = X_test.mean().to_dict()
         taus = cls.taus(n_taus)
         # Need to keep the order of X_test columns
-        free_features = [f for f in X_test.columns if f not in constraints]
+        free_features = X_test.columns.difference(constraints)
 
         if link_variables:
             return cls._multidim_from_taus(

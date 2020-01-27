@@ -6,7 +6,6 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from . import base_explainer
 from .cache_explainer import CacheExplainer
 from .warnings import ConstantWarning
 
@@ -46,6 +45,8 @@ class ImageClassificationExplainer(CacheExplainer):
             `plot_influence_ranking` and `memoize` is `True`, then the intermediate results required by
             `plot_influence` will be reused for `plot_influence_ranking`. Memoization is turned on by
             default because computations are time-consuming for images.
+        disable_checks (bool): If `False` then the data will be checked. Setting this to ``True``
+            may bring a significant speed up if the data has many variables.
         verbose (bool): Whether or not to show progress bars during
             computations. Default is `True`.
     """
@@ -57,6 +58,7 @@ class ImageClassificationExplainer(CacheExplainer):
         tol=1e-4,
         n_jobs=-1,
         memoize=True,
+        disable_checks=True,
         verbose=True,
     ):
         super().__init__(
@@ -66,6 +68,7 @@ class ImageClassificationExplainer(CacheExplainer):
             tol=tol,
             n_jobs=n_jobs,
             memoize=memoize,
+            disable_checks=disable_checks,
             verbose=verbose,
         )
         # `CacheExplainer()` will set `n_taus` to `2+1` as it requires an odd number
@@ -140,7 +143,7 @@ class ImageClassificationExplainer(CacheExplainer):
     def _get_fig_size(self, cell_width, n_rows, n_cols):
         if cell_width is None:
             cell_width = 800 / n_cols
-        im_height, im_width = self.img_shape
+        im_height, im_width = self.img_shape[:2]
         ratio = im_height / im_width
         cell_height = ratio * cell_width
         return n_cols * cell_width, n_rows * cell_height
@@ -169,6 +172,11 @@ class ImageClassificationExplainer(CacheExplainer):
                 - group.query("tau == -1")["influence"].values
             )
             diffs = diffs.to_numpy().reshape(self.img_shape)
+
+            # Handle multi-channel images
+            if len(self.img_shape) == 3:
+                diffs = diffs.max(axis=2)
+
             z_values[label] = diffs
 
         n_plots = len(z_values)
@@ -191,7 +199,7 @@ class ImageClassificationExplainer(CacheExplainer):
         # We want to make sure that 0 is at the center of the scale
         zmin, zmax = min(zmin, -zmax), max(zmax, -zmin)
 
-        im_height, im_width = self.img_shape
+        im_height, im_width = self.img_shape[:2]
         colorbar_width = 30
         colorbar_ticks_width = 27
         colorbar_x = 1.02

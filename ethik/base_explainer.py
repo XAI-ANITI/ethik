@@ -1,7 +1,6 @@
 import collections
 import functools
 import itertools
-import warnings
 
 import colorlover as cl
 import joblib
@@ -256,7 +255,7 @@ class BaseExplainer:
                 at least three columns ("feature", "label" and "target").
             compute_kwargs (dict, optional): An optional dictionary of named parameters
                 for `compute()`.
-            
+
         Returns:
         """
         query = query.copy()  #  We make it clear that the given query is not altered
@@ -425,6 +424,10 @@ class BaseExplainer:
         )
 
     def _one_hot_encode(self, x):
+
+        if x.dtypes.eq('float').all():
+            return x
+
         if isinstance(x, pd.DataFrame):
             return pd.get_dummies(data=x, prefix_sep=self.CAT_COL_SEP)
 
@@ -692,7 +695,7 @@ class BaseExplainer:
                 Default is `False`.
 
         Returns:
-            dict: The keys are the targets and the values are dictionaries with keys: 
+            dict: The keys are the targets and the values are dictionaries with keys:
 
                 * "edges": The edges of the histogram returned by `numpy.histogram()`.
                 * "densities": The densities for every bins of the histogram. It
@@ -702,7 +705,7 @@ class BaseExplainer:
                     otherwise it is the model output `y_pred`.
                 * "kde": `None` if the `kde` argument is `False`. Otherwise, it is
                     a `scipy.stats.gaussian_kde` object.
-                * "average": The average of the stressed distribution, the model input 
+                * "average": The average of the stressed distribution, the model input
                     if `y_pred` is `None` else the model output.
 
         Examples:
@@ -868,8 +871,8 @@ class BaseExplainer:
         """Plot the cumulative weights to stress the distribution of `feature_values`
         for each mean in `targets`. The weights are first decreasingly sorted so
         that we can easily answer the question "how many individuals capture
-        X% of the weight?". 
-        
+        X% of the weight?".
+
         Parameters:
             feature_values (pd.Series): See `BaseExplainer.compute_weights()`.
             targets (list): See `BaseExplainer.compute_weights()`.
@@ -933,7 +936,7 @@ class BaseExplainer:
     ):
         """Plot the stressed distribution of `feature_values` or `y_pred` if specified
         for each mean of `feature_values` in `targets`.
-        
+
         Parameters:
             feature_values (pd.Series): See `BaseExplainer.compute_distributions()`.
             targets (list, optional): See `BaseExplainer.compute_distributions()`.

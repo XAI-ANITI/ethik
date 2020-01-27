@@ -1,8 +1,9 @@
 import os
+import zipfile
 
 import imageio
 import pandas as pd
-import zipfile
+
 
 __all__ = [
     "load_adult",
@@ -33,7 +34,7 @@ def load_wolf_or_husky():
         label = basename.split("/")[1]
         if extension == ".jpg":
             img = imageio.imread(zf.open(file))
-            X.append(img)
+            X.append(pd.np.asarray(img))
             y.append(label)
 
     return X, y
