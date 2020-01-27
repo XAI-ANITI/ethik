@@ -136,7 +136,7 @@ class CacheExplainer(BaseExplainer):
             q=[self.alpha, 1 - self.alpha],
             constraints=constraints,
             link_variables=link_variables,
-            disable_checks=self.disable_checks
+            disable_checks=self.disable_checks,
         )
 
         query_index = pd.MultiIndex.from_arrays([query["group"], query["label"]])

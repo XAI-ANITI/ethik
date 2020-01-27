@@ -123,8 +123,14 @@ class Query:
 
     @classmethod
     def from_taus(
-        cls, X_test, labels, n_taus, q, link_variables=False, constraints=None,
-        disable_checks=True
+        cls,
+        X_test,
+        labels,
+        n_taus,
+        q,
+        link_variables=False,
+        constraints=None,
+        disable_checks=True,
     ):
         if constraints is None:
             constraints = {}

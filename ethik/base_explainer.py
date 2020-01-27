@@ -425,10 +425,9 @@ class BaseExplainer:
 
     def _one_hot_encode(self, x):
 
-        if x.dtypes.eq('float').all():
-            return x
-
         if isinstance(x, pd.DataFrame):
+            if x.dtypes.eq("float").all():
+                return x
             return pd.get_dummies(data=x, prefix_sep=self.CAT_COL_SEP)
 
         return pd.get_dummies(
